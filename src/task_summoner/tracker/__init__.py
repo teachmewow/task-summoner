@@ -1,11 +1,20 @@
-"""Jira tracker integration — acli wrapper, comment reactions, message tracking, ADF models."""
+"""Jira adapter internals — ADF models, message tagging, feedback parsing.
+
+These modules are used by `providers.board.jira.JiraAdapter` to convert between
+Markdown and Atlassian Document Format. Core layers do not import from this
+package directly — they go through `BoardProvider`.
+"""
 
 from .adf import Adf, AdfBlockNode, AdfDocument, AdfParagraph, AdfText
 from .adf_converter import markdown_to_adf
-from .jira_client import JiraClient
-from .message_tracker import MessageTag, find_ts_comment, find_latest_ts_tag, get_replies_after, is_ts_comment
 from .feedback import FeedbackExtractor, ReactionDecision, ReactionResult
-from .reactions import check_reaction
+from .message_tracker import (
+    MessageTag,
+    find_latest_ts_tag,
+    find_ts_comment,
+    get_replies_after,
+    is_ts_comment,
+)
 
 __all__ = [
     "Adf",
@@ -13,14 +22,12 @@ __all__ = [
     "AdfDocument",
     "AdfParagraph",
     "AdfText",
-    "JiraClient",
-    "MessageTag",
     "FeedbackExtractor",
+    "MessageTag",
     "ReactionDecision",
     "ReactionResult",
-    "check_reaction",
-    "find_ts_comment",
     "find_latest_ts_tag",
+    "find_ts_comment",
     "get_replies_after",
     "is_ts_comment",
     "markdown_to_adf",

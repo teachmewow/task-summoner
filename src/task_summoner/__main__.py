@@ -8,7 +8,7 @@ import sys
 
 import structlog
 
-from task_summoner.cli import cmd_run, cmd_status
+from task_summoner.cli import cmd_run, cmd_setup, cmd_status
 
 structlog.configure(
     processors=[
@@ -23,7 +23,7 @@ structlog.configure(
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="task-summoner",
-        description="Autonomous SDLC orchestrator — polls Jira, spawns Claude agents",
+        description="Local-first agentic board management — provider-agnostic SDLC orchestrator",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -31,6 +31,9 @@ def _build_parser() -> argparse.ArgumentParser:
     run_p.add_argument("-c", "--config", default="config.yaml")
     run_p.add_argument("--port", type=int, default=8420, help="Dashboard port")
     run_p.add_argument("--no-ui", action="store_true", help="Disable web dashboard")
+
+    setup_p = sub.add_parser("setup", help="Interactive setup wizard")
+    setup_p.add_argument("-c", "--config", default="config.yaml")
 
     status_p = sub.add_parser("status", help="Show tracked tickets")
     status_p.add_argument("-c", "--config", default="config.yaml")
@@ -45,6 +48,8 @@ def main() -> None:
     match args.command:
         case "run":
             asyncio.run(cmd_run(args.config, port=args.port, with_ui=not args.no_ui))
+        case "setup":
+            cmd_setup(args.config)
         case "status":
             cmd_status(args.config)
         case _:

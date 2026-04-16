@@ -3,21 +3,30 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
-import uvicorn
 import structlog
+import uvicorn
 
 from task_summoner.api.app import create_app
 from task_summoner.config import TaskSummonerConfig
 from task_summoner.core import StateStore
 from task_summoner.events.bus import EventBus
 from task_summoner.runtime import Orchestrator
+from task_summoner.setup_wizard import run_wizard
 
 log = structlog.get_logger()
 
 
 async def cmd_run(config_path: str, port: int = 8420, with_ui: bool = True) -> None:
     """Start the orchestrator polling loop, optionally with the web dashboard."""
+    path = Path(config_path)
+    if not path.exists():
+        log.info("No config found, launching setup wizard", path=config_path)
+        run_wizard(path)
+        if not path.exists():
+            raise SystemExit(0)  # user cancelled
+
     config = TaskSummonerConfig.load(config_path)
 
     errors = config.check_config()
@@ -32,15 +41,28 @@ async def cmd_run(config_path: str, port: int = 8420, with_ui: bool = True) -> N
     tasks: list[asyncio.Task] = [asyncio.create_task(orchestrator.run())]
 
     if with_ui:
-        tasks.append(asyncio.create_task(_start_dashboard(event_bus, orchestrator.store, port)))
+        tasks.append(
+            asyncio.create_task(
+                _start_dashboard(event_bus, orchestrator.store, port, path)
+            )
+        )
 
     await asyncio.gather(*tasks)
 
 
-async def _start_dashboard(event_bus: EventBus, store: StateStore, port: int) -> None:
+def cmd_setup(config_path: str) -> None:
+    """Launch the interactive setup wizard to create or overwrite config.yaml."""
+    run_wizard(Path(config_path))
+
+
+async def _start_dashboard(
+    event_bus: EventBus, store: StateStore, port: int, config_path: Path
+) -> None:
     """Launch the FastAPI dashboard on the given port."""
-    app = create_app(event_bus, store)
-    server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning"))
+    app = create_app(event_bus, store, config_path=config_path)
+    server = uvicorn.Server(
+        uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning")
+    )
     log.info("Dashboard available", url=f"http://localhost:{port}")
     await server.serve()
 
