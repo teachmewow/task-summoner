@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Summoner — Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/styles.css">
+<link rel="stylesheet" href="/static/css/setup.css">
+</head>
+<body>
+
+<header>
+  <div class="header-brand">
+    <h1>Task Summoner <span>Setup</span></h1>
+  </div>
+</header>
+
+<main class="setup-main">
+  <p class="setup-intro">
+    Configure your board + agent providers. The form writes to <code>config.yaml</code>.
+  </p>
+
+  <form id="setup-form">
+    <fieldset>
+      <legend>Board</legend>
+
+      <label for="board-type">Board type</label>
+      <select name="board_type" id="board-type">
+        <option value="linear">Linear</option>
+        <option value="jira">Jira</option>
+      </select>
+
+      <div id="linear-fields">
+        <label>API key</label>
+        <input name="linear_api_key" value="${LINEAR_API_KEY}">
+        <label>Team ID</label>
+        <input name="linear_team_id">
+        <label>Watch label</label>
+        <input name="linear_watch_label" value="task-summoner">
+      </div>
+
+      <div id="jira-fields" class="hidden">
+        <label>Email</label>
+        <input name="jira_email" value="${ATLASSIAN_EMAIL}">
+        <label>Token</label>
+        <input name="jira_token" value="${ATLASSIAN_TOKEN}">
+        <label>Watch label</label>
+        <input name="jira_watch_label" value="task-summoner">
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Agent</legend>
+
+      <label for="agent-type">Agent type</label>
+      <select name="agent_type" id="agent-type">
+        <option value="claude_code">Claude Code</option>
+        <option value="codex">Codex</option>
+      </select>
+
+      <div id="claude-fields">
+        <label>Anthropic API key</label>
+        <input name="claude_api_key" value="${ANTHROPIC_API_KEY}">
+        <label>Plugin mode</label>
+        <select name="claude_plugin_mode">
+          <option value="installed">installed</option>
+          <option value="local">local</option>
+        </select>
+      </div>
+
+      <div id="codex-fields" class="hidden">
+        <label>OpenAI API key</label>
+        <input name="codex_api_key" value="${OPENAI_API_KEY}">
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Workspace</legend>
+      <label>Polling interval (seconds)</label>
+      <input type="number" name="polling_interval_sec" value="10">
+      <label>Workspace root</label>
+      <input name="workspace_root" value="/tmp/task-summoner-workspaces">
+    </fieldset>
+
+    <div class="actions">
+      <button type="button" class="btn-secondary" id="test-btn">Test</button>
+      <button type="submit" class="btn-primary">Save config.yaml</button>
+    </div>
+  </form>
+
+  <div id="message"></div>
+</main>
+
+<script src="/static/js/setup.js"></script>
+</body>
+</html>
