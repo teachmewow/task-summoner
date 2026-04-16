@@ -1,3 +1,17 @@
-from task_summoner.providers.board.protocol import BoardProvider
+from task_summoner.providers.board.factory import BoardProviderFactory
+from task_summoner.providers.board.jira import JiraAdapter
+from task_summoner.providers.board.linear import LinearAdapter
+from task_summoner.providers.board.protocol import (
+    ApprovalDecision,
+    ApprovalResult,
+    BoardProvider,
+)
 
-__all__ = ["BoardProvider"]
+__all__ = [
+    "ApprovalDecision",
+    "ApprovalResult",
+    "BoardProvider",
+    "BoardProviderFactory",
+    "JiraAdapter",
+    "LinearAdapter",
+]
