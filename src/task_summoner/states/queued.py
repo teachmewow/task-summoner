@@ -18,7 +18,9 @@ class QueuedState(BaseState):
     def state(self) -> TicketState:
         return TicketState.QUEUED
 
-    async def handle(self, ctx: TicketContext, ticket: Ticket, svc: StateServices) -> str:
+    async def handle(
+        self, ctx: TicketContext, ticket: Ticket, svc: StateServices
+    ) -> str:
         repo_name, repo_path = self._config.resolve_repo(ticket.labels)
         branch = derive_branch_name(ticket)
 
@@ -26,9 +28,9 @@ class QueuedState(BaseState):
         ctx.branch_name = branch
         ctx.workspace_path = workspace
 
-        await svc.jira.assign(ticket.key)
-        await svc.jira.transition(ticket.key, "In Progress")
-        await svc.jira.add_label(ticket.key, f"branch:{branch}")
+        await svc.board.assign(ticket.key, "@me")
+        await svc.board.transition(ticket.key, "In Progress")
+        await svc.board.add_label(ticket.key, f"branch:{branch}")
 
         log.info("Ticket claimed", ticket=ticket.key, branch=branch, repo=repo_name)
         return "start"

@@ -152,6 +152,34 @@ class TaskSummonerConfig(BaseModel):
             mode = PluginMode.INSTALLED
         return PluginResolver(mode=mode, plugin_path=self.plugin_path)
 
+    def build_provider_config(self):
+        """Legacy bridge: build a ProviderConfig from this (Jira-only) config.
+
+        Until the new provider-agnostic config schema lands in M5, this wires
+        the orchestrator to Jira + Claude Code using the existing fields.
+        """
+        from task_summoner.providers.config import (
+            AgentProviderType,
+            BoardProviderType,
+            ClaudeCodeConfig,
+            JiraConfig,
+            ProviderConfig,
+        )
+        return ProviderConfig(
+            board=BoardProviderType.JIRA,
+            board_config=JiraConfig(
+                email=os.environ.get("ATLASSIAN_EMAIL", ""),
+                token=os.environ.get("ATLASSIAN_TOKEN", ""),
+                watch_label=self.jira_label,
+            ),
+            agent=AgentProviderType.CLAUDE_CODE,
+            agent_config=ClaudeCodeConfig(
+                api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+                plugin_mode=self.plugin_mode,
+                plugin_path=self.plugin_path or None,
+            ),
+        )
+
     def check_config(self) -> list[str]:
         """Return list of validation errors (empty = valid)."""
         errors = []

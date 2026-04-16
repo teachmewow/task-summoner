@@ -147,8 +147,11 @@ class JiraAdapter:
     async def post_tagged_comment(
         self, ticket_id: str, tag: str, body: str
     ) -> str:
+        """Post a comment with an embedded tag. Returns the tag itself, which is the
+        robust approval-tracking identifier (native IDs don't survive state recovery)."""
         tagged_body = f"{body}\n\n{tag}"
-        return await self.post_comment(ticket_id, tagged_body)
+        await self.post_comment(ticket_id, tagged_body)
+        return tag
 
     async def check_approval(
         self, ticket_id: str, comment_id: str
