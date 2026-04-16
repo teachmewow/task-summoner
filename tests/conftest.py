@@ -10,6 +10,13 @@ import pytest
 from task_summoner.config import AgentConfig, RetryConfig, TaskSummonerConfig
 from task_summoner.core import StateStore
 from task_summoner.models import Ticket, TicketContext, TicketState
+from task_summoner.providers.config import (
+    AgentProviderType,
+    BoardProviderType,
+    ClaudeCodeConfig,
+    JiraConfig,
+    ProviderConfig,
+)
 from task_summoner.states.base import StateServices
 
 _PLUGIN_PATH = str(
@@ -21,18 +28,33 @@ _PLUGIN_PATH = str(
 )
 
 
+def _test_provider_config() -> ProviderConfig:
+    return ProviderConfig(
+        board=BoardProviderType.JIRA,
+        board_config=JiraConfig(
+            email="test@example.com",
+            token="test-token",
+            watch_label="task-summoner",
+        ),
+        agent=AgentProviderType.CLAUDE_CODE,
+        agent_config=ClaudeCodeConfig(
+            api_key="test-key",
+            plugin_mode="local",
+            plugin_path=_PLUGIN_PATH,
+        ),
+    )
+
+
 @pytest.fixture
 def config(tmp_path: Path) -> TaskSummonerConfig:
     return TaskSummonerConfig(
-        poll_interval_sec=5,
+        polling_interval_sec=5,
         artifacts_dir=str(tmp_path / "artifacts"),
         approval_timeout_hours=1,
-        jira_label="task-summoner",
-        jira_excluded_statuses=["Done", "Closed"],
+        providers=_test_provider_config(),
         default_repo="test-repo",
         repos={"test-repo": str(tmp_path / "repo")},
         workspace_root=str(tmp_path / "workspaces"),
-        plugin_path=_PLUGIN_PATH,
         doc_checker=AgentConfig(
             model="haiku", max_turns=5, max_budget_usd=1.0, tools=["Read"]
         ),
@@ -67,7 +89,7 @@ def sample_context() -> TicketContext:
 
 @pytest.fixture
 def mock_services() -> StateServices:
-    """Mock StateServices with board + agent providers (new M4 shape)."""
+    """Mock StateServices with board + agent providers (M4 shape)."""
     return StateServices(
         board=AsyncMock(),
         workspace=AsyncMock(),

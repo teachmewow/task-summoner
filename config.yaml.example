@@ -1,72 +1,86 @@
 # =============================================================================
 # Task Summoner — Configuration
 # =============================================================================
-# Copy this file to config.yaml and adjust paths to your environment:
+# Copy this file to config.yaml and adjust to your environment:
 #   cp config.yaml.example config.yaml
 #
+# Or run the interactive wizard:
+#   task-summoner setup
+#
 # All paths support ~ (home directory expansion).
+# Use ${VAR_NAME} to reference environment variables (read from .env or shell).
 # =============================================================================
 
-task_summoner:
-  poll_interval_sec: 10
-  artifacts_dir: "./artifacts"
-  approval_timeout_hours: 24
+providers:
+  board:
+    type: linear          # linear | jira
 
-  jira:
-    # Tickets with this label will be picked up by the dispatcher
-    label: "task-summoner"
-    excluded_statuses:
-      - Done
-      - Closed
+    # If type = linear, fill this block:
+    linear:
+      api_key: ${LINEAR_API_KEY}
+      team_id: "your-team-id-uuid"
+      watch_label: task-summoner
 
-  # Default repo used when a ticket has no 'repo:<name>' label
-  default_repo: "your-repo"
+    # If type = jira, fill this block instead:
+    # jira:
+    #   email: ${ATLASSIAN_EMAIL}
+    #   token: ${ATLASSIAN_TOKEN}
+    #   watch_label: task-summoner
 
-  # Map of repo names to local paths.
-  # The dispatcher creates git worktrees in these repos.
-  # You must have these repos cloned locally.
-  repos:
-    your-repo: "~/path/to/your-repo"
-    # another-repo: "~/path/to/another-repo"
+  agent:
+    type: claude_code     # claude_code | codex
 
-  # Plugin loading mode for tmw-workflows.
-  # This plugin provides the skills used by agents (ticket-plan, ticket-implement, etc.)
-  #
-  # "installed" (default) — plugin is already installed in your Claude Code setup.
-  #   No extra config needed. Best for developers who use the plugin daily.
-  #
-  # "local" — plugin is loaded from a local directory path.
-  #   Requires plugin_path to be set. Best for evaluators or CI environments
-  #   that don't have the plugin installed globally.
-  #
-  plugin_mode: "installed"
-  # plugin_mode: "local"
-  # plugin_path: "~/path/to/tmw-claude-code/plugins/tmw-workflows"
+    claude_code:
+      api_key: ${ANTHROPIC_API_KEY}
+      # plugin_mode: installed — plugin comes from your Claude Code setup.
+      # plugin_mode: local    — load from plugin_path (for CI or evaluators).
+      plugin_mode: installed
+      # plugin_path: ~/path/to/tmw-claude-code/plugins/tmw-workflows
 
-  workspace:
-    # Directory where git worktrees are created (one per ticket).
-    # This can be /tmp or any writable directory.
-    root: "/tmp/task-summoner-workspaces"
+    # If type = codex, fill this block instead:
+    # codex:
+    #   api_key: ${OPENAI_API_KEY}
 
-  # Agent profiles — different LLM configs for different tasks
-  agents:
-    doc_checker:
-      model: "sonnet"
-      max_turns: 20
-      max_budget_usd: 5.0
-      tools: ["Read", "Glob", "Grep", "Bash"]
+# -----------------------------------------------------------------------------
+# Repos that task-summoner can operate on. The dispatcher creates git worktrees
+# in these repos; they must be cloned locally.
+# -----------------------------------------------------------------------------
+repos:
+  your-repo: ~/code/your-repo
+  # another-repo: ~/code/another-repo
 
-    standard:
-      model: "sonnet"
-      max_turns: 200
-      max_budget_usd: 50.0
+# Fallback when a ticket has no `repo:<name>` label.
+default_repo: your-repo
 
-    heavy:
-      model: "opus"
-      max_turns: 500
-      max_budget_usd: 50.0
+# -----------------------------------------------------------------------------
+# Agent profiles — mapped to lifecycle phases by the state handlers.
+# -----------------------------------------------------------------------------
+agent_profiles:
+  doc_checker:
+    model: haiku
+    max_turns: 20
+    max_budget_usd: 5
+    tools: [Read, Glob, Grep, Bash]
 
-  retry:
-    max_retries: 3
-    base_delay_sec: 10
-    max_backoff_sec: 300
+  standard:
+    model: sonnet
+    max_turns: 200
+    max_budget_usd: 50
+
+  heavy:
+    model: opus
+    max_turns: 500
+    max_budget_usd: 50
+
+# -----------------------------------------------------------------------------
+# Polling & workspace
+# -----------------------------------------------------------------------------
+polling_interval_sec: 10
+workspace_root: /tmp/task-summoner-workspaces
+artifacts_dir: ./artifacts
+approval_timeout_hours: 24
+
+retry:
+  max_retries: 3
+  base_delay_sec: 10
+  max_backoff_sec: 300

@@ -9,16 +9,24 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from task_summoner.events.bus import EventBus
+from task_summoner.api.setup import create_setup_router
 from task_summoner.core import StateStore
+from task_summoner.events.bus import EventBus
 
 DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "dashboard_ui" / "static"
 
 
-def create_app(event_bus: EventBus, store: StateStore) -> FastAPI:
+def create_app(
+    event_bus: EventBus,
+    store: StateStore,
+    config_path: Path | None = None,
+) -> FastAPI:
     """Create FastAPI app wired to the shared EventBus and StateStore."""
 
     app = FastAPI(title="Task Summoner Monitor", version="0.1.0")
+    app.include_router(
+        create_setup_router(config_path or Path("config.yaml"))
+    )
 
     # Serve all static files (CSS, JS, assets)
     app.mount("/static", StaticFiles(directory=str(DASHBOARD_DIR)), name="static_files")
