@@ -7,12 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from board_dispatcher.config import BoardDispatcherConfig
-from board_dispatcher.core import StateStore
-from board_dispatcher.events.bus import EventBus
-from board_dispatcher.models import Ticket, TicketContext, TicketState
-from board_dispatcher.runtime import JiraSyncService, TaskDispatcher
-from board_dispatcher.tracker import JiraClient
+from task_summoner.config import TaskSummonerConfig
+from task_summoner.core import StateStore
+from task_summoner.events.bus import EventBus
+from task_summoner.models import Ticket, TicketContext, TicketState
+from task_summoner.runtime import JiraSyncService, TaskDispatcher
+from task_summoner.tracker import JiraClient
 
 
 @pytest.fixture
@@ -21,20 +21,20 @@ def bus() -> EventBus:
 
 
 @pytest.fixture
-def jira(config: BoardDispatcherConfig) -> JiraClient:
+def jira(config: TaskSummonerConfig) -> JiraClient:
     return JiraClient(config)
 
 
 @pytest.fixture
-def store(config: BoardDispatcherConfig) -> StateStore:
+def store(config: TaskSummonerConfig) -> StateStore:
     return StateStore(config.artifacts_dir)
 
 
 class TestJiraSyncService:
     async def test_new_ticket_queued(self, jira, store, bus):
         sync = JiraSyncService(jira=jira, store=store, bus=bus)
-        ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["claudio"])
-        full_ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["claudio"])
+        ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["task-summoner"])
+        full_ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["task-summoner"])
 
         with patch.object(jira, "search_eligible", new_callable=AsyncMock, return_value=[ticket]):
             with patch.object(jira, "fetch_ticket", new_callable=AsyncMock, return_value=full_ticket):
@@ -46,10 +46,10 @@ class TestJiraSyncService:
 
     async def test_recovers_from_labels(self, jira, store, bus):
         sync = JiraSyncService(jira=jira, store=store, bus=bus)
-        ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["claudio"])
+        ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["task-summoner"])
         full_ticket = Ticket(
             key="LLMOPS-42", summary="Test",
-            labels=["claudio", "claudio:planning", "claudio:waiting_plan_review"],
+            labels=["task-summoner", "ts:planning", "ts:waiting_plan_review"],
         )
 
         with patch.object(jira, "search_eligible", new_callable=AsyncMock, return_value=[ticket]):
@@ -62,7 +62,7 @@ class TestJiraSyncService:
     async def test_skips_already_tracked(self, jira, store, bus):
         store.save(TicketContext(ticket_key="LLMOPS-42", state=TicketState.IMPLEMENTING))
         sync = JiraSyncService(jira=jira, store=store, bus=bus)
-        ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["claudio"])
+        ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["task-summoner"])
 
         with patch.object(jira, "search_eligible", new_callable=AsyncMock, return_value=[ticket]):
             with patch.object(jira, "fetch_ticket", new_callable=AsyncMock) as mock_fetch:
@@ -74,10 +74,10 @@ class TestJiraSyncService:
 
     async def test_skips_terminal_without_local(self, jira, store, bus):
         sync = JiraSyncService(jira=jira, store=store, bus=bus)
-        ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["claudio"])
+        ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["task-summoner"])
         full_ticket = Ticket(
             key="LLMOPS-42", summary="Test",
-            labels=["claudio", "claudio:done"],
+            labels=["task-summoner", "ts:done"],
         )
 
         with patch.object(jira, "search_eligible", new_callable=AsyncMock, return_value=[ticket]):
@@ -98,7 +98,7 @@ class TestJiraSyncService:
 
     async def test_fetch_failure_falls_back_to_search_ticket(self, jira, store, bus):
         sync = JiraSyncService(jira=jira, store=store, bus=bus)
-        ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["claudio"])
+        ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["task-summoner"])
 
         with patch.object(jira, "search_eligible", new_callable=AsyncMock, return_value=[ticket]):
             with patch.object(jira, "fetch_ticket", new_callable=AsyncMock, side_effect=RuntimeError("fail")):
@@ -112,7 +112,7 @@ class TestJiraSyncService:
 class TestTaskDispatcher:
     @pytest.fixture
     def dispatcher(self, config, store, jira, bus):
-        from board_dispatcher.states import build_state_registry, StateServices
+        from task_summoner.states import build_state_registry, StateServices
 
         services = StateServices(
             jira=jira,
@@ -154,7 +154,7 @@ class TestTaskDispatcher:
         task = asyncio.create_task(_hang())
         dispatcher._running["LLMOPS-42"] = task
 
-        ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["claudio"])
+        ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["task-summoner"])
         with patch.object(jira, "fetch_ticket", new_callable=AsyncMock, return_value=ticket):
             with patch.object(dispatcher, "_dispatch_one", new_callable=AsyncMock) as mock:
                 await dispatcher.dispatch_all([ctx])

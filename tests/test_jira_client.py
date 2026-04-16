@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from board_dispatcher.config import BoardDispatcherConfig
-from board_dispatcher.tracker import JiraClient
-from board_dispatcher.tracker.adf_converter import extract_text_from_adf
+from task_summoner.config import TaskSummonerConfig
+from task_summoner.tracker import JiraClient
+from task_summoner.tracker.adf_converter import extract_text_from_adf
 
 
 class TestExtractTextFromAdf:
@@ -59,12 +59,12 @@ class TestExtractTextFromAdf:
 
 class TestJiraClient:
     @pytest.fixture
-    def client(self, config: BoardDispatcherConfig) -> JiraClient:
+    def client(self, config: TaskSummonerConfig) -> JiraClient:
         return JiraClient(config)
 
     @pytest.fixture
     def mock_subprocess(self):
-        with patch("board_dispatcher.tracker.jira_client.asyncio.create_subprocess_exec") as mock:
+        with patch("task_summoner.tracker.jira_client.asyncio.create_subprocess_exec") as mock:
             proc = AsyncMock()
             proc.returncode = 0
             proc.communicate = AsyncMock()
@@ -78,7 +78,7 @@ class TestJiraClient:
                 "fields": {
                     "summary": "Test ticket",
                     "status": {"name": "To Do"},
-                    "labels": [{"name": "claudio"}],
+                    "labels": [{"name": "task-summoner"}],
                 },
             }
         ])
@@ -141,7 +141,7 @@ class TestJiraClient:
             await asyncio.sleep(10)
             return b"", b""
 
-        with patch("board_dispatcher.tracker.jira_client.asyncio.create_subprocess_exec") as mock:
+        with patch("task_summoner.tracker.jira_client.asyncio.create_subprocess_exec") as mock:
             proc = AsyncMock()
             proc.returncode = 0
             proc.communicate = slow_communicate

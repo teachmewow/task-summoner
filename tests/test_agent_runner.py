@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 import pytest
 
-from board_dispatcher.agents.options import AgentOptionsFactory
-from board_dispatcher.agents.plugin_resolver import PluginMode, PluginResolver
-from board_dispatcher.agents.runner import AgentRunner
-from board_dispatcher.config import AgentConfig, BoardDispatcherConfig
+from task_summoner.agents.options import AgentOptionsFactory
+from task_summoner.agents.plugin_resolver import PluginMode, PluginResolver
+from task_summoner.agents.runner import AgentRunner
+from task_summoner.config import AgentConfig, TaskSummonerConfig
 
 
 def _make_assistant_msg(text: str):
@@ -45,7 +45,7 @@ class TestAgentRunner:
             yield _make_assistant_msg("Hello from agent")
             yield _make_result_msg(cost=0.5, turns=3)
 
-        with patch("board_dispatcher.agents.runner.query", side_effect=fake_query):
+        with patch("task_summoner.agents.runner.query", side_effect=fake_query):
             result = await runner.run(
                 prompt="test prompt",
                 system_prompt="test system",
@@ -64,7 +64,7 @@ class TestAgentRunner:
             yield _make_assistant_msg("Part 2")
             yield _make_result_msg(cost=1.0, turns=5)
 
-        with patch("board_dispatcher.agents.runner.query", side_effect=fake_query):
+        with patch("task_summoner.agents.runner.query", side_effect=fake_query):
             result = await runner.run(
                 prompt="test", system_prompt="test",
                 cwd="/tmp", agent_config=agent_config,
@@ -79,7 +79,7 @@ class TestAgentRunner:
             raise RuntimeError("SDK connection failed")
             yield  # noqa: unreachable
 
-        with patch("board_dispatcher.agents.runner.query", side_effect=failing_query):
+        with patch("task_summoner.agents.runner.query", side_effect=failing_query):
             result = await runner.run(
                 prompt="test", system_prompt="test",
                 cwd="/tmp", agent_config=agent_config,
@@ -92,7 +92,7 @@ class TestAgentRunner:
         async def error_query(**kwargs):
             yield _make_result_msg(cost=0.1, turns=1, is_error=True, result="Failed")
 
-        with patch("board_dispatcher.agents.runner.query", side_effect=error_query):
+        with patch("task_summoner.agents.runner.query", side_effect=error_query):
             result = await runner.run(
                 prompt="test", system_prompt="test",
                 cwd="/tmp", agent_config=agent_config,

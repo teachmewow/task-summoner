@@ -2,7 +2,7 @@
 
 import json
 
-from board_dispatcher.tracker.adf import (
+from task_summoner.tracker.adf import (
     Adf,
     AdfBulletList,
     AdfCodeBlock,
@@ -14,8 +14,8 @@ from board_dispatcher.tracker.adf import (
     AdfRule,
     AdfText,
 )
-from board_dispatcher.tracker.adf_converter import markdown_to_adf, parse_inline
-from board_dispatcher.tracker.message_tracker import MessageTag
+from task_summoner.tracker.adf_converter import markdown_to_adf, parse_inline
+from task_summoner.tracker.message_tracker import MessageTag
 
 
 # ═══════ Factory tests ═══════
@@ -236,7 +236,7 @@ class TestMessageTagAdf:
         data = json.loads(result)
         assert data["version"] == 1
         assert len(data["content"]) == 2  # paragraph + tag
-        assert "[bd:T-1:test:abc12345]" in data["content"][-1]["content"][0]["text"]
+        assert "[ts:T-1:test:abc12345]" in data["content"][-1]["content"][0]["text"]
 
     def test_embed_nodes_in_adf(self):
         tag = MessageTag(ticket_key="T-1", state="test", short_id="abc12345")
@@ -247,5 +247,5 @@ class TestMessageTagAdf:
         assert "heading" in types
         assert "bulletList" in types
         # Last is bd tag, second-to-last is approval
-        assert "[bd:T-1:test:abc12345]" in data["content"][-1]["content"][0]["text"]
+        assert "[ts:T-1:test:abc12345]" in data["content"][-1]["content"][0]["text"]
         assert "approval" in data["content"][-2]["content"][0]["text"]

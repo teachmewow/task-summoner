@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from board_dispatcher.models import AgentResult, Ticket, TicketContext, TicketState
+from task_summoner.models import AgentResult, Ticket, TicketContext, TicketState
 
 
 class TestTicket:
@@ -39,7 +39,7 @@ class TestTicket:
                 "summary": "Fix the thing",
                 "description": "Details here",
                 "status": {"name": "To Do"},
-                "labels": [{"name": "claudio"}, {"name": "urgent"}],
+                "labels": [{"name": "task-summoner"}, {"name": "urgent"}],
                 "assignee": {"displayName": "Matheus"},
             },
         }
@@ -48,7 +48,7 @@ class TestTicket:
         assert t.summary == "Fix the thing"
         assert t.description == "Details here"
         assert t.status == "To Do"
-        assert t.labels == ["claudio", "urgent"]
+        assert t.labels == ["task-summoner", "urgent"]
         assert t.assignee == "Matheus"
 
     def test_from_acli_json_minimal(self):

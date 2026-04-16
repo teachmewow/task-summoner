@@ -7,8 +7,8 @@ import asyncio
 import pytest
 from pydantic import ValidationError
 
-from board_dispatcher.events.bus import EventBus
-from board_dispatcher.events.models import (
+from task_summoner.events.bus import EventBus
+from task_summoner.events.models import (
     AgentCompletedEvent,
     AgentMessageEvent,
     AgentStartedEvent,

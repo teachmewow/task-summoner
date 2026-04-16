@@ -8,23 +8,23 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from board_dispatcher.models import TicketContext, TicketState
+from task_summoner.models import TicketContext, TicketState
 
 
 class TestCmdStatus:
     def test_empty(self, config, capsys):
-        from board_dispatcher.cli import cmd_status
-        from board_dispatcher.core import StateStore
+        from task_summoner.cli import cmd_status
+        from task_summoner.core import StateStore
 
-        with patch("board_dispatcher.cli.BoardDispatcherConfig.load", return_value=config):
+        with patch("task_summoner.cli.TaskSummonerConfig.load", return_value=config):
             cmd_status("config.yaml")
 
         captured = capsys.readouterr()
         assert "No tracked tickets" in captured.out
 
     def test_with_tickets(self, config, capsys):
-        from board_dispatcher.cli import cmd_status
-        from board_dispatcher.core import StateStore
+        from task_summoner.cli import cmd_status
+        from task_summoner.core import StateStore
 
         store = StateStore(config.artifacts_dir)
         store.save(TicketContext(ticket_key="LLMOPS-1", state=TicketState.PLANNING))
@@ -34,7 +34,7 @@ class TestCmdStatus:
             error="SDK error", mr_url="https://gitlab.com/-/merge_requests/1",
         ))
 
-        with patch("board_dispatcher.cli.BoardDispatcherConfig.load", return_value=config):
+        with patch("task_summoner.cli.TaskSummonerConfig.load", return_value=config):
             cmd_status("config.yaml")
 
         captured = capsys.readouterr()
@@ -48,12 +48,12 @@ class TestCmdStatus:
 
 class TestCmdRun:
     async def test_validation_failure_exits(self, config):
-        from board_dispatcher.cli import cmd_run
+        from task_summoner.cli import cmd_run
 
         # Remove API key to trigger validation failure
         old = os.environ.pop("ANTHROPIC_API_KEY", None)
         try:
-            with patch("board_dispatcher.cli.BoardDispatcherConfig.load", return_value=config):
+            with patch("task_summoner.cli.TaskSummonerConfig.load", return_value=config):
                 with pytest.raises(SystemExit):
                     await cmd_run("config.yaml")
         finally:
@@ -63,16 +63,16 @@ class TestCmdRun:
 
 class TestMainEntryPoint:
     def test_no_args_prints_help(self, capsys):
-        from board_dispatcher.__main__ import main
+        from task_summoner.__main__ import main
 
         with pytest.raises(SystemExit):
             main()
 
     def test_status_command(self, config, capsys):
-        from board_dispatcher.__main__ import main
+        from task_summoner.__main__ import main
 
-        with patch("sys.argv", ["board-dispatcher", "status", "-c", "config.yaml"]):
-            with patch("board_dispatcher.cli.BoardDispatcherConfig.load", return_value=config):
+        with patch("sys.argv", ["task-summoner", "status", "-c", "config.yaml"]):
+            with patch("task_summoner.cli.TaskSummonerConfig.load", return_value=config):
                 main()
 
         captured = capsys.readouterr()

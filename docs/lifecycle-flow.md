@@ -1,10 +1,10 @@
-# Board Dispatcher — Lifecycle Flow
+# Task Summoner — Lifecycle Flow
 
 ## State Machine
 
 ```mermaid
 stateDiagram-v2
-    [*] --> QUEUED: Ticket found with<br/>label 'claudio'
+    [*] --> QUEUED: Ticket found with<br/>label 'task-summoner'
 
     QUEUED --> CHECKING_DOC: Create worktree<br/>Claim ticket
 
@@ -52,7 +52,7 @@ flowchart TB
         PLUGIN[("AIOps Plugin")]
     end
 
-    subgraph BD["Board Dispatcher"]
+    subgraph BD["Task Summoner"]
         ORCH["Orchestrator<br/><i>Polling Loop</i>"]
         SM["State Machine<br/><i>Transition Table</i>"]
         CORE["Core<br/><i>Models / Config / StateStore</i>"]
@@ -76,7 +76,7 @@ flowchart TB
         end
 
         subgraph Tracker["Jira Tracker"]
-            JC["JiraClient<br/><i>acli wrapper</i>"]
+            JC["BoardProvider<br/><i>acli wrapper</i>"]
             RC["ReactionChecker<br/><i>emoji polling</i>"]
         end
 
@@ -94,7 +94,7 @@ flowchart TB
 
     DEV["👤 Developer"]
 
-    DEV -- "Tags ticket 'claudio'" --> JIRA
+    DEV -- "Tags ticket 'task-summoner'" --> JIRA
     DEV -- "✅ / 🔄 reactions" --> JIRA
     DEV -- "Inline comments" --> CONF
     DEV -- "MR thread comments" --> GL

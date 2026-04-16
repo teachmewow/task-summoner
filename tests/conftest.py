@@ -1,4 +1,4 @@
-"""Shared fixtures for board-dispatcher tests."""
+"""Shared fixtures for task-summoner tests."""
 
 from __future__ import annotations
 
@@ -7,24 +7,24 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from board_dispatcher.config import AgentConfig, BoardDispatcherConfig, RetryConfig
+from task_summoner.config import AgentConfig, TaskSummonerConfig, RetryConfig
 
 # Resolve the real plugin path for tests that need skill prompts
 _PLUGIN_PATH = str(
     Path(__file__).resolve().parents[1] / ".." / "aiops-claude-code" / "plugins" / "aiops-workflows"
 )
-from board_dispatcher.models import Ticket, TicketContext, TicketState
-from board_dispatcher.core import StateStore
-from board_dispatcher.states.base import StateServices
+from task_summoner.models import Ticket, TicketContext, TicketState
+from task_summoner.core import StateStore
+from task_summoner.states.base import StateServices
 
 
 @pytest.fixture
-def config(tmp_path: Path) -> BoardDispatcherConfig:
-    return BoardDispatcherConfig(
+def config(tmp_path: Path) -> TaskSummonerConfig:
+    return TaskSummonerConfig(
         poll_interval_sec=5,
         artifacts_dir=str(tmp_path / "artifacts"),
         approval_timeout_hours=1,
-        jira_label="claudio",
+        jira_label="task-summoner",
         jira_excluded_statuses=["Done", "Closed"],
         default_repo="test-repo",
         repos={"test-repo": str(tmp_path / "repo")},
@@ -38,7 +38,7 @@ def config(tmp_path: Path) -> BoardDispatcherConfig:
 
 
 @pytest.fixture
-def store(config: BoardDispatcherConfig) -> StateStore:
+def store(config: TaskSummonerConfig) -> StateStore:
     return StateStore(config.artifacts_dir)
 
 
@@ -49,7 +49,7 @@ def sample_ticket() -> Ticket:
         summary="Add retry logic to API client",
         description="Implement exponential backoff for HTTP requests",
         status="To Do",
-        labels=["claudio"],
+        labels=["task-summoner"],
         assignee="matheus",
         acceptance_criteria="All HTTP calls should retry on 5xx errors",
     )

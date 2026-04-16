@@ -14,8 +14,8 @@ workspace {
         # --- Monitoring Dashboard (separate system so it shows in context view) ---
         monitoringUI = softwareSystem "Monitoring Dashboard" "Real-time web UI — ticket states, agent logs, tool calls, cost tracking" "Dashboard"
 
-        # --- Board Dispatcher ---
-        boardDispatcher = softwareSystem "Board Dispatcher" "Autonomous SDLC orchestrator — polls Jira, spawns Claude agents through a deterministic state machine" {
+        # --- Task Summoner ---
+        boardDispatcher = softwareSystem "Task Summoner" "Autonomous SDLC orchestrator — polls Jira, spawns Claude agents through a deterministic state machine" {
 
             orchestrator = container "Orchestrator" "Polling loop — discovers tickets, dispatches state handlers, manages agent task lifecycle" "Python, asyncio"
 
@@ -48,7 +48,7 @@ workspace {
             }
 
             trackerPkg = container "Jira Tracker" "acli CLI wrapper + reaction checker" "Python" {
-                jiraClient = component "JiraClient" "search, view, comment, transition, label" "asyncio"
+                jiraClient = component "BoardProvider" "search, view, comment, transition, label" "asyncio"
                 reactionChecker = component "ReactionChecker" "Polls emoji reactions via REST" "Python"
                 adfHelper = component "ADF Helper" "ADF → plain text converter" "Python"
             }
@@ -63,7 +63,7 @@ workspace {
         }
 
         # --- System Context relationships ---
-        developer -> jiraCloud "Tags tickets 'claudio', reacts ✅/🔄"
+        developer -> jiraCloud "Tags tickets 'task-summoner', reacts ✅/🔄"
         developer -> confluence "Reviews docs, inline comments"
         developer -> gitlab "Reviews MRs, thread comments"
         developer -> monitoringUI "Monitors agent progress" "HTTPS"
@@ -101,12 +101,12 @@ workspace {
     }
 
     views {
-        systemContext boardDispatcher "SystemContext" "Board Dispatcher and its external dependencies" {
+        systemContext boardDispatcher "SystemContext" "Task Summoner and its external dependencies" {
             include *
             autoLayout tb
         }
 
-        container boardDispatcher "Containers" "Internal architecture of Board Dispatcher" {
+        container boardDispatcher "Containers" "Internal architecture of Task Summoner" {
             include *
             autoLayout tb
         }

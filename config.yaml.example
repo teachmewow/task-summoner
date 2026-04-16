@@ -1,5 +1,5 @@
 # =============================================================================
-# Board Dispatcher — Configuration
+# Task Summoner — Configuration
 # =============================================================================
 # Copy this file to config.yaml and adjust paths to your environment:
 #   cp config.yaml.example config.yaml
@@ -7,14 +7,14 @@
 # All paths support ~ (home directory expansion).
 # =============================================================================
 
-board_dispatcher:
+task_summoner:
   poll_interval_sec: 10
   artifacts_dir: "./artifacts"
   approval_timeout_hours: 24
 
   jira:
     # Tickets with this label will be picked up by the dispatcher
-    label: "claudio"
+    label: "task-summoner"
     excluded_statuses:
       - Done
       - Closed
@@ -29,7 +29,7 @@ board_dispatcher:
     your-repo: "~/path/to/your-repo"
     # another-repo: "~/path/to/another-repo"
 
-  # Plugin loading mode for aiops-workflows.
+  # Plugin loading mode for tmw-workflows.
   # This plugin provides the skills used by agents (ticket-plan, ticket-implement, etc.)
   #
   # "installed" (default) — plugin is already installed in your Claude Code setup.
@@ -41,12 +41,12 @@ board_dispatcher:
   #
   plugin_mode: "installed"
   # plugin_mode: "local"
-  # plugin_path: "~/path/to/aiops-claude-code/plugins/aiops-workflows"
+  # plugin_path: "~/path/to/tmw-claude-code/plugins/tmw-workflows"
 
   workspace:
     # Directory where git worktrees are created (one per ticket).
     # This can be /tmp or any writable directory.
-    root: "/tmp/board-dispatcher-workspaces"
+    root: "/tmp/task-summoner-workspaces"
 
   # Agent profiles — different LLM configs for different tasks
   agents:
