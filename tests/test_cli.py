@@ -1,0 +1,79 @@
+"""Tests for CLI entry point and commands."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from board_dispatcher.models import TicketContext, TicketState
+
+
+class TestCmdStatus:
+    def test_empty(self, config, capsys):
+        from board_dispatcher.cli import cmd_status
+        from board_dispatcher.core import StateStore
+
+        with patch("board_dispatcher.cli.BoardDispatcherConfig.load", return_value=config):
+            cmd_status("config.yaml")
+
+        captured = capsys.readouterr()
+        assert "No tracked tickets" in captured.out
+
+    def test_with_tickets(self, config, capsys):
+        from board_dispatcher.cli import cmd_status
+        from board_dispatcher.core import StateStore
+
+        store = StateStore(config.artifacts_dir)
+        store.save(TicketContext(ticket_key="LLMOPS-1", state=TicketState.PLANNING))
+        store.save(TicketContext(ticket_key="LLMOPS-2", state=TicketState.DONE, total_cost_usd=5.0))
+        store.save(TicketContext(
+            ticket_key="LLMOPS-3", state=TicketState.FAILED,
+            error="SDK error", mr_url="https://gitlab.com/-/merge_requests/1",
+        ))
+
+        with patch("board_dispatcher.cli.BoardDispatcherConfig.load", return_value=config):
+            cmd_status("config.yaml")
+
+        captured = capsys.readouterr()
+        assert "LLMOPS-1" in captured.out
+        assert "PLANNING" in captured.out
+        assert "LLMOPS-2" in captured.out
+        assert "$" in captured.out
+        assert "SDK error" in captured.out
+        assert "merge_requests" in captured.out
+
+
+class TestCmdRun:
+    async def test_validation_failure_exits(self, config):
+        from board_dispatcher.cli import cmd_run
+
+        # Remove API key to trigger validation failure
+        old = os.environ.pop("ANTHROPIC_API_KEY", None)
+        try:
+            with patch("board_dispatcher.cli.BoardDispatcherConfig.load", return_value=config):
+                with pytest.raises(SystemExit):
+                    await cmd_run("config.yaml")
+        finally:
+            if old:
+                os.environ["ANTHROPIC_API_KEY"] = old
+
+
+class TestMainEntryPoint:
+    def test_no_args_prints_help(self, capsys):
+        from board_dispatcher.__main__ import main
+
+        with pytest.raises(SystemExit):
+            main()
+
+    def test_status_command(self, config, capsys):
+        from board_dispatcher.__main__ import main
+
+        with patch("sys.argv", ["board-dispatcher", "status", "-c", "config.yaml"]):
+            with patch("board_dispatcher.cli.BoardDispatcherConfig.load", return_value=config):
+                main()
+
+        captured = capsys.readouterr()
+        assert "No tracked tickets" in captured.out

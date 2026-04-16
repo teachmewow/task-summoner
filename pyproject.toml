@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "board-dispatcher"
+version = "0.1.0"
+description = "Autonomous SDLC orchestrator — polls Jira, spawns Claude agents to plan and implement tickets"
+requires-python = ">=3.11"
+dependencies = [
+    "claude-agent-sdk>=0.1.50",
+    "fastapi>=0.100",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "structlog>=24.0",
+    "uvicorn>=0.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "pydantic>=2.0",
+]
+
+[project.scripts]
+board-dispatcher = "board_dispatcher.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["board_dispatcher"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 89

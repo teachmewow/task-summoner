@@ -1,0 +1,13 @@
+venv/
+.env
+config.yaml
+artifacts/
+__pycache__/
+*.pyc
+*.egg-info/
+.eggs/
+build/
+dist/
+*.tmp
+.coverage
+.pytest_cache/.DS_Store

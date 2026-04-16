@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Summoner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-brand">
+    <img src="/static/assets/hcp-logo.jpeg" alt="HCP">
+    <h1>Board Dispatcher <span>Monitor</span></h1>
+  </div>
+  <div class="header-status">
+    <div class="header-stats">
+      <div class="header-stat">tickets <span class="val" id="statTickets">0</span></div>
+      <div class="header-stat">active <span class="val" id="statActive">0</span></div>
+      <div class="header-stat">cost <span class="val" id="statCost">$0.00</span></div>
+    </div>
+    <div class="conn-indicator">
+      <div class="conn-dot" id="connDot"></div>
+      <span id="connText">connecting</span>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="tickets-panel">
+    <div class="tickets-header">Tracked Tickets</div>
+    <div class="tickets-list" id="ticketsPanel"></div>
+  </div>
+
+  <div class="log-panel">
+    <div class="log-toolbar">
+      <div class="log-ticket-info">
+        <span class="log-ticket-key" id="logTitle">Select a ticket</span>
+        <span class="log-ticket-state state-badge" id="logState" style="display:none"></span>
+      </div>
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="agent_message">Messages</button>
+        <button class="filter-btn" data-filter="agent_tool_use">Tools</button>
+        <button class="filter-btn" data-filter="state_transition">States</button>
+      </div>
+    </div>
+    <div class="log-entries" id="logEntries">
+      <div class="empty-state">
+        <div class="empty-state-icon">&#9678;</div>
+        <div class="empty-state-text">
+          Select a ticket to view agent activity
+          <span>Events stream in real-time as agents work</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
