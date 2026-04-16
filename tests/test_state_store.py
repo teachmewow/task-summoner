@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from board_dispatcher.models import TicketContext, TicketState
-from board_dispatcher.core.state_machine import InvalidTransitionError
-from board_dispatcher.core import StateStore
+from task_summoner.models import TicketContext, TicketState
+from task_summoner.core.state_machine import InvalidTransitionError
+from task_summoner.core import StateStore
 
 
 class TestStateStore:

@@ -7,29 +7,29 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from board_dispatcher.config import BoardDispatcherConfig
-from board_dispatcher.models import AgentResult, Ticket, TicketContext, TicketState
-from board_dispatcher.tracker import ReactionDecision, ReactionResult
-from board_dispatcher.states import build_state_registry
-from board_dispatcher.states.base import StateServices
+from task_summoner.config import TaskSummonerConfig
+from task_summoner.models import AgentResult, Ticket, TicketContext, TicketState
+from task_summoner.tracker import ReactionDecision, ReactionResult
+from task_summoner.states import build_state_registry
+from task_summoner.states.base import StateServices
 
 
 class TestStateRegistry:
-    def test_all_states_registered(self, config: BoardDispatcherConfig):
+    def test_all_states_registered(self, config: TaskSummonerConfig):
         registry = build_state_registry(config)
         for state in TicketState:
             assert state in registry, f"Missing handler for {state}"
 
-    def test_agent_states_have_config(self, config: BoardDispatcherConfig):
-        from board_dispatcher.core.state_machine import AGENT_STATES
+    def test_agent_states_have_config(self, config: TaskSummonerConfig):
+        from task_summoner.core.state_machine import AGENT_STATES
         registry = build_state_registry(config)
         for state in AGENT_STATES:
             handler = registry[state]
             assert handler.requires_agent is True
             assert handler.agent_config is not None
 
-    def test_approval_states(self, config: BoardDispatcherConfig):
-        from board_dispatcher.core.state_machine import APPROVAL_STATES
+    def test_approval_states(self, config: TaskSummonerConfig):
+        from task_summoner.core.state_machine import APPROVAL_STATES
         registry = build_state_registry(config)
         for state in APPROVAL_STATES:
             assert registry[state].requires_approval is True
@@ -105,7 +105,7 @@ class TestApprovalStates:
     async def test_approved(self, config, sample_ticket, mock_services, state, meta_key):
         registry = build_state_registry(config)
         handler = registry[state]
-        tag = "[bd:LLMOPS-42:test:abc12345]"
+        tag = "[ts:LLMOPS-42:test:abc12345]"
         ctx = TicketContext(
             ticket_key="LLMOPS-42", state=state,
             metadata={meta_key: tag},
@@ -114,7 +114,7 @@ class TestApprovalStates:
         mock_services.jira.list_comments = AsyncMock(return_value=[{"body": f"text {tag}"}])
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("board_dispatcher.states.base.check_reaction",
+            mp.setattr("task_summoner.states.base.check_reaction",
                         AsyncMock(return_value=ReactionResult(decision=ReactionDecision.APPROVED)))
             trigger = await handler.handle(ctx, sample_ticket, mock_services)
 
@@ -128,7 +128,7 @@ class TestApprovalStates:
     async def test_retry(self, config, sample_ticket, mock_services, state, meta_key):
         registry = build_state_registry(config)
         handler = registry[state]
-        tag = "[bd:LLMOPS-42:test:abc12345]"
+        tag = "[ts:LLMOPS-42:test:abc12345]"
         ctx = TicketContext(
             ticket_key="LLMOPS-42", state=state,
             metadata={meta_key: tag},
@@ -136,7 +136,7 @@ class TestApprovalStates:
         mock_services.jira.list_comments = AsyncMock(return_value=[{"body": f"text {tag}"}])
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("board_dispatcher.states.base.check_reaction",
+            mp.setattr("task_summoner.states.base.check_reaction",
                         AsyncMock(return_value=ReactionResult(decision=ReactionDecision.RETRY)))
             trigger = await handler.handle(ctx, sample_ticket, mock_services)
 
@@ -156,7 +156,7 @@ class TestApprovalStates:
         )
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("board_dispatcher.states.base.check_reaction",
+            mp.setattr("task_summoner.states.base.check_reaction",
                         AsyncMock(return_value=ReactionResult(decision=ReactionDecision.WAITING)))
             trigger = await handler.handle(ctx, sample_ticket, mock_services)
 
@@ -195,7 +195,7 @@ class TestPlanningState:
         trigger = await handler.handle(ctx, sample_ticket, mock_services)
 
         assert trigger == "plan_complete"
-        assert ctx.get_meta("plan_comment_id").startswith("[bd:LLMOPS-42:planning:")
+        assert ctx.get_meta("plan_comment_id").startswith("[ts:LLMOPS-42:planning:")
         # Verify the Jira comment was posted as ADF JSON
         posted = mock_services.jira.post_comment.call_args[0][1]
         import json
@@ -244,7 +244,7 @@ class TestImplementingState:
         trigger = await handler.handle(ctx, sample_ticket, mock_services)
         assert trigger == "mr_created"
         assert "42" in ctx.mr_url
-        assert ctx.get_meta("mr_comment_id").startswith("[bd:LLMOPS-42:implementing:")
+        assert ctx.get_meta("mr_comment_id").startswith("[ts:LLMOPS-42:implementing:")
 
 
 class TestTerminalStates:

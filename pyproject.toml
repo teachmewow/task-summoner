@@ -3,10 +3,14 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "board-dispatcher"
+name = "task-summoner"
 version = "0.1.0"
-description = "Autonomous SDLC orchestrator — polls Jira, spawns Claude agents to plan and implement tickets"
+description = "Local-first agentic board management — provider-agnostic, human-in-the-loop SDLC orchestrator"
+license = "MIT"
 requires-python = ">=3.11"
+authors = [
+    {name = "Matheus Silva", email = "matheusolivsilv.ai@gmail.com"},
+]
 dependencies = [
     "claude-agent-sdk>=0.1.50",
     "fastapi>=0.100",
@@ -25,8 +29,12 @@ dev = [
     "pydantic>=2.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/teachmewow/task-summoner"
+Repository = "https://github.com/teachmewow/task-summoner"
+
 [project.scripts]
-board-dispatcher = "board_dispatcher.__main__:main"
+task-summoner = "task_summoner.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -36,7 +44,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 
 [tool.coverage.run]
-source = ["board_dispatcher"]
+source = ["task_summoner"]
 
 [tool.coverage.report]
 show_missing = true

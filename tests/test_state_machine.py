@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from board_dispatcher.models import TicketState
-from board_dispatcher.core.state_machine import (
+from task_summoner.models import TicketState
+from task_summoner.core.state_machine import (
     InvalidTransitionError,
     is_agent_running,
     is_approval_waiting,

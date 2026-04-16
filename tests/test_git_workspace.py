@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from board_dispatcher.config import BoardDispatcherConfig
-from board_dispatcher.workspace import GitWorkspaceManager, derive_branch_name
-from board_dispatcher.models import Ticket
+from task_summoner.config import TaskSummonerConfig
+from task_summoner.workspace import GitWorkspaceManager, derive_branch_name
+from task_summoner.models import Ticket
 
 
 class TestDeriveBranchName:
@@ -39,7 +39,7 @@ class TestDeriveBranchName:
 
 class TestGitWorkspaceManager:
     @pytest.fixture
-    def manager(self, config: BoardDispatcherConfig, tmp_path) -> GitWorkspaceManager:
+    def manager(self, config: TaskSummonerConfig, tmp_path) -> GitWorkspaceManager:
         config.workspace_root = str(tmp_path / "workspaces")
         return GitWorkspaceManager(config)
 

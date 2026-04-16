@@ -1,21 +1,21 @@
-# Board Dispatcher
+# Task Summoner
 
-Autonomous SDLC orchestrator — polls Jira for tickets labeled `claudio`, spawns Claude agents to plan and implement, delivers merge requests with human approval at every gate.
+Local-first agentic board management — provider-agnostic, human-in-the-loop SDLC orchestrator.
 
 ## Quick start
 
 ```bash
-source venv/bin/activate
-board-dispatcher run          # orchestrator + dashboard on :8420
-board-dispatcher status       # show tracked tickets
-pytest                        # run test suite
+source .venv/bin/activate
+task-summoner run          # orchestrator + dashboard on :8420
+task-summoner status       # show tracked tickets
+pytest                     # run test suite
 ```
 
 ## Architecture
 
 ### State machine (deterministic, no LLM in the loop)
 
-The core is a pure-data FSM in `core/state_machine.py`. Transitions are `(state, trigger) → next_state`. The LLM never decides flow — state handlers return trigger strings, the FSM resolves the next state.
+The core is a pure-data FSM in `core/state_machine.py`. Transitions are `(state, trigger) -> next_state`. The LLM never decides flow — state handlers return trigger strings, the FSM resolves the next state.
 
 Terminal states: `DONE`, `FAILED`. Special triggers: `_wait` (keep polling), `_noop` (terminal), `_retry` (increment counter, stay).
 
@@ -30,9 +30,9 @@ BaseState (ABC)
 ├── CreatingDocState     — agent creates design doc
 ├── ImprovingDocState    — agent improves doc from feedback
 ├── PlanningState        — agent creates implementation plan
-├── ImplementingState    — agent writes code + opens MR
-├── FixingMrState        — agent addresses MR review feedback
-├── DoneState            — transitions Jira to Done
+├── ImplementingState    — agent writes code + opens PR
+├── FixingMrState        — agent addresses PR review feedback
+├── DoneState            — transitions ticket to Done
 ├── FailedState          — terminal error
 └── BaseApprovalState (ABC)
     ├── WaitingDocReviewState
@@ -40,11 +40,11 @@ BaseState (ABC)
     └── WaitingMrReviewState
 ```
 
-Handler contract: `async def handle(ctx, ticket, services) → str` where the return value is the trigger.
+Handler contract: `async def handle(ctx, ticket, services) -> str` where the return value is the trigger.
 
 ### Approval gate pattern
 
-`BaseApprovalState` handles the lgtm/retry loop. It uses `MessageTag` (`[bd:TICKET:state:id]`) embedded in Jira comments to robustly identify which comment to poll. If the tag is lost from metadata, it recovers by scanning comments with regex. On retry, it posts an "On it..." ack with a new tag to prevent infinite retry loops.
+`BaseApprovalState` handles the lgtm/retry loop. It uses `MessageTag` (`[ts:TICKET:state:id]`) embedded in comments to robustly identify which comment to poll. If the tag is lost from metadata, it recovers by scanning comments with regex. On retry, it posts an "On it..." ack with a new tag to prevent infinite retry loops.
 
 ### Plugin loading
 
@@ -54,23 +54,30 @@ Handler contract: `async def handle(ctx, ticket, services) → str` where the re
 
 Config field `plugin_mode` controls the strategy. `build_plugin_resolver()` on config creates the resolver.
 
+### Provider abstraction (in progress)
+
+Three abstraction layers being built:
+- `BoardProvider` protocol — Jira, Linear (see `providers/board/`)
+- `AgentProvider` protocol — Claude Code, Codex (see `providers/agent/`)
+- Core uses only protocols, never concrete providers
+
 ### Dependency flow
 
 ```
 Orchestrator
-├── JiraSyncService (discovery)
+├── SyncService (discovery)
 ├── TaskDispatcher (scheduling)
 │   └── State handlers (via registry)
 ├── AgentRunner
 │   └── AgentOptionsFactory
 │       └── PluginResolver
 ├── StateStore (atomic JSON persistence)
-├── JiraClient (async acli wrapper)
+├── BoardProvider (async board operations)
 ├── GitWorkspaceManager (worktrees)
-└── EventBus (pub/sub → SSE → Dashboard)
+└── EventBus (pub/sub -> SSE -> Dashboard)
 ```
 
-`StateServices` is the DI container passed to all handlers (jira, workspace, agent_runner, store).
+`StateServices` is the DI container passed to all handlers.
 
 ## Conventions
 
@@ -89,16 +96,16 @@ Three profiles in config, used by state handlers via `self.agent_config`:
 - `standard` — planning, doc creation, reviews (sonnet, medium budget)
 - `heavy` — implementation (opus, high budget)
 
-### Jira comment tracking
+### Comment tracking
 
-Always use `MessageTag` when posting agent output to Jira. The tag format `[bd:KEY:state:shortid]` enables:
+Always use `MessageTag` when posting agent output to the board. The tag format `[ts:KEY:state:shortid]` enables:
 - Approval polling (find the right comment to check for replies)
 - State recovery (scan comments if metadata is lost)
 - Distinguishing bot comments from human comments
 
 ### ADF (Atlassian Document Format)
 
-Use the `Adf` factory in `tracker/adf.py` for rich Jira comments. Use `markdown_to_adf()` in `tracker/adf_converter.py` to convert agent markdown output to ADF.
+Used by the Jira adapter. `Adf` factory in `tracker/adf.py` for rich comments. `markdown_to_adf()` in `tracker/adf_converter.py` to convert agent markdown output to ADF. Linear adapter uses Markdown natively.
 
 ## Testing
 
