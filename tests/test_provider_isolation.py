@@ -53,9 +53,7 @@ def test_no_provider_imports_in_core_layers(py_path: Path) -> None:
     """Files under core/ states/ runtime/ models/ must not import concrete providers."""
     imports = _collect_imports(py_path)
     violations = [
-        imp
-        for imp in imports
-        if any(imp.startswith(prefix) for prefix in _FORBIDDEN_PREFIXES)
+        imp for imp in imports if any(imp.startswith(prefix) for prefix in _FORBIDDEN_PREFIXES)
     ]
     assert not violations, (
         f"{py_path.relative_to(_SRC_ROOT)} imports forbidden provider modules: "

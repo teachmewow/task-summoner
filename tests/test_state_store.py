@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from task_summoner.models import TicketContext, TicketState
-from task_summoner.core.state_machine import InvalidTransitionError
 from task_summoner.core import StateStore
+from task_summoner.core.state_machine import InvalidTransitionError
+from task_summoner.models import TicketContext, TicketState
 
 
 class TestStateStore:

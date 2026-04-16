@@ -14,7 +14,6 @@ log = structlog.get_logger()
 
 
 class PlanningState(BaseState):
-
     @property
     def state(self) -> TicketState:
         return TicketState.PLANNING
@@ -40,9 +39,7 @@ class PlanningState(BaseState):
             prompt += f"\nReviewer feedback: {feedback}\n"
         return prompt
 
-    async def handle(
-        self, ctx: TicketContext, ticket: Ticket, svc: StateServices
-    ) -> str:
+    async def handle(self, ctx: TicketContext, ticket: Ticket, svc: StateServices) -> str:
         workspace = await self._ensure_workspace(ctx, ticket, svc)
         prompt = self.build_prompt(ctx, ticket)
 

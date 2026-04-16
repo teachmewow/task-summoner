@@ -34,9 +34,7 @@ class TestBoardSyncService:
     async def test_new_ticket_queued(self, board, store, bus):
         sync = BoardSyncService(board=board, store=store, bus=bus)
         ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["task-summoner"])
-        full_ticket = Ticket(
-            key="LLMOPS-42", summary="Test", labels=["task-summoner"]
-        )
+        full_ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["task-summoner"])
 
         board.search_eligible.return_value = [ticket]
         board.fetch_ticket.return_value = full_ticket
@@ -65,9 +63,7 @@ class TestBoardSyncService:
         assert ctx.state == TicketState.WAITING_PLAN_REVIEW
 
     async def test_skips_already_tracked(self, board, store, bus):
-        store.save(
-            TicketContext(ticket_key="LLMOPS-42", state=TicketState.IMPLEMENTING)
-        )
+        store.save(TicketContext(ticket_key="LLMOPS-42", state=TicketState.IMPLEMENTING))
         sync = BoardSyncService(board=board, store=store, bus=bus)
         ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["task-summoner"])
 
@@ -95,9 +91,7 @@ class TestBoardSyncService:
         assert store.load("LLMOPS-42") is None
 
     async def test_board_failure_returns_existing_active(self, board, store, bus):
-        store.save(
-            TicketContext(ticket_key="LLMOPS-42", state=TicketState.PLANNING)
-        )
+        store.save(TicketContext(ticket_key="LLMOPS-42", state=TicketState.PLANNING))
         sync = BoardSyncService(board=board, store=store, bus=bus)
 
         board.search_eligible.side_effect = RuntimeError("down")
@@ -106,9 +100,7 @@ class TestBoardSyncService:
         assert len(active) == 1
         assert active[0].ticket_key == "LLMOPS-42"
 
-    async def test_fetch_failure_falls_back_to_search_ticket(
-        self, board, store, bus
-    ):
+    async def test_fetch_failure_falls_back_to_search_ticket(self, board, store, bus):
         sync = BoardSyncService(board=board, store=store, bus=bus)
         ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["task-summoner"])
 
@@ -150,9 +142,7 @@ class TestTaskDispatcher:
         assert loaded.state == TicketState.CHECKING_DOC
 
     async def test_apply_trigger_wait_no_transition(self, dispatcher, store):
-        ctx = TicketContext(
-            ticket_key="LLMOPS-42", state=TicketState.WAITING_PLAN_REVIEW
-        )
+        ctx = TicketContext(ticket_key="LLMOPS-42", state=TicketState.WAITING_PLAN_REVIEW)
         store.save(ctx)
 
         await dispatcher._apply_trigger(ctx, "_wait")
@@ -171,9 +161,7 @@ class TestTaskDispatcher:
 
         ticket = Ticket(key="LLMOPS-42", summary="Test", labels=["task-summoner"])
         board.fetch_ticket.return_value = ticket
-        with patch.object(
-            dispatcher, "_dispatch_one", new_callable=AsyncMock
-        ) as mock:
+        with patch.object(dispatcher, "_dispatch_one", new_callable=AsyncMock) as mock:
             await dispatcher.dispatch_all([ctx])
             mock.assert_not_called()
 

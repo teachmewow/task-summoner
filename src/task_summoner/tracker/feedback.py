@@ -24,13 +24,24 @@ class ReactionDecision(str, Enum):
 
 
 _APPROVE_KEYWORDS = [
-    "approved", "approve", "lgtm", "go ahead",
-    "looks good", "ship it", "proceed",
+    "approved",
+    "approve",
+    "lgtm",
+    "go ahead",
+    "looks good",
+    "ship it",
+    "proceed",
 ]
 
 _RETRY_KEYWORDS = [
-    "retry", "redo", "fix", "changes needed",
-    "update", "revise", "rejected", "reject",
+    "retry",
+    "redo",
+    "fix",
+    "changes needed",
+    "update",
+    "revise",
+    "rejected",
+    "reject",
 ]
 
 
@@ -64,13 +75,13 @@ class FeedbackExtractor:
         for kw in _APPROVE_KEYWORDS:
             pos = body_lower.find(kw)
             if pos != -1:
-                after = body_stripped[pos + len(kw):].strip()
+                after = body_stripped[pos + len(kw) :].strip()
                 return ReactionResult(decision=ReactionDecision.APPROVED, feedback=after)
 
         for kw in _RETRY_KEYWORDS:
             pos = body_lower.find(kw)
             if pos != -1:
-                after = body_stripped[pos + len(kw):].strip()
+                after = body_stripped[pos + len(kw) :].strip()
                 return ReactionResult(decision=ReactionDecision.RETRY, feedback=after)
 
         return ReactionResult(decision=ReactionDecision.WAITING)

@@ -26,9 +26,7 @@ from task_summoner.providers.config import (
 )
 from task_summoner.setup_wizard import _render_config_yaml
 
-_STATIC_DIR = (
-    Path(__file__).resolve().parent.parent / "dashboard_ui" / "static"
-)
+_STATIC_DIR = Path(__file__).resolve().parent.parent / "dashboard_ui" / "static"
 _SETUP_HTML = _STATIC_DIR / "setup.html"
 
 
@@ -94,9 +92,7 @@ def _build_provider_config(payload: ConfigPayload) -> ProviderConfig:
         board_config = LinearConfig(**payload.board_config)
 
     if agent_type == AgentProviderType.CLAUDE_CODE:
-        agent_config: ClaudeCodeConfig | CodexConfig = ClaudeCodeConfig(
-            **payload.agent_config
-        )
+        agent_config: ClaudeCodeConfig | CodexConfig = ClaudeCodeConfig(**payload.agent_config)
     else:
         agent_config = CodexConfig(**payload.agent_config)
 

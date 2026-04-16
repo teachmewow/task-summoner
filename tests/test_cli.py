@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -14,7 +13,6 @@ from task_summoner.models import TicketContext, TicketState
 class TestCmdStatus:
     def test_empty(self, config, capsys):
         from task_summoner.cli import cmd_status
-        from task_summoner.core import StateStore
 
         with patch("task_summoner.cli.TaskSummonerConfig.load", return_value=config):
             cmd_status("config.yaml")
@@ -29,10 +27,14 @@ class TestCmdStatus:
         store = StateStore(config.artifacts_dir)
         store.save(TicketContext(ticket_key="LLMOPS-1", state=TicketState.PLANNING))
         store.save(TicketContext(ticket_key="LLMOPS-2", state=TicketState.DONE, total_cost_usd=5.0))
-        store.save(TicketContext(
-            ticket_key="LLMOPS-3", state=TicketState.FAILED,
-            error="SDK error", mr_url="https://gitlab.com/-/merge_requests/1",
-        ))
+        store.save(
+            TicketContext(
+                ticket_key="LLMOPS-3",
+                state=TicketState.FAILED,
+                error="SDK error",
+                mr_url="https://gitlab.com/-/merge_requests/1",
+            )
+        )
 
         with patch("task_summoner.cli.TaskSummonerConfig.load", return_value=config):
             cmd_status("config.yaml")

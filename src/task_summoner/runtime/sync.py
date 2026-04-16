@@ -26,9 +26,7 @@ log = structlog.get_logger()
 class BoardSyncService:
     """Discovers new tickets and recovers state from board labels."""
 
-    def __init__(
-        self, board: BoardProvider, store: StateStore, bus: EventBus
-    ) -> None:
+    def __init__(self, board: BoardProvider, store: StateStore, bus: EventBus) -> None:
         self._board = board
         self._store = store
         self._bus = bus

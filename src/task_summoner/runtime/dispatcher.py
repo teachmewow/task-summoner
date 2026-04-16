@@ -53,9 +53,7 @@ class TaskDispatcher:
             try:
                 ticket = await self._board.fetch_ticket(fresh.ticket_key)
             except Exception as e:
-                log.error(
-                    "Failed to fetch ticket", ticket=fresh.ticket_key, error=str(e)
-                )
+                log.error("Failed to fetch ticket", ticket=fresh.ticket_key, error=str(e))
                 continue
             await self._dispatch_one(fresh, ticket)
 
@@ -73,16 +71,14 @@ class TaskDispatcher:
                 asyncio.gather(*self._running.values(), return_exceptions=True),
                 timeout=_SHUTDOWN_TIMEOUT,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             log.warning("Shutdown timeout, cancelling remaining tasks")
             self.cancel_all()
 
     async def _dispatch_one(self, ctx: TicketContext, ticket: Ticket) -> None:
         handler: BaseState | None = self._states.get(ctx.state)
         if not handler:
-            log.error(
-                "No handler for state", state=ctx.state.value, ticket=ctx.ticket_key
-            )
+            log.error("No handler for state", state=ctx.state.value, ticket=ctx.ticket_key)
             return
 
         if handler.requires_agent:

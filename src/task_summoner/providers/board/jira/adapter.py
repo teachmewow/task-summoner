@@ -76,8 +76,15 @@ class JiraAdapter:
     async def post_comment(self, ticket_id: str, body: str) -> str:
         adf_body = self._markdown_to_adf_json(body)
         raw = await self._run_acli(
-            "jira", "workitem", "comment", "create",
-            "--key", ticket_id, "--body", adf_body, "--json",
+            "jira",
+            "workitem",
+            "comment",
+            "create",
+            "--key",
+            ticket_id,
+            "--body",
+            adf_body,
+            "--json",
         )
         try:
             data = json.loads(raw)
@@ -93,8 +100,14 @@ class JiraAdapter:
     async def transition(self, ticket_id: str, status: str) -> None:
         try:
             await self._run_acli(
-                "jira", "workitem", "transition",
-                "--key", ticket_id, "--status", status, "--yes",
+                "jira",
+                "workitem",
+                "transition",
+                "--key",
+                ticket_id,
+                "--status",
+                status,
+                "--yes",
             )
             log.info("Ticket transitioned", ticket=ticket_id, status=status)
         except RuntimeError as e:
@@ -107,21 +120,39 @@ class JiraAdapter:
 
     async def add_label(self, ticket_id: str, label: str) -> None:
         await self._run_acli(
-            "jira", "workitem", "edit",
-            "--key", ticket_id, "--labels", label, "--yes",
+            "jira",
+            "workitem",
+            "edit",
+            "--key",
+            ticket_id,
+            "--labels",
+            label,
+            "--yes",
         )
 
     async def remove_label(self, ticket_id: str, label: str) -> None:
         await self._run_acli(
-            "jira", "workitem", "edit",
-            "--key", ticket_id, "--remove-labels", label, "--yes",
+            "jira",
+            "workitem",
+            "edit",
+            "--key",
+            ticket_id,
+            "--remove-labels",
+            label,
+            "--yes",
         )
 
     async def assign(self, ticket_id: str, assignee: str | None) -> None:
         target = assignee or "none"
         await self._run_acli(
-            "jira", "workitem", "assign",
-            "--key", ticket_id, "--assignee", target, "--yes",
+            "jira",
+            "workitem",
+            "assign",
+            "--key",
+            ticket_id,
+            "--assignee",
+            target,
+            "--yes",
         )
 
     async def set_state_label(self, ticket_id: str, state: TicketState) -> None:
@@ -137,25 +168,19 @@ class JiraAdapter:
                 error=str(e),
             )
 
-    async def get_comment_replies(
-        self, ticket_id: str, after_comment_id: str
-    ) -> list[Comment]:
+    async def get_comment_replies(self, ticket_id: str, after_comment_id: str) -> list[Comment]:
         raw_comments = await self._raw_list_comments(ticket_id)
         replies = get_replies_after(raw_comments, after_comment_id)
         return [self._to_comment(c) for c in replies]
 
-    async def post_tagged_comment(
-        self, ticket_id: str, tag: str, body: str
-    ) -> str:
+    async def post_tagged_comment(self, ticket_id: str, tag: str, body: str) -> str:
         """Post a comment with an embedded tag. Returns the tag itself, which is the
         robust approval-tracking identifier (native IDs don't survive state recovery)."""
         tagged_body = f"{body}\n\n{tag}"
         await self.post_comment(ticket_id, tagged_body)
         return tag
 
-    async def check_approval(
-        self, ticket_id: str, comment_id: str
-    ) -> ApprovalResult:
+    async def check_approval(self, ticket_id: str, comment_id: str) -> ApprovalResult:
         if not comment_id:
             return ApprovalResult(decision=ApprovalDecision.PENDING)
 
@@ -247,14 +272,10 @@ class JiraAdapter:
             stderr=asyncio.subprocess.PIPE,
         )
         try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=self._timeout_sec
-            )
-        except asyncio.TimeoutError:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self._timeout_sec)
+        except TimeoutError as e:
             proc.kill()
-            raise RuntimeError(
-                f"acli timed out after {self._timeout_sec}s: {' '.join(cmd)}"
-            )
+            raise RuntimeError(f"acli timed out after {self._timeout_sec}s: {' '.join(cmd)}") from e
 
         if proc.returncode != 0:
             err = stderr.decode().strip()

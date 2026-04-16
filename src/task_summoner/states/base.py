@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Protocol
 
 import structlog
 
@@ -14,7 +14,6 @@ from task_summoner.models import Ticket, TicketContext, TicketState, branch_from
 from task_summoner.providers.agent import AgentProfile, AgentProvider, AgentResult
 from task_summoner.providers.board import (
     ApprovalDecision,
-    ApprovalResult,
     BoardProvider,
 )
 
@@ -45,9 +44,7 @@ class StateServices:
     store: _StateStoreProtocol
 
 
-def agent_profile_from_config(
-    name: str, config: AgentConfig
-) -> AgentProfile:
+def agent_profile_from_config(name: str, config: AgentConfig) -> AgentProfile:
     """Translate the legacy AgentConfig into the provider-agnostic AgentProfile."""
     return AgentProfile(
         name=name,
@@ -66,8 +63,7 @@ class BaseState(ABC):
 
     @property
     @abstractmethod
-    def state(self) -> TicketState:
-        ...
+    def state(self) -> TicketState: ...
 
     @property
     def requires_agent(self) -> bool:
@@ -82,10 +78,7 @@ class BaseState(ABC):
         return None
 
     @abstractmethod
-    async def handle(
-        self, ctx: TicketContext, ticket: Ticket, services: StateServices
-    ) -> str:
-        ...
+    async def handle(self, ctx: TicketContext, ticket: Ticket, services: StateServices) -> str: ...
 
     async def _ensure_workspace(
         self, ctx: TicketContext, ticket: Ticket, svc: StateServices
@@ -158,13 +151,11 @@ class BaseApprovalState(BaseState):
 
     @property
     @abstractmethod
-    def trigger_on_approve(self) -> str:
-        ...
+    def trigger_on_approve(self) -> str: ...
 
     @property
     @abstractmethod
-    def trigger_on_retry(self) -> str:
-        ...
+    def trigger_on_retry(self) -> str: ...
 
     @property
     @abstractmethod
@@ -172,9 +163,7 @@ class BaseApprovalState(BaseState):
         """State name used in the tag (e.g. 'implementing' for mr_comment_id)."""
         ...
 
-    async def handle(
-        self, ctx: TicketContext, ticket: Ticket, svc: StateServices
-    ) -> str:
+    async def handle(self, ctx: TicketContext, ticket: Ticket, svc: StateServices) -> str:
         comment_tag = ctx.get_meta(self.comment_meta_key)
         if not comment_tag:
             comment_tag = await self._recover_latest_tag(ticket, svc)
@@ -219,9 +208,7 @@ class BaseApprovalState(BaseState):
             case _:
                 return "_wait"
 
-    async def _recover_latest_tag(
-        self, ticket: Ticket, svc: StateServices
-    ) -> str | None:
+    async def _recover_latest_tag(self, ticket: Ticket, svc: StateServices) -> str | None:
         """Scan comments for the most recent tag matching this ticket + state."""
         import re
 

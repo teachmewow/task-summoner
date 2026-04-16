@@ -29,6 +29,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
     "pydantic>=2.0",
+    "ruff>=0.6",
 ]
 
 [project.urls]
@@ -51,3 +52,20 @@ source = ["task_summoner"]
 [tool.coverage.report]
 show_missing = true
 fail_under = 89
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv", "artifacts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",   # line too long — we rely on the formatter for this
+    "B008",   # function call in default argument (common with FastAPI/Pydantic Field)
+    "UP042",  # StrEnum — `class X(str, Enum)` is more explicit for JSON serialization
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

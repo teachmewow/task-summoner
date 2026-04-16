@@ -7,8 +7,8 @@ API stabilizes.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from task_summoner.providers.agent.protocol import (
     AgentEvent,

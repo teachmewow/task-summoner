@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from task_summoner.providers.agent import (
@@ -34,8 +32,6 @@ class TestCodexAdapter:
     @pytest.mark.asyncio
     async def test_run_raises_not_implemented(self, tmp_path):
         adapter = CodexAdapter(CodexConfig(api_key="k"))
-        profile = AgentProfile(
-            name="standard", model="gpt", max_turns=1, max_cost_usd=1.0
-        )
+        profile = AgentProfile(name="standard", model="gpt", max_turns=1, max_cost_usd=1.0)
         with pytest.raises(NotImplementedError, match="coming soon"):
             await adapter.run("hello", profile, tmp_path)

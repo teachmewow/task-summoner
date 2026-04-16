@@ -31,9 +31,7 @@ class LinearClient:
         self._url = url
         self._timeout_sec = timeout_sec
 
-    async def query(
-        self, query: str, variables: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    async def query(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         """Execute a GraphQL query or mutation. Returns the `data` field."""
         payload: dict[str, Any] = {"query": query}
         if variables is not None:
@@ -47,9 +45,7 @@ class LinearClient:
             )
 
         if response.status_code != 200:
-            raise LinearAPIError(
-                f"Linear API HTTP {response.status_code}: {response.text}"
-            )
+            raise LinearAPIError(f"Linear API HTTP {response.status_code}: {response.text}")
 
         body = response.json()
         if "errors" in body and body["errors"]:

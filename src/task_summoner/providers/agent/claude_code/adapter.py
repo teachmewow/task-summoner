@@ -8,8 +8,9 @@ generic AgentEvent instances (never raw SDK types) through event_callback.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import structlog
 from claude_agent_sdk import (
@@ -149,9 +150,7 @@ class ClaudeCodeAdapter:
             error=error,
         )
 
-    def _build_options(
-        self, profile: AgentProfile, working_dir: Path
-    ) -> ClaudeAgentOptions:
+    def _build_options(self, profile: AgentProfile, working_dir: Path) -> ClaudeAgentOptions:
         return ClaudeAgentOptions(
             cwd=str(working_dir),
             model=profile.model,
@@ -169,9 +168,7 @@ class ClaudeCodeAdapter:
             return []
         if self._config.plugin_mode == "local":
             if not self._config.plugin_path:
-                raise ValueError(
-                    "plugin_mode='local' requires plugin_path to be set"
-                )
+                raise ValueError("plugin_mode='local' requires plugin_path to be set")
             resolved = str(Path(self._config.plugin_path).resolve())
             return [{"type": "local", "path": resolved}]
         raise ValueError(f"Unknown plugin_mode: {self._config.plugin_mode}")
@@ -190,8 +187,5 @@ class ClaudeCodeAdapter:
 
 def _safe_tool_input(inp: Any) -> dict[str, str]:
     if isinstance(inp, dict):
-        return {
-            k: (s[:200] + "..." if len(s := str(v)) > 200 else s)
-            for k, v in inp.items()
-        }
+        return {k: (s[:200] + "..." if len(s := str(v)) > 200 else s) for k, v in inp.items()}
     return {"raw": str(inp)[:500]}

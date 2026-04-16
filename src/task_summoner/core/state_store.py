@@ -9,13 +9,13 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
 
-from task_summoner.models import TicketContext, TicketState
-from task_summoner.core.state_machine import InvalidTransitionError, is_terminal, transition
+from task_summoner.core.state_machine import is_terminal, transition
+from task_summoner.models import TicketContext
 
 log = structlog.get_logger()
 
@@ -47,13 +47,11 @@ class StateStore:
 
     def save(self, ctx: TicketContext) -> None:
         """Atomic write: write to temp, then rename."""
-        ctx.updated_at = datetime.now(timezone.utc).isoformat()
+        ctx.updated_at = datetime.now(UTC).isoformat()
         path = self._state_path(ctx.ticket_key)
         data = json.dumps(ctx.to_dict(), indent=2)
 
-        fd, tmp_path = tempfile.mkstemp(
-            dir=self._ticket_dir(ctx.ticket_key), suffix=".tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=self._ticket_dir(ctx.ticket_key), suffix=".tmp")
         try:
             os.write(fd, data.encode())
             os.close(fd)

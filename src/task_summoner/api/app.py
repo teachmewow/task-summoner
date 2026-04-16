@@ -24,9 +24,7 @@ def create_app(
     """Create FastAPI app wired to the shared EventBus and StateStore."""
 
     app = FastAPI(title="Task Summoner Monitor", version="0.1.0")
-    app.include_router(
-        create_setup_router(config_path or Path("config.yaml"))
-    )
+    app.include_router(create_setup_router(config_path or Path("config.yaml")))
 
     # Serve all static files (CSS, JS, assets)
     app.mount("/static", StaticFiles(directory=str(DASHBOARD_DIR)), name="static_files")
@@ -55,9 +53,7 @@ def create_app(
     @app.get("/api/events/stream")
     async def event_stream(request: Request, ticket: str | None = None):
         async def generate():
-            async for event in event_bus.subscribe(
-                ticket_key=ticket, include_history=False
-            ):
+            async for event in event_bus.subscribe(ticket_key=ticket, include_history=False):
                 data = json.dumps(event.model_dump(mode="json"))
                 yield f"event: {event.event_type.value}\ndata: {data}\n\n"
 
