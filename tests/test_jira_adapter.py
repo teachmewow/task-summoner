@@ -134,14 +134,12 @@ class TestJiraAdapter:
         mock_add.assert_awaited_once_with("LLMOPS-9", "ts:planning")
 
     @pytest.mark.asyncio
-    async def test_post_tagged_comment_appends_tag(self, adapter):
+    async def test_post_tagged_comment_returns_tag(self, adapter):
+        """post_tagged_comment returns the tag itself (robust ID for approval tracking)."""
+        tag = "[ts:LLMOPS-10:planning:fff]"
         with patch.object(
             adapter, "post_comment", AsyncMock(return_value="comment-id")
         ) as mock_post:
-            result = await adapter.post_tagged_comment(
-                "LLMOPS-10", "[ts:LLMOPS-10:planning:fff]", "body"
-            )
-        assert result == "comment-id"
-        mock_post.assert_awaited_once_with(
-            "LLMOPS-10", "body\n\n[ts:LLMOPS-10:planning:fff]"
-        )
+            result = await adapter.post_tagged_comment("LLMOPS-10", tag, "body")
+        assert result == tag
+        mock_post.assert_awaited_once_with("LLMOPS-10", f"body\n\n{tag}")

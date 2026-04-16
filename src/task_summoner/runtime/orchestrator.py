@@ -1,4 +1,10 @@
-"""Orchestrator — slim polling loop that coordinates sync and dispatch."""
+"""Orchestrator — slim polling loop that coordinates sync and dispatch.
+
+Wires services via provider factories — no direct imports of Jira or
+Claude Code. Current provider (Jira + Claude Code) is derived from the
+legacy TaskSummonerConfig; M5 will introduce the full provider-agnostic
+config schema.
+"""
 
 from __future__ import annotations
 
@@ -7,15 +13,14 @@ import signal
 
 import structlog
 
-from task_summoner.agents.options import AgentOptionsFactory
-from task_summoner.agents.runner import AgentRunner
 from task_summoner.config import TaskSummonerConfig
 from task_summoner.core import StateStore
 from task_summoner.events.bus import EventBus
+from task_summoner.providers.agent import AgentProviderFactory
+from task_summoner.providers.board import BoardProviderFactory
 from task_summoner.runtime.dispatcher import TaskDispatcher
-from task_summoner.runtime.sync import JiraSyncService
+from task_summoner.runtime.sync import BoardSyncService
 from task_summoner.states import StateServices, build_state_registry
-from task_summoner.tracker import JiraClient
 from task_summoner.workspace import GitWorkspaceManager
 
 log = structlog.get_logger()
@@ -30,29 +35,26 @@ class Orchestrator:
         self._config = config
         self._bus = event_bus or EventBus()
 
-        # Infrastructure
-        jira = JiraClient(config)
+        provider_config = config.build_provider_config()
+        board = BoardProviderFactory.create(provider_config)
+        agent = AgentProviderFactory.create(provider_config)
+
         store = StateStore(config.artifacts_dir)
         workspace = GitWorkspaceManager(config)
-        plugin_resolver = config.build_plugin_resolver()
-        options_factory = AgentOptionsFactory(config, plugin_resolver=plugin_resolver)
-        agent_runner = AgentRunner(options_factory=options_factory, event_bus=self._bus)
 
-        # Services shared by state handlers
         services = StateServices(
-            jira=jira,
+            board=board,
             workspace=workspace,
-            agent_runner=agent_runner,
+            agent=agent,
             store=store,
         )
 
-        # Core components
-        self._sync = JiraSyncService(jira=jira, store=store, bus=self._bus)
+        self._sync = BoardSyncService(board=board, store=store, bus=self._bus)
         self._dispatcher = TaskDispatcher(
             states=build_state_registry(config),
             services=services,
             store=store,
-            jira=jira,
+            board=board,
             bus=self._bus,
         )
         self._store = store

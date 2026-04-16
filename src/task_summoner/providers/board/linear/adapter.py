@@ -189,25 +189,43 @@ class LinearAdapter:
     async def get_comment_replies(
         self, ticket_id: str, after_comment_id: str
     ) -> list[Comment]:
+        """Return replies posted after the anchor comment. The anchor may be
+        identified by native comment ID or by its embedded tag string."""
         raw = await self._fetch_raw_comments(ticket_id)
-        anchor = next((c for c in raw if c.get("id") == after_comment_id), None)
+        anchor = self._find_anchor(raw, after_comment_id)
         if anchor is None:
             return []
         anchor_ts = self._parse_timestamp_str(anchor.get("createdAt"))
+        anchor_id = anchor.get("id")
         replies: list[dict] = []
         for c in raw:
-            if c.get("id") == after_comment_id:
+            if c.get("id") == anchor_id:
                 continue
             ts = self._parse_timestamp_str(c.get("createdAt"))
             if ts > anchor_ts:
                 replies.append(c)
         return [self._to_comment(c) for c in replies]
 
+    def _find_anchor(
+        self, raw: list[dict[str, Any]], identifier: str
+    ) -> dict[str, Any] | None:
+        """Find a comment by native ID or by embedded tag substring."""
+        for c in raw:
+            if c.get("id") == identifier:
+                return c
+        for c in raw:
+            if identifier and identifier in str(c.get("body", "")):
+                return c
+        return None
+
     async def post_tagged_comment(
         self, ticket_id: str, tag: str, body: str
     ) -> str:
+        """Post a comment with an embedded tag. Returns the tag itself, which is the
+        robust approval-tracking identifier (native IDs don't survive state recovery)."""
         tagged_body = f"{body}\n\n{tag}"
-        return await self.post_comment(ticket_id, tagged_body)
+        await self.post_comment(ticket_id, tagged_body)
+        return tag
 
     async def check_approval(
         self, ticket_id: str, comment_id: str

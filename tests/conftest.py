@@ -7,15 +7,18 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from task_summoner.config import AgentConfig, TaskSummonerConfig, RetryConfig
-
-# Resolve the real plugin path for tests that need skill prompts
-_PLUGIN_PATH = str(
-    Path(__file__).resolve().parents[1] / ".." / "aiops-claude-code" / "plugins" / "aiops-workflows"
-)
-from task_summoner.models import Ticket, TicketContext, TicketState
+from task_summoner.config import AgentConfig, RetryConfig, TaskSummonerConfig
 from task_summoner.core import StateStore
+from task_summoner.models import Ticket, TicketContext, TicketState
 from task_summoner.states.base import StateServices
+
+_PLUGIN_PATH = str(
+    Path(__file__).resolve().parents[1]
+    / ".."
+    / "aiops-claude-code"
+    / "plugins"
+    / "aiops-workflows"
+)
 
 
 @pytest.fixture
@@ -30,7 +33,9 @@ def config(tmp_path: Path) -> TaskSummonerConfig:
         repos={"test-repo": str(tmp_path / "repo")},
         workspace_root=str(tmp_path / "workspaces"),
         plugin_path=_PLUGIN_PATH,
-        doc_checker=AgentConfig(model="haiku", max_turns=5, max_budget_usd=1.0, tools=["Read"]),
+        doc_checker=AgentConfig(
+            model="haiku", max_turns=5, max_budget_usd=1.0, tools=["Read"]
+        ),
         standard=AgentConfig(model="sonnet", max_turns=10, max_budget_usd=5.0),
         heavy=AgentConfig(model="sonnet", max_turns=20, max_budget_usd=10.0),
         retry=RetryConfig(max_retries=2, base_delay_sec=1, max_backoff_sec=5),
@@ -62,9 +67,10 @@ def sample_context() -> TicketContext:
 
 @pytest.fixture
 def mock_services() -> StateServices:
+    """Mock StateServices with board + agent providers (new M4 shape)."""
     return StateServices(
-        jira=AsyncMock(),
+        board=AsyncMock(),
         workspace=AsyncMock(),
-        agent_runner=AsyncMock(),
+        agent=AsyncMock(),
         store=AsyncMock(),
     )

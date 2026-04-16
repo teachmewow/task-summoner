@@ -3,25 +3,59 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Protocol
 
 import structlog
 
 from task_summoner.config import AgentConfig, TaskSummonerConfig
 from task_summoner.models import Ticket, TicketContext, TicketState, branch_from_labels
-from task_summoner.tracker import Adf, MessageTag, ReactionDecision, ReactionResult, check_reaction, find_ts_comment, find_latest_ts_tag
+from task_summoner.providers.agent import AgentProfile, AgentProvider, AgentResult
+from task_summoner.providers.board import (
+    ApprovalDecision,
+    ApprovalResult,
+    BoardProvider,
+)
 
 log = structlog.get_logger()
 
 
-class StateServices:
-    """Dependency container passed to state handlers."""
+class WorkspaceService(Protocol):
+    async def create(self, ticket_key: str, branch: str, repo_path: str) -> str: ...
+    async def recover(self, ticket_key: str, branch: str, repo_path: str) -> str: ...
 
-    def __init__(self, jira, workspace, agent_runner, store) -> None:
-        self.jira = jira
-        self.workspace = workspace
-        self.agent_runner = agent_runner
-        self.store = store
+
+class _StateStoreProtocol(Protocol):
+    def save(self, ctx: TicketContext) -> None: ...
+    def load(self, ticket_key: str) -> TicketContext | None: ...
+
+
+@dataclass
+class StateServices:
+    """Dependency container passed to state handlers.
+
+    All handlers interact with providers through abstract contracts
+    (BoardProvider, AgentProvider). No direct imports of Jira/Claude SDK.
+    """
+
+    board: BoardProvider
+    workspace: WorkspaceService
+    agent: AgentProvider
+    store: _StateStoreProtocol
+
+
+def agent_profile_from_config(
+    name: str, config: AgentConfig
+) -> AgentProfile:
+    """Translate the legacy AgentConfig into the provider-agnostic AgentProfile."""
+    return AgentProfile(
+        name=name,
+        model=config.model,
+        max_turns=config.max_turns,
+        max_cost_usd=config.max_budget_usd,
+        tools=list(config.tools),
+    )
 
 
 class BaseState(ABC):
@@ -56,23 +90,19 @@ class BaseState(ABC):
     async def _ensure_workspace(
         self, ctx: TicketContext, ticket: Ticket, svc: StateServices
     ) -> str:
-        """Ensure the workspace directory exists, recovering if needed.
-
-        If the worktree was lost (e.g., /tmp cleaned on reboot), recreate it
-        from the existing branch on the remote.
-        """
+        """Ensure the workspace directory exists, recovering if needed."""
         if ctx.workspace_path and Path(ctx.workspace_path).exists():
             return ctx.workspace_path
 
         if not ctx.branch_name:
-            # Recover branch name from Jira labels
             branch = branch_from_labels(ticket.labels)
             if branch:
                 ctx.branch_name = branch
-                log.info("Recovered branch from Jira label", ticket=ticket.key, branch=branch)
+                log.info("Recovered branch from label", ticket=ticket.key, branch=branch)
             else:
                 raise RuntimeError(
-                    f"Cannot recover workspace for {ticket.key}: no branch_name in context or Jira labels"
+                    f"Cannot recover workspace for {ticket.key}: "
+                    "no branch_name in context or board labels"
                 )
 
         repo_name, repo_path = self._config.resolve_repo(ticket.labels)
@@ -92,14 +122,28 @@ class BaseState(ABC):
         d.mkdir(parents=True, exist_ok=True)
         return d
 
+    async def _run_agent(
+        self,
+        svc: StateServices,
+        agent_name: str,
+        prompt: str,
+        workspace: str,
+    ) -> AgentResult:
+        """Invoke the agent provider with the handler's configured profile."""
+        profile = agent_profile_from_config(agent_name, self.agent_config or AgentConfig())
+        return await svc.agent.run(
+            prompt=prompt,
+            profile=profile,
+            working_dir=Path(workspace),
+        )
+
 
 class BaseApprovalState(BaseState):
-    """Base class for all approval-waiting states (✅ or 🔄 pattern).
+    """Base class for approval-waiting states (lgtm/retry pattern).
 
-    Subclasses define:
-    - comment_meta_key: metadata key holding the bd tag string to poll
-    - trigger_on_approve: trigger when human replies "lgtm"/"approved"
-    - trigger_on_retry: trigger when human replies "retry"/"fix"
+    Uses the BoardProvider's check_approval contract to detect decisions.
+    The stored comment_id is the tag string (e.g. `[ts:KEY:state:shortid]`)
+    which survives state recovery better than native comment IDs.
     """
 
     @property
@@ -109,7 +153,7 @@ class BaseApprovalState(BaseState):
     @property
     @abstractmethod
     def comment_meta_key(self) -> str:
-        """Metadata key where the polled comment ID is stored."""
+        """Metadata key where the polled comment tag is stored."""
         ...
 
     @property
@@ -125,52 +169,75 @@ class BaseApprovalState(BaseState):
     @property
     @abstractmethod
     def ts_tag_state(self) -> str:
-        """The state name used in the bd tag (e.g., 'implementing' for mr_comment_id)."""
+        """State name used in the tag (e.g. 'implementing' for mr_comment_id)."""
         ...
 
-    async def handle(self, ctx: TicketContext, ticket: Ticket, svc: StateServices) -> str:
-        comment_id = ctx.get_meta(self.comment_meta_key)
-        comments = await svc.jira.list_comments(ticket.key)
-
-        # Recover or re-recover if the stored tag no longer exists in comments
-        needs_recovery = not comment_id
-        if comment_id:
-            if find_ts_comment(comments, comment_id) is None:
-                log.warning("Stored bd tag not found in comments (deleted?), recovering", ticket=ticket.key)
-                needs_recovery = True
-
-        if needs_recovery:
-            comment_id = find_latest_ts_tag(comments, ticket.key, self.ts_tag_state)
-            if comment_id:
-                ctx.set_meta(self.comment_meta_key, comment_id)
-                log.info("Recovered bd tag from Jira comments", ticket=ticket.key, tag=comment_id)
+    async def handle(
+        self, ctx: TicketContext, ticket: Ticket, svc: StateServices
+    ) -> str:
+        comment_tag = ctx.get_meta(self.comment_meta_key)
+        if not comment_tag:
+            comment_tag = await self._recover_latest_tag(ticket, svc)
+            if comment_tag:
+                ctx.set_meta(self.comment_meta_key, comment_tag)
+                log.info(
+                    "Recovered tag from comments",
+                    ticket=ticket.key,
+                    tag=comment_tag,
+                )
             else:
-                log.warning("No bd tag found in comments", ticket=ticket.key, state=self.ts_tag_state)
+                log.warning(
+                    "No tag found in comments",
+                    ticket=ticket.key,
+                    state=self.ts_tag_state,
+                )
                 return "_wait"
 
-        result = await check_reaction(svc.jira, ticket.key, comment_id, comments=comments)
+        result = await svc.board.check_approval(ticket.key, comment_tag)
+        ctx.set_meta("reviewer_feedback", result.feedback or "")
 
-        # Store reviewer feedback for the next handler to consume
-        if result.has_feedback:
-            ctx.set_meta("reviewer_feedback", result.feedback)
-            log.info("Reviewer feedback captured", ticket=ticket.key, feedback=result.feedback[:100])
-        else:
-            ctx.set_meta("reviewer_feedback", "")
+        if result.feedback:
+            log.info(
+                "Reviewer feedback captured",
+                ticket=ticket.key,
+                feedback=result.feedback[:100],
+            )
 
         match result.decision:
-            case ReactionDecision.APPROVED:
+            case ApprovalDecision.APPROVED:
                 ctx.retry_count = 0
                 return self.trigger_on_approve
-            case ReactionDecision.RETRY:
-                # Post "On it..." with new bd tag to anchor the next approval check.
-                # Without this, the old "retry" reply stays after the original tag
-                # and gets detected again on the next poll → infinite retry loop.
-                ack_tag = MessageTag(ticket_key=ticket.key, state=self.ts_tag_state)
-                ack = ack_tag.embed_in_adf(
-                    Adf.paragraph("On it... processing feedback."),
+            case ApprovalDecision.RETRY:
+                ack_tag = self._build_tag(ticket.key)
+                posted = await svc.board.post_tagged_comment(
+                    ticket.key,
+                    ack_tag,
+                    "On it... processing feedback.",
                 )
-                await svc.jira.post_comment(ticket.key, ack)
-                ctx.set_meta(self.comment_meta_key, ack_tag.tag)
+                ctx.set_meta(self.comment_meta_key, posted)
                 return self.trigger_on_retry
-            case ReactionDecision.WAITING:
+            case _:
                 return "_wait"
+
+    async def _recover_latest_tag(
+        self, ticket: Ticket, svc: StateServices
+    ) -> str | None:
+        """Scan comments for the most recent tag matching this ticket + state."""
+        import re
+
+        pattern = re.compile(
+            rf"\[ts:{re.escape(ticket.key)}:{re.escape(self.ts_tag_state)}:[a-z0-9]+\]"
+        )
+        comments = await svc.board.list_comments(ticket.key)
+        for comment in reversed(comments):
+            match = pattern.search(comment.body)
+            if match:
+                return match.group(0)
+        return None
+
+    def _build_tag(self, ticket_key: str) -> str:
+        """Create a fresh tag for this state."""
+        import uuid
+
+        short_id = uuid.uuid4().hex[:8]
+        return f"[ts:{ticket_key}:{self.ts_tag_state}:{short_id}]"

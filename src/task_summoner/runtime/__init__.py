@@ -2,10 +2,10 @@
 
 from .dispatcher import TaskDispatcher
 from .orchestrator import Orchestrator
-from .sync import JiraSyncService
+from .sync import BoardSyncService
 
 __all__ = [
-    "JiraSyncService",
+    "BoardSyncService",
     "Orchestrator",
     "TaskDispatcher",
 ]

@@ -1,7 +1,4 @@
-"""PLANNING → runs /ticket-plan skill to generate implementation plan.
-
-The orchestrator posts the plan to Jira with a bd tag, not the agent.
-"""
+"""PLANNING → runs the ticket-plan skill and posts the plan for review."""
 
 from __future__ import annotations
 
@@ -10,8 +7,6 @@ import structlog
 from task_summoner.config import AgentConfig
 from task_summoner.constants import APPROVAL_INSTRUCTIONS
 from task_summoner.models import Ticket, TicketContext, TicketState
-from task_summoner.tracker import Adf, MessageTag
-from task_summoner.tracker.adf_converter import markdown_to_adf
 
 from .base import BaseState, StateServices
 
@@ -32,37 +27,26 @@ class PlanningState(BaseState):
     def agent_config(self) -> AgentConfig:
         return self._config.standard
 
-    def build_prompt(self, ctx: TicketContext, ticket: Ticket) -> tuple[str, str]:
+    def build_prompt(self, ctx: TicketContext, ticket: Ticket) -> str:
         artifact_dir = self._artifact_dir(ticket.key)
-
-        system_prompt = (
+        prompt = (
             "You are a headless agent. Invoke the skill and follow its instructions.\n"
-            f"Save the plan to: {artifact_dir}/plan.md\n"
-        )
-
-        user_prompt = (
-            f'Use the Skill tool: Skill(skill="aiops-workflows:ticket-plan", '
+            f"Save the plan to: {artifact_dir}/plan.md\n\n"
+            f'Use the Skill tool: Skill(skill="tmw-workflows:ticket-plan", '
             f'args="{ticket.key} --headless")\n'
         )
-
         feedback = ctx.get_meta("reviewer_feedback", "")
         if feedback:
-            user_prompt += f"\nReviewer feedback: {feedback}\n"
+            prompt += f"\nReviewer feedback: {feedback}\n"
+        return prompt
 
-        return system_prompt, user_prompt
-
-    async def handle(self, ctx: TicketContext, ticket: Ticket, svc: StateServices) -> str:
+    async def handle(
+        self, ctx: TicketContext, ticket: Ticket, svc: StateServices
+    ) -> str:
         workspace = await self._ensure_workspace(ctx, ticket, svc)
-        system_prompt, user_prompt = self.build_prompt(ctx, ticket)
+        prompt = self.build_prompt(ctx, ticket)
 
-        result = await svc.agent_runner.run(
-            prompt=user_prompt,
-            system_prompt=system_prompt,
-            cwd=workspace,
-            agent_config=self.agent_config,
-            ticket_key=ticket.key,
-            agent_name="planner",
-        )
+        result = await self._run_agent(svc, "planner", prompt, workspace)
 
         artifact_dir = self._artifact_dir(ticket.key)
         plan_path = artifact_dir / "plan.md"
@@ -71,16 +55,25 @@ class PlanningState(BaseState):
 
         if plan_path.exists():
             plan_text = plan_path.read_text()
-            plan_nodes = markdown_to_adf(plan_text)
-            tag = MessageTag(ticket_key=ticket.key, state="planning")
-            comment = tag.embed_nodes_in_adf(plan_nodes, Adf.paragraph(APPROVAL_INSTRUCTIONS))
-            await svc.jira.post_comment(ticket.key, comment)
-            ctx.set_meta("plan_comment_id", tag.tag)
+            tag = _build_tag(ticket.key, "planning")
+            body = f"{plan_text}\n\n{APPROVAL_INSTRUCTIONS}"
+            posted = await svc.board.post_tagged_comment(ticket.key, tag, body)
+            ctx.set_meta("plan_comment_id", posted)
             return "plan_complete"
 
         ctx.error = result.error or "Planner did not produce a plan"
         ctx.retry_count += 1
         if ctx.retry_count >= self._config.retry.max_retries:
             return "plan_failed"
-        log.warning("Planning failed, will retry", ticket=ticket.key, attempt=ctx.retry_count)
+        log.warning(
+            "Planning failed, will retry",
+            ticket=ticket.key,
+            attempt=ctx.retry_count,
+        )
         return "_retry"
+
+
+def _build_tag(ticket_key: str, state: str) -> str:
+    import uuid
+
+    return f"[ts:{ticket_key}:{state}:{uuid.uuid4().hex[:8]}]"

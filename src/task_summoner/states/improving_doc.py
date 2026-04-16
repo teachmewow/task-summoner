@@ -1,4 +1,4 @@
-"""IMPROVING_DOC → reads inline Confluence comments and improves the design doc."""
+"""IMPROVING_DOC → reads inline comments and improves the design doc."""
 
 from __future__ import annotations
 
@@ -26,37 +26,25 @@ class ImprovingDocState(BaseState):
     def agent_config(self) -> AgentConfig:
         return self._config.standard
 
-    def build_prompt(self, ctx: TicketContext, ticket: Ticket) -> tuple[str, str]:
+    def build_prompt(self, ctx: TicketContext, ticket: Ticket) -> str:
         page_id = ctx.get_meta("confluence_page_id", "")
-
-        system_prompt = (
-            "You are a headless agent. Invoke the skill and follow its instructions.\n"
-        )
-
-        user_prompt = (
-            f'Use the Skill tool: Skill(skill="aiops-workflows:improve-design-doc", '
+        prompt = (
+            "You are a headless agent. Invoke the skill and follow its instructions.\n\n"
+            f'Use the Skill tool: Skill(skill="tmw-workflows:improve-design-doc", '
             f'args="{page_id} --headless")\n'
         )
-
         feedback = ctx.get_meta("reviewer_feedback", "")
         if feedback:
-            user_prompt += f"\nReviewer feedback: {feedback}\n"
+            prompt += f"\nReviewer feedback: {feedback}\n"
+        return prompt
 
-        return system_prompt, user_prompt
-
-    async def handle(self, ctx: TicketContext, ticket: Ticket, svc: StateServices) -> str:
+    async def handle(
+        self, ctx: TicketContext, ticket: Ticket, svc: StateServices
+    ) -> str:
         workspace = await self._ensure_workspace(ctx, ticket, svc)
-        system_prompt, user_prompt = self.build_prompt(ctx, ticket)
+        prompt = self.build_prompt(ctx, ticket)
 
-        result = await svc.agent_runner.run(
-            prompt=user_prompt,
-            system_prompt=system_prompt,
-            cwd=workspace,
-            agent_config=self.agent_config,
-            ticket_key=ticket.key,
-            agent_name="doc_improver",
-        )
-
+        result = await self._run_agent(svc, "doc_improver", prompt, workspace)
         ctx.total_cost_usd += result.cost_usd
 
         if result.success:
