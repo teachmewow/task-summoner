@@ -11,62 +11,32 @@ import uvicorn
 from task_summoner.api.app import create_app
 from task_summoner.config import TaskSummonerConfig
 from task_summoner.core import StateStore
-from task_summoner.events.bus import EventBus
 from task_summoner.models import TicketContext
 from task_summoner.providers.board import (
     BoardNotFoundError,
     BoardProvider,
     BoardProviderFactory,
 )
-from task_summoner.runtime import Orchestrator
 from task_summoner.setup_wizard import run_wizard
 
 log = structlog.get_logger()
 
 
-async def cmd_run(config_path: str, port: int = 8420, with_ui: bool = True) -> None:
-    """Start the orchestrator polling loop, optionally with the web dashboard."""
+async def cmd_run(config_path: str, port: int = 8420) -> None:
+    """Start the FastAPI app (serves dashboard + setup, runs orchestrator via lifespan)."""
     path = Path(config_path)
     if not path.exists():
-        log.info("No config found, launching setup wizard", path=config_path)
-        run_wizard(path)
-        if not path.exists():
-            raise SystemExit(0)
+        log.info("No config found, launching web setup", path=config_path)
 
-    config = TaskSummonerConfig.load(config_path)
-
-    errors = config.check_config()
-    if errors:
-        for err in errors:
-            log.error("Config validation failed", error=err)
-        raise SystemExit(1)
-
-    event_bus = EventBus()
-    orchestrator = Orchestrator(config, event_bus=event_bus)
-
-    tasks: list[asyncio.Task] = [asyncio.create_task(orchestrator.run())]
-
-    if with_ui:
-        tasks.append(
-            asyncio.create_task(_start_dashboard(event_bus, orchestrator.store, port, path))
-        )
-
-    await asyncio.gather(*tasks)
+    app = create_app(config_path=path)
+    server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning"))
+    log.info("Task Summoner running", url=f"http://localhost:{port}")
+    await server.serve()
 
 
 def cmd_setup(config_path: str) -> None:
     """Launch the interactive setup wizard to create or overwrite config.yaml."""
     run_wizard(Path(config_path))
-
-
-async def _start_dashboard(
-    event_bus: EventBus, store: StateStore, port: int, config_path: Path
-) -> None:
-    """Launch the FastAPI dashboard on the given port."""
-    app = create_app(event_bus, store, config_path=config_path)
-    server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning"))
-    log.info("Dashboard available", url=f"http://localhost:{port}")
-    await server.serve()
 
 
 def cmd_status(config_path: str) -> None:
