@@ -89,3 +89,8 @@ retry:
   max_retries: 3
   base_delay_sec: 10
   max_backoff_sec: 300
+
+# -----------------------------------------------------------------------------
+# Cost & Usage (optional)
+# -----------------------------------------------------------------------------
+# monthly_budget_usd: 50.0   # surfaces as burndown on /cost (unset = unlimited)

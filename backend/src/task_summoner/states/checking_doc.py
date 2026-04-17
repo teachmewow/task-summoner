@@ -43,9 +43,7 @@ class CheckingDocState(BaseState):
         workspace = await self._ensure_workspace(ctx, ticket, svc)
         prompt = self.build_prompt(ticket)
 
-        result = await self._run_agent(svc, "doc_checker", prompt, workspace)
-
-        ctx.total_cost_usd += result.cost_usd
+        result = await self._run_agent(svc, "doc_checker", prompt, workspace, ctx=ctx)
         output = result.output.strip()
         output_upper = output.upper()
         reasoning = _extract_reasoning(output)

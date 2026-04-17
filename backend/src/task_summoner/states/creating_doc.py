@@ -36,8 +36,7 @@ class CreatingDocState(BaseState):
         workspace = await self._ensure_workspace(ctx, ticket, svc)
         prompt = self.build_prompt(ticket)
 
-        result = await self._run_agent(svc, "doc_creator", prompt, workspace)
-        ctx.total_cost_usd += result.cost_usd
+        result = await self._run_agent(svc, "doc_creator", prompt, workspace, ctx=ctx)
 
         if result.success:
             log.info("Design doc created", ticket=ticket.key)

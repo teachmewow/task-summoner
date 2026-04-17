@@ -43,7 +43,7 @@ const CARDS: CardSpec[] = [
     icon: DollarSign,
     title: "Cost & Usage",
     description: "Token spend, per-ticket burn, and budget alerts.",
-    comingSoon: true,
+    href: "/cost",
   },
   {
     icon: ShieldAlert,

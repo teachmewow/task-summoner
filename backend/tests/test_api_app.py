@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from task_summoner.api import app as app_module
 from task_summoner.api.app import create_app
 from task_summoner.core import StateStore
-from task_summoner.models import TicketContext, TicketState
+from task_summoner.models import CostEntry, TicketContext, TicketState
 
 
 @pytest.fixture
@@ -139,6 +139,58 @@ class TestEventHistory:
         response = client.get("/api/events/history")
         assert response.status_code == 200
         assert response.json() == []
+
+
+class TestCostSummary:
+    def test_empty_store_returns_zeros(self, app_and_store):
+        client, _ = app_and_store
+        response = client.get("/api/cost/summary")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total_cost_usd"] == 0.0
+        assert body["ticket_count"] == 0
+        assert body["run_count"] == 0
+        assert body["by_profile"] == []
+        assert body["by_ticket"] == []
+        assert body["budget"]["monthly_budget_usd"] is None
+
+    def test_aggregates_across_tickets(self, app_and_store):
+        client, store = app_and_store
+        store.save(
+            TicketContext(
+                ticket_key="ENG-1",
+                state=TicketState.DONE,
+                total_cost_usd=3.0,
+                cost_history=[
+                    CostEntry(cost_usd=1.0, turns=12, profile="standard", state="PLANNING"),
+                    CostEntry(cost_usd=2.0, turns=55, profile="heavy", state="IMPLEMENTING"),
+                ],
+            )
+        )
+        store.save(
+            TicketContext(
+                ticket_key="ENG-2",
+                state=TicketState.PLANNING,
+                total_cost_usd=0.5,
+                cost_history=[
+                    CostEntry(cost_usd=0.5, turns=3, profile="doc_checker", state="CHECKING_DOC"),
+                ],
+            )
+        )
+        body = client.get("/api/cost/summary").json()
+
+        assert body["total_cost_usd"] == 3.5
+        assert body["ticket_count"] == 2
+        assert body["run_count"] == 3
+        profiles = {p["profile"]: p for p in body["by_profile"]}
+        assert profiles["heavy"]["cost_usd"] == 2.0
+        assert profiles["standard"]["turns"] == 12
+        assert profiles["doc_checker"]["runs"] == 1
+        tickets = [t["ticket_key"] for t in body["by_ticket"]]
+        assert tickets[0] == "ENG-1"
+        buckets = {b["bucket"]: b["count"] for b in body["turns_histogram"]}
+        assert buckets["0-9"] >= 1
+        assert buckets["50-199"] >= 1
 
 
 class TestReloadOnSave:
