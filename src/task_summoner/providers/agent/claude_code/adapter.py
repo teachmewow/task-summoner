@@ -174,7 +174,19 @@ class ClaudeCodeAdapter:
         raise ValueError(f"Unknown plugin_mode: {self._config.plugin_mode}")
 
     def _build_env(self) -> dict[str, str]:
-        return {k: os.environ[k] for k in _FORWARDED_ENV_KEYS if os.environ.get(k)}
+        """Forward credentials to the spawned agent subprocess.
+
+        For `auth_method=personal_session`, we deliberately do NOT forward
+        ANTHROPIC_API_KEY so the agent inherits the user's logged-in Claude
+        Code session (stored in ~/.claude/) instead of a bespoke key.
+        """
+        keys = list(_FORWARDED_ENV_KEYS)
+        if self._config.auth_method == "personal_session":
+            keys = [k for k in keys if k != "ANTHROPIC_API_KEY"]
+        env = {k: os.environ[k] for k in keys if os.environ.get(k)}
+        if self._config.auth_method == "api_key" and self._config.api_key:
+            env["ANTHROPIC_API_KEY"] = self._config.api_key
+        return env
 
     def _emit(
         self,

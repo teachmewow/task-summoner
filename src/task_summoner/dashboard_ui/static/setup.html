@@ -61,8 +61,17 @@
       </select>
 
       <div id="claude-fields">
-        <label>Anthropic API key</label>
-        <input name="claude_api_key" value="${ANTHROPIC_API_KEY}">
+        <label for="claude-auth-method">Auth method</label>
+        <select name="claude_auth_method" id="claude-auth-method">
+          <option value="personal_session">Personal session (uses your logged-in Claude Code)</option>
+          <option value="api_key">API key</option>
+        </select>
+
+        <div id="claude-api-key-field" class="hidden">
+          <label>Anthropic API key</label>
+          <input name="claude_api_key" value="${ANTHROPIC_API_KEY}">
+        </div>
+
         <label>Plugin mode</label>
         <select name="claude_plugin_mode">
           <option value="installed">installed</option>

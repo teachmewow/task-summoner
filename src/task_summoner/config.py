@@ -259,8 +259,7 @@ class TaskSummonerConfig(BaseModel):
         if self.providers.agent == AgentProviderType.CLAUDE_CODE:
             cc = self.providers.agent_config
             if isinstance(cc, ClaudeCodeConfig):
-                if not cc.api_key:
-                    errors.append("providers.agent.claude_code.api_key is empty")
+                errors.extend(_validate_claude_auth(cc))
                 if cc.plugin_mode not in ("installed", "local"):
                     errors.append(
                         f"plugin_mode must be 'installed' or 'local', got '{cc.plugin_mode}'"
@@ -275,6 +274,25 @@ class TaskSummonerConfig(BaseModel):
             if not Path(repo_path).is_dir():
                 errors.append(f"Repo path for {repo_name} does not exist: {repo_path}")
         return errors
+
+
+def _validate_claude_auth(cc: ClaudeCodeConfig) -> list[str]:
+    """Return validation errors for the Claude Code auth configuration."""
+    from task_summoner.providers.agent.claude_code import claude_code_session_available
+
+    if cc.auth_method == "personal_session":
+        if not claude_code_session_available():
+            return [
+                "providers.agent.claude_code.auth_method='personal_session' "
+                "but no Claude Code session detected. Run `claude login` first "
+                "or switch to auth_method='api_key'."
+            ]
+        return []
+    if cc.auth_method == "api_key":
+        if not cc.api_key:
+            return ["providers.agent.claude_code.auth_method='api_key' but api_key is empty."]
+        return []
+    return [f"Unknown auth_method: {cc.auth_method!r}"]
 
 
 def _expand(path: str) -> str:

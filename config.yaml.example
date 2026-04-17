@@ -31,7 +31,12 @@ providers:
     type: claude_code     # claude_code | codex
 
     claude_code:
-      api_key: ${ANTHROPIC_API_KEY}
+      # auth_method: personal_session — inherit your logged-in Claude Code
+      #   session (recommended; no API key needed). Requires `claude login`.
+      # auth_method: api_key          — pass an explicit Anthropic API key.
+      auth_method: personal_session
+      # api_key: ${ANTHROPIC_API_KEY}  # only needed when auth_method: api_key
+
       # plugin_mode: installed — plugin comes from your Claude Code setup.
       # plugin_mode: local    — load from plugin_path (for CI or evaluators).
       plugin_mode: installed
