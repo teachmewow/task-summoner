@@ -14,6 +14,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, IntPrompt, Prompt
 
+from task_summoner.providers.agent import claude_code as claude_code_module
 from task_summoner.providers.board import BoardProviderFactory
 from task_summoner.providers.config import (
     AgentProviderType,
@@ -156,11 +157,9 @@ def _prompt_agent_credentials(
 
 
 def _prompt_claude_code_credentials(console: Console) -> ClaudeCodeConfig:
-    from task_summoner.providers.agent.claude_code import claude_code_session_available
-
     console.print("\n[bold]Claude Code credentials[/]")
 
-    session_available = claude_code_session_available()
+    session_available = claude_code_module.claude_code_session_available()
     if session_available:
         console.print(
             "[green]✓ Detected a logged-in Claude Code session.[/] Using your existing billing."

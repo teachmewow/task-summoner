@@ -21,6 +21,8 @@ from task_summoner.providers.board.protocol import (
     BoardNotFoundError,
 )
 from task_summoner.providers.config import JiraConfig
+from task_summoner.tracker.adf import AdfDocument
+from task_summoner.tracker.adf_converter import markdown_to_adf
 from task_summoner.tracker.feedback import (
     FeedbackExtractor,
     ReactionDecision,
@@ -262,9 +264,6 @@ class JiraAdapter:
         return datetime.now()
 
     def _markdown_to_adf_json(self, body: str) -> str:
-        from task_summoner.tracker.adf import AdfDocument
-        from task_summoner.tracker.adf_converter import markdown_to_adf
-
         nodes = markdown_to_adf(body)
         return AdfDocument(content=nodes).to_json()
 

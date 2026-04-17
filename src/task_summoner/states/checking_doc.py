@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 
 import structlog
 
@@ -85,8 +86,6 @@ class CheckingDocState(BaseState):
         return "doc_needed"
 
     def _build_tag(self, ticket_key: str, state: str) -> str:
-        import uuid
-
         return f"[ts:{ticket_key}:{state}:{uuid.uuid4().hex[:8]}]"
 
 
