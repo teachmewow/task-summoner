@@ -65,17 +65,19 @@ Three abstraction layers being built:
 
 ```
 Orchestrator
-├── SyncService (discovery)
+├── BoardSyncService (discovery)
 ├── TaskDispatcher (scheduling)
 │   └── State handlers (via registry)
-├── AgentRunner
-│   └── AgentOptionsFactory
-│       └── PluginResolver
+│       └── AgentProvider.run() (Claude Code / Codex via factory)
 ├── StateStore (atomic JSON persistence)
 ├── BoardProvider (async board operations)
 ├── GitWorkspaceManager (worktrees)
 └── EventBus (pub/sub -> SSE -> Dashboard)
 ```
+
+Claude Code specifics — `ClaudeAgentOptions` building, env forwarding, plugin
+resolution — all live inside `providers/agent/claude_code/adapter.py` and its
+`PluginResolver`. No separate `AgentRunner` / `AgentOptionsFactory` layer.
 
 `StateServices` is the DI container passed to all handlers.
 

@@ -70,9 +70,9 @@ flowchart TB
             H_FX["FixingMrState"]
         end
 
-        subgraph Agent["Agent Layer"]
-            AOF["AgentOptionsFactory"]
-            AR["AgentRunner"]
+        subgraph Agent["Agent Provider Layer"]
+            AP["AgentProvider<br/><i>protocol</i>"]
+            CCA["ClaudeCodeAdapter<br/><i>SDK wrapper</i>"]
         end
 
         subgraph Tracker["Jira Tracker"]
@@ -144,7 +144,7 @@ flowchart TB
 sequenceDiagram
     participant O as Orchestrator
     participant S as State Handler
-    participant A as AgentRunner
+    participant A as AgentProvider
     participant C as Claude API
     participant J as Jira
     participant D as Developer

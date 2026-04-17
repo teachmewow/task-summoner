@@ -41,10 +41,11 @@ workspace {
                 failedState = component "FailedState" "Terminal error" "Python"
             }
 
-            agentLayer = container "Agent Layer" "Claude Agent SDK — shared config, event streaming" "Python" {
+            agentLayer = container "Agent Provider Layer" "AgentProvider protocol + concrete adapters" "Python" {
+                agentProtocol = component "AgentProvider" "Protocol: run(prompt, profile, working_dir) -> AgentResult" "Python"
+                claudeCodeAdapter = component "ClaudeCodeAdapter" "Claude Agent SDK wrapper: options, env, plugins, event streaming" "async"
                 pluginResolver = component "PluginResolver" "Strategy: installed (user settings) or local (explicit path)" "Python"
-                optionsFactory = component "AgentOptionsFactory" "Shared: user settings, MCP, env — delegates plugin resolution" "Python"
-                agentRunner = component "AgentRunner" "query() wrapper + event emission" "async"
+                codexAdapter = component "CodexAdapter" "Stub — coming soon" "Python"
             }
 
             trackerPkg = container "Jira Tracker" "acli CLI wrapper + reaction checker" "Python" {
