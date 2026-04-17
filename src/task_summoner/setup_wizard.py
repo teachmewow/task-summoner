@@ -24,6 +24,7 @@ from task_summoner.providers.config import (
     LinearConfig,
     ProviderConfig,
 )
+from task_summoner.utils import atomic_write
 
 _DEFAULT_CONFIG_PATH = Path("config.yaml")
 
@@ -87,7 +88,7 @@ def run_wizard(config_path: Path = _DEFAULT_CONFIG_PATH) -> Path:
         workspace_root=workspace_root,
     )
 
-    config_path.write_text(yaml_text)
+    atomic_write(config_path, yaml_text)
     console.print()
     console.print(
         Panel.fit(

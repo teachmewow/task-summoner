@@ -1,14 +1,12 @@
 """JSON file persistence for ticket state.
 
 Each ticket gets its own directory: artifacts/{TICKET-KEY}/state.json
-Writes are atomic (temp file + rename) to survive crashes.
+Writes are atomic via `utils.atomic_write_json` (tmp + rename).
 """
 
 from __future__ import annotations
 
-import json
-import os
-import tempfile
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -16,6 +14,7 @@ import structlog
 
 from task_summoner.core.state_machine import is_terminal, transition
 from task_summoner.models import TicketContext
+from task_summoner.utils import atomic_write_json, safe_load_json
 
 log = structlog.get_logger()
 
@@ -34,34 +33,20 @@ class StateStore:
         return self._ticket_dir(ticket_key) / "state.json"
 
     def load(self, ticket_key: str) -> TicketContext | None:
-        """Load ticket context from disk. Returns None if not found."""
-        path = self._state_path(ticket_key)
-        if not path.exists():
+        """Load ticket context from disk. Returns None if missing or corrupt."""
+        data = safe_load_json(self._state_path(ticket_key))
+        if data is None:
             return None
         try:
-            data = json.loads(path.read_text())
             return TicketContext.from_dict(data)
-        except (json.JSONDecodeError, KeyError) as e:
+        except KeyError as e:
             log.error("Corrupt state file", ticket=ticket_key, error=str(e))
             return None
 
     def save(self, ctx: TicketContext) -> None:
-        """Atomic write: write to temp, then rename."""
+        """Persist ticket context atomically."""
         ctx.updated_at = datetime.now(UTC).isoformat()
-        path = self._state_path(ctx.ticket_key)
-        data = json.dumps(ctx.to_dict(), indent=2)
-
-        fd, tmp_path = tempfile.mkstemp(dir=self._ticket_dir(ctx.ticket_key), suffix=".tmp")
-        try:
-            os.write(fd, data.encode())
-            os.close(fd)
-            os.rename(tmp_path, path)
-        except Exception:
-            os.close(fd) if not os.get_inheritable(fd) else None
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-            raise
-
+        atomic_write_json(self._state_path(ctx.ticket_key), ctx.to_dict())
         log.debug("State saved", ticket=ctx.ticket_key, state=ctx.state.value)
 
     def do_transition(self, ticket_key: str, trigger: str) -> TicketContext:
@@ -104,8 +89,6 @@ class StateStore:
 
     def delete(self, ticket_key: str) -> bool:
         """Remove the on-disk state for a ticket. Returns True if it existed."""
-        import shutil
-
         ticket_dir = self._root / ticket_key
         if not ticket_dir.exists():
             return False

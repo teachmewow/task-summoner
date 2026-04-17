@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import re
 import shutil
 from pathlib import Path
@@ -11,6 +10,7 @@ import structlog
 
 from task_summoner.config import TaskSummonerConfig
 from task_summoner.models import Ticket
+from task_summoner.utils import run_cli
 
 log = structlog.get_logger()
 
@@ -163,27 +163,12 @@ class GitWorkspaceManager:
             return "master"
 
     async def _git(self, cwd: str, *args: str, timeout: int | None = None) -> str:
-        """Run a git command and return stdout."""
-        effective_timeout = timeout or self._timeout
-        cmd = ["git", "-C", cwd, *args]
-        log.debug("Running git", cmd=" ".join(cmd))
-
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        """Run a git command and return stripped stdout."""
+        out = await run_cli(
+            ["git", "-C", cwd, *args],
+            timeout_sec=timeout or self._timeout,
         )
-        try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=effective_timeout)
-        except TimeoutError as e:
-            proc.kill()
-            raise RuntimeError(f"git timed out after {effective_timeout}s: {' '.join(cmd)}") from e
-
-        if proc.returncode != 0:
-            err = stderr.decode().strip()
-            raise RuntimeError(f"git failed (exit {proc.returncode}): {err}")
-
-        return stdout.decode().strip()
+        return out.strip()
 
 
 def derive_branch_name(ticket: Ticket) -> str:

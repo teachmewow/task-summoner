@@ -6,7 +6,6 @@ Jira-native formats (ADF, acli JSON). Core never sees ADF or Jira-specific shape
 
 from __future__ import annotations
 
-import asyncio
 import json
 from datetime import datetime
 from typing import Any
@@ -30,6 +29,7 @@ from task_summoner.tracker.message_tracker import (
     get_replies_after,
     is_ts_comment,
 )
+from task_summoner.utils import run_cli
 
 log = structlog.get_logger()
 
@@ -269,25 +269,7 @@ class JiraAdapter:
         return AdfDocument(content=nodes).to_json()
 
     async def _run_acli(self, *args: str) -> str:
-        cmd = ["acli", *args]
-        log.debug("Running acli", cmd=" ".join(cmd))
-
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=self._timeout_sec)
-        except TimeoutError as e:
-            proc.kill()
-            raise RuntimeError(f"acli timed out after {self._timeout_sec}s: {' '.join(cmd)}") from e
-
-        if proc.returncode != 0:
-            err = stderr.decode().strip()
-            raise RuntimeError(f"acli failed (exit {proc.returncode}): {err}")
-
-        return stdout.decode()
+        return await run_cli(["acli", *args], timeout_sec=self._timeout_sec)
 
 
 def _is_not_found_error(error_message: str) -> bool:
