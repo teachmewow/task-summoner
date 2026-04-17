@@ -225,7 +225,10 @@ class TaskSummonerConfig(BaseModel):
 
     def build_plugin_resolver(self):
         """Create a PluginResolver from the Claude Code config (if active)."""
-        from task_summoner.agents.plugin_resolver import PluginMode, PluginResolver
+        from task_summoner.providers.agent.claude_code.plugin_resolver import (
+            PluginMode,
+            PluginResolver,
+        )
 
         try:
             mode = PluginMode(self.plugin_mode)

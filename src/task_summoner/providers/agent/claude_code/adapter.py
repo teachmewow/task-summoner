@@ -22,6 +22,10 @@ from claude_agent_sdk import (
     query,
 )
 
+from task_summoner.providers.agent.claude_code.plugin_resolver import (
+    PluginMode,
+    PluginResolver,
+)
 from task_summoner.providers.agent.protocol import (
     AgentEvent,
     AgentEventType,
@@ -164,14 +168,16 @@ class ClaudeCodeAdapter:
         )
 
     def _resolve_plugins(self, profile: AgentProfile) -> list[dict[str, str]]:
-        if self._config.plugin_mode == "installed":
-            return []
-        if self._config.plugin_mode == "local":
-            if not self._config.plugin_path:
-                raise ValueError("plugin_mode='local' requires plugin_path to be set")
-            resolved = str(Path(self._config.plugin_path).resolve())
-            return [{"type": "local", "path": resolved}]
-        raise ValueError(f"Unknown plugin_mode: {self._config.plugin_mode}")
+        try:
+            mode = PluginMode(self._config.plugin_mode)
+        except ValueError as e:
+            raise ValueError(f"Unknown plugin_mode: {self._config.plugin_mode}") from e
+
+        resolver = PluginResolver(mode=mode, plugin_path=self._config.plugin_path or "")
+        errors = resolver.validate()
+        if errors:
+            raise ValueError("; ".join(errors))
+        return resolver.resolve()
 
     def _build_env(self) -> dict[str, str]:
         """Forward credentials to the spawned agent subprocess.
