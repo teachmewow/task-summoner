@@ -10,7 +10,7 @@ import asyncio
 
 import structlog
 
-from .models import BaseEvent
+from task_summoner.models.events import BaseEvent
 
 log = structlog.get_logger()
 

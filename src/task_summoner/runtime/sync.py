@@ -11,13 +11,13 @@ import structlog
 
 from task_summoner.core import StateStore
 from task_summoner.events.bus import EventBus
-from task_summoner.events.models import TicketDiscoveredEvent
 from task_summoner.models import (
     TicketContext,
     TicketState,
     branch_from_labels,
     state_from_labels,
 )
+from task_summoner.models.events import TicketDiscoveredEvent
 from task_summoner.providers.board import BoardProvider
 
 log = structlog.get_logger()

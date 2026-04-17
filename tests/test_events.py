@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from task_summoner.events.bus import EventBus
-from task_summoner.events.models import (
+from task_summoner.models.events import (
     AgentCompletedEvent,
     AgentMessageEvent,
     AgentStartedEvent,

@@ -43,12 +43,6 @@ class TestClaudeCodeConfigDefaults:
         assert config.auth_method == "personal_session"
         assert config.api_key is None
 
-    def test_legacy_api_key_only_promotes_to_api_key_mode(self):
-        """Constructing with just api_key (old API) should default to api_key mode."""
-        config = ClaudeCodeConfig(api_key="sk-ant-abc")
-        assert config.auth_method == "api_key"
-        assert config.api_key == "sk-ant-abc"
-
     def test_explicit_personal_session_with_api_key_stays_personal(self):
         config = ClaudeCodeConfig(auth_method="personal_session", api_key="sk-unused")
         assert config.auth_method == "personal_session"

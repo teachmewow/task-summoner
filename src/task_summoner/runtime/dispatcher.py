@@ -8,8 +8,8 @@ import structlog
 
 from task_summoner.core import StateStore
 from task_summoner.events.bus import EventBus
-from task_summoner.events.models import StateTransitionEvent, TicketErrorEvent
 from task_summoner.models import Ticket, TicketContext, TicketState
+from task_summoner.models.events import StateTransitionEvent, TicketErrorEvent
 from task_summoner.providers.board import BoardNotFoundError, BoardProvider
 from task_summoner.states import StateServices
 from task_summoner.states.base import BaseState

@@ -1,25 +1,5 @@
-"""Event system for real-time monitoring."""
+"""Event bus infrastructure. Domain event models live in `models.events`."""
 
 from .bus import EventBus
-from .models import (
-    AgentCompletedEvent,
-    AgentMessageEvent,
-    AgentStartedEvent,
-    AgentToolUseEvent,
-    BaseEvent,
-    EventType,
-    StateTransitionEvent,
-    TicketErrorEvent,
-)
 
-__all__ = [
-    "EventBus",
-    "BaseEvent",
-    "EventType",
-    "StateTransitionEvent",
-    "AgentStartedEvent",
-    "AgentMessageEvent",
-    "AgentToolUseEvent",
-    "AgentCompletedEvent",
-    "TicketErrorEvent",
-]
+__all__ = ["EventBus"]
