@@ -204,9 +204,8 @@ def _test_board_connection(console: Console, provider_config: ProviderConfig) ->
     if not Confirm.ask("\n[cyan]Test board connection now?[/]", default=True):
         return
     try:
-        board = BoardProviderFactory.create(provider_config)
+        BoardProviderFactory.create(provider_config)
         console.print(f"[green]✓ {provider_config.board.value} adapter instantiated.[/]")
-        del board  # live API call is deferred — the factory + config shape are validated
     except Exception as e:
         console.print(f"[red]✗ Board setup failed:[/] {e}")
 

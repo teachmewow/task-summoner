@@ -47,7 +47,6 @@ class TestStateStore:
         result = store.do_transition("TEST-1", "start")
         assert result.state == TicketState.CHECKING_DOC
 
-        # Verify persisted
         loaded = store.load("TEST-1")
         assert loaded.state == TicketState.CHECKING_DOC
 

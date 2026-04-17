@@ -19,9 +19,7 @@ class TestDeriveBranchName:
     def test_truncates_to_four_words(self):
         t = Ticket(key="LLMOPS-1", summary="A very long ticket summary with many words")
         branch = derive_branch_name(t)
-        # Key + max 4 words
         parts = branch.split("-")
-        # LLMOPS, 1, a, very, long, ticket
         assert len(parts) <= 6
 
     def test_special_characters_stripped(self):
@@ -34,7 +32,7 @@ class TestDeriveBranchName:
     def test_lowercase(self):
         t = Ticket(key="LLMOPS-1", summary="FIX THE THING")
         branch = derive_branch_name(t)
-        assert branch == branch.lower() or branch.startswith("LLMOPS")  # Key stays uppercase
+        assert branch == branch.lower() or branch.startswith("LLMOPS")
 
 
 class TestGitWorkspaceManager:
@@ -50,11 +48,10 @@ class TestGitWorkspaceManager:
             yield mock
 
     async def test_create_workspace(self, manager, mock_git, tmp_path):
-        # _git is mocked, but we need the worktree dir to exist for the test
         worktree_path = tmp_path / "workspaces" / "TEST-1"
         worktree_path.mkdir(parents=True)
 
-        mock_git.return_value = "main"  # For _detect_base_branch
+        mock_git.return_value = "main"
         path = await manager.create("TEST-1", "test-branch", "/tmp/repo")
         assert "TEST-1" in path
 
@@ -71,11 +68,10 @@ class TestGitWorkspaceManager:
         worktree_path.mkdir(parents=True)
 
         await manager.remove("TEST-1")
-        # Should have called git worktree remove
         mock_git.assert_called()
 
     async def test_remove_nonexistent_is_noop(self, manager):
-        await manager.remove("NONEXISTENT-1")  # Should not raise
+        await manager.remove("NONEXISTENT-1")
 
     def test_path_exists(self, manager, tmp_path):
         worktree_path = tmp_path / "workspaces" / "TEST-1"

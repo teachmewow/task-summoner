@@ -18,9 +18,7 @@ class TestTransition:
     @pytest.mark.parametrize(
         "current, trigger, expected",
         [
-            # Queued
             (TicketState.QUEUED, "start", TicketState.CHECKING_DOC),
-            # Doc phase
             (TicketState.CHECKING_DOC, "doc_exists", TicketState.WAITING_DOC_REVIEW),
             (TicketState.CHECKING_DOC, "doc_needed", TicketState.CREATING_DOC),
             (TicketState.CHECKING_DOC, "doc_not_needed", TicketState.WAITING_DOC_REVIEW),
@@ -30,19 +28,16 @@ class TestTransition:
             (TicketState.WAITING_DOC_REVIEW, "retry", TicketState.IMPROVING_DOC),
             (TicketState.IMPROVING_DOC, "improved", TicketState.WAITING_DOC_REVIEW),
             (TicketState.IMPROVING_DOC, "improve_failed", TicketState.FAILED),
-            # Planning phase
             (TicketState.PLANNING, "plan_complete", TicketState.WAITING_PLAN_REVIEW),
             (TicketState.PLANNING, "plan_failed", TicketState.FAILED),
             (TicketState.WAITING_PLAN_REVIEW, "approved", TicketState.IMPLEMENTING),
             (TicketState.WAITING_PLAN_REVIEW, "retry", TicketState.PLANNING),
-            # Implementation phase
             (TicketState.IMPLEMENTING, "mr_created", TicketState.WAITING_MR_REVIEW),
             (TicketState.IMPLEMENTING, "impl_failed", TicketState.FAILED),
             (TicketState.WAITING_MR_REVIEW, "approved", TicketState.DONE),
             (TicketState.WAITING_MR_REVIEW, "retry", TicketState.FIXING_MR),
             (TicketState.FIXING_MR, "fixed", TicketState.WAITING_MR_REVIEW),
             (TicketState.FIXING_MR, "fix_failed", TicketState.FAILED),
-            # Recovery
             (TicketState.FAILED, "reset", TicketState.QUEUED),
         ],
     )

@@ -79,7 +79,7 @@ class Orchestrator:
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, self._handle_signal)
 
-        await asyncio.sleep(0.5)  # Let uvicorn start first
+        await asyncio.sleep(0.5)
 
         while not self._shutdown_event.is_set():
             try:

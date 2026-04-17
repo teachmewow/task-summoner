@@ -102,5 +102,5 @@ def _build_provider_config(payload: ConfigPayload) -> ProviderConfig:
         agent=agent_type,
         agent_config=agent_config,
     )
-    BoardProviderFactory.create(provider_config)  # shape validation
+    BoardProviderFactory.create(provider_config)
     return provider_config

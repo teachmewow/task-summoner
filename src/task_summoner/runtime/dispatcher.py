@@ -67,7 +67,7 @@ class TaskDispatcher:
     def _quarantine(self, ctx: TicketContext, reason: str) -> None:
         """Mark a ticket as FAILED so it stops being retried every poll cycle."""
         if ctx.state == TicketState.FAILED:
-            return  # already quarantined — silent
+            return
         log.warning(
             "Ticket quarantined (not found on board)",
             ticket=ctx.ticket_key,

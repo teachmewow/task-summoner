@@ -72,7 +72,7 @@ class TestConfigLoading:
     def test_load_from_yaml(self, config_file: Path):
         config = TaskSummonerConfig.load(config_file)
         assert config.polling_interval_sec == 30
-        assert config.poll_interval_sec == 30  # legacy property
+        assert config.poll_interval_sec == 30
         assert config.default_repo == "my-repo"
 
     def test_env_var_substitution(self, config_file: Path):

@@ -28,7 +28,7 @@ def _make_board(not_found_keys: set[str]) -> AsyncMock:
     async def fetch(ticket_id: str):
         if ticket_id in not_found_keys:
             raise BoardNotFoundError(f"{ticket_id} not found")
-        return object()  # the value doesn't matter for these tests
+        return object()
 
     board.fetch_ticket.side_effect = fetch
     return board
