@@ -49,7 +49,7 @@ const CARDS: CardSpec[] = [
     icon: ShieldAlert,
     title: "Failure Analysis",
     description: "Recurring error patterns and retry hotspots.",
-    comingSoon: true,
+    href: "/failures",
   },
   {
     icon: FlaskConical,

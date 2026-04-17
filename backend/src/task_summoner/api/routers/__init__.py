@@ -3,6 +3,13 @@
 from task_summoner.api.routers.config import router as config_router
 from task_summoner.api.routers.cost import router as cost_router
 from task_summoner.api.routers.events import router as events_router
+from task_summoner.api.routers.failures import router as failures_router
 from task_summoner.api.routers.tickets import router as tickets_router
 
-__all__ = ["config_router", "cost_router", "events_router", "tickets_router"]
+__all__ = [
+    "config_router",
+    "cost_router",
+    "events_router",
+    "failures_router",
+    "tickets_router",
+]

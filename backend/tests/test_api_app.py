@@ -193,6 +193,90 @@ class TestCostSummary:
         assert buckets["50-199"] >= 1
 
 
+class TestFailureSummary:
+    def test_empty_store(self, app_and_store):
+        client, _ = app_and_store
+        body = client.get("/api/failures/summary").json()
+        assert body["total_failed"] == 0
+        assert body["quarantined"] == 0
+        assert body["healthy"] == 0
+        assert body["tickets"] == []
+
+    def test_categorizes_and_aggregates(self, app_and_store):
+        client, store = app_and_store
+        store.save(
+            TicketContext(
+                ticket_key="ENG-201",
+                state=TicketState.FAILED,
+                error="Not reachable on board: Linear issue not found",
+                cost_history=[
+                    CostEntry(cost_usd=0.0, turns=0, profile="standard", state="CHECKING_DOC")
+                ],
+            )
+        )
+        store.save(
+            TicketContext(
+                ticket_key="ENG-202",
+                state=TicketState.FAILED,
+                error="Agent timed out after 200 turns",
+                cost_history=[
+                    CostEntry(cost_usd=3.0, turns=200, profile="heavy", state="IMPLEMENTING")
+                ],
+            )
+        )
+        store.save(TicketContext(ticket_key="ENG-203", state=TicketState.DONE))
+
+        body = client.get("/api/failures/summary").json()
+        assert body["total_failed"] == 2
+        assert body["quarantined"] == 1
+        assert body["healthy"] == 1
+
+        categories = {c["category"]: c["count"] for c in body["by_category"]}
+        assert categories["board_not_found"] == 1
+        assert categories["timeout"] == 1
+
+        phases = {p["phase"]: p["count"] for p in body["by_phase"]}
+        assert phases["CHECKING_DOC"] == 1
+        assert phases["IMPLEMENTING"] == 1
+
+        keys = {t["ticket_key"]: t for t in body["tickets"]}
+        assert keys["ENG-201"]["quarantined"] is True
+        assert keys["ENG-202"]["quarantined"] is False
+
+    def test_retry_requeues_failed_ticket(self, app_and_store):
+        client, store = app_and_store
+        store.save(
+            TicketContext(
+                ticket_key="ENG-210",
+                state=TicketState.FAILED,
+                error="Whatever",
+                retry_count=3,
+            )
+        )
+        response = client.post("/api/failures/ENG-210/retry")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["ok"] is True
+        assert body["new_state"] == "QUEUED"
+
+        reloaded = store.load("ENG-210")
+        assert reloaded is not None
+        assert reloaded.state == TicketState.QUEUED
+        assert reloaded.error is None
+        assert reloaded.retry_count == 0
+
+    def test_retry_rejects_non_failed(self, app_and_store):
+        client, store = app_and_store
+        store.save(TicketContext(ticket_key="ENG-211", state=TicketState.PLANNING))
+        response = client.post("/api/failures/ENG-211/retry")
+        assert response.status_code == 400
+
+    def test_retry_missing_ticket_is_404(self, app_and_store):
+        client, _ = app_and_store
+        response = client.post("/api/failures/NOPE-999/retry")
+        assert response.status_code == 404
+
+
 class TestReloadOnSave:
     """POST /api/config should trigger reload_orchestrator and flip configured → True."""
 

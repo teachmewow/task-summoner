@@ -24,6 +24,13 @@ from task_summoner.api.schemas.cost import (
     TurnsBucket,
 )
 from task_summoner.api.schemas.event import EventResponse
+from task_summoner.api.schemas.failure import (
+    FailedTicket,
+    FailureByCategory,
+    FailureByPhase,
+    FailureSummaryResponse,
+    RetryResponse,
+)
 from task_summoner.api.schemas.ticket import TicketResponse
 
 __all__ = [
@@ -38,6 +45,11 @@ __all__ = [
     "CostByTicket",
     "CostSummaryResponse",
     "EventResponse",
+    "FailedTicket",
+    "FailureByCategory",
+    "FailureByPhase",
+    "FailureSummaryResponse",
+    "RetryResponse",
     "TicketResponse",
     "TurnsBucket",
 ]
