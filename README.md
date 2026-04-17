@@ -17,26 +17,42 @@ Label 'task-summoner' ──→ [DESIGN DOC] ──lgtm──→ [PLAN] ──lg
 
 Existing agentic SDLC tools are cloud services that dispatch thousands of tasks against managed LLMs. Task Summoner is the opposite: it runs on **your** machine, uses **your** CLI billing (Claude Code, Codex), and gives **you** a gate at every phase. Open-source, provider-agnostic, build-in-public.
 
+## Repo layout
+
+```
+task-summoner/
+├── backend/     # Python orchestrator + FastAPI (pytest, ruff)
+└── frontend/    # React 19 + TS + Vite + TanStack Router (pnpm, biome, vitest)
+```
+
 ## Quick start
 
 ```bash
-# Install
+# Clone
 git clone https://github.com/teachmewow/task-summoner.git
 cd task-summoner
-uv venv .venv && source .venv/bin/activate
+
+# Backend
+cd backend
+uv venv ../.venv && source ../.venv/bin/activate
 uv pip install -e ".[dev]"
 
-# Configure interactively
-task-summoner setup
+# Frontend (first run: build the UI bundle)
+cd ../frontend
+pnpm install
+pnpm build
 
 # Run
-task-summoner run      # orchestrator + dashboard on :8420
-task-summoner status   # show tracked tickets
+task-summoner setup   # one-time config
+task-summoner run     # http://localhost:8420
 ```
 
-No `config.yaml` yet? `task-summoner run` launches the setup wizard for you.
+### Dev mode (hot reload on both sides)
 
-Prefer a web form? Once the dashboard is running, open [http://localhost:8420/setup](http://localhost:8420/setup).
+```bash
+task-summoner run --dev     # uvicorn :8420 + vite :5173
+# open http://localhost:5173 — vite proxies /api/* back to uvicorn
+```
 
 ## Architecture
 
@@ -106,18 +122,24 @@ agent_profiles:
 polling_interval_sec: 10
 ```
 
-See [`config.yaml.example`](config.yaml.example) for the full annotated schema.
+See [`backend/config.yaml.example`](backend/config.yaml.example) for the full annotated schema.
 
 ## Testing
 
 ```bash
+# Backend
+cd backend
 pytest                 # all tests
-pytest --cov           # with coverage
 ruff check src tests   # lint
-ruff format src tests  # format
+
+# Frontend
+cd frontend
+pnpm test              # vitest
+pnpm build             # tsc --noEmit + vite build
+pnpm lint              # biome
 ```
 
-CI runs ruff + pytest on Python 3.11 and 3.12 for every PR.
+CI runs both pipelines on every PR (Python 3.11 + 3.12, Node 22).
 
 ## Project
 

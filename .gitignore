@@ -1,3 +1,4 @@
+.venv/
 venv/
 .env
 config.yaml
@@ -10,4 +11,11 @@ build/
 dist/
 *.tmp
 .coverage
-.pytest_cache/.DS_Store
+.pytest_cache/
+.DS_Store
+
+# Frontend build output (generated into backend)
+backend/src/task_summoner/web_dist/
+
+# Node / frontend
+node_modules/

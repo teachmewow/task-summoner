@@ -6,24 +6,35 @@ Thanks for your interest in contributing! Task Summoner is a local-first, open-s
 
 Requirements:
 - Python 3.11 or 3.12
+- Node 22 + pnpm 10 (for the frontend)
 - [uv](https://docs.astral.sh/uv/) (recommended) or plain `pip`
 - `git`
 
-Clone and install:
+Clone and install both sides:
 
 ```bash
 git clone https://github.com/teachmewow/task-summoner.git
 cd task-summoner
-uv venv .venv
-source .venv/bin/activate
+
+# Backend
+cd backend
+uv venv ../.venv && source ../.venv/bin/activate
 uv pip install -e ".[dev]"
+
+# Frontend
+cd ../frontend
+pnpm install
+pnpm build   # produces backend/src/task_summoner/web_dist/
 ```
 
-Run the suite to confirm setup:
+Run both suites to confirm setup:
 
 ```bash
-pytest
+cd backend && pytest
+cd ../frontend && pnpm test
 ```
+
+Backend-only contributors do not need Node — the wheel ships with a pre-built `web_dist/`. Frontend contributors need both.
 
 ## Architecture overview
 
@@ -49,13 +60,13 @@ Key directories:
 
 | Path | What lives here |
 |------|-----------------|
-| `src/task_summoner/core/` | FSM + state store. Pure data structures, no I/O. |
-| `src/task_summoner/states/` | Handlers for each lifecycle state. Call providers through protocols. |
-| `src/task_summoner/runtime/` | Orchestrator, dispatcher, sync service. Owns the polling loop. |
-| `src/task_summoner/providers/board/` | `BoardProvider` protocol + Jira/Linear adapters. |
-| `src/task_summoner/providers/agent/` | `AgentProvider` protocol + Claude Code/Codex adapters. |
-| `src/task_summoner/providers/config.py` | Pydantic config models for providers. |
-| `src/task_summoner/models/` | Normalized domain models (Ticket, Comment, TicketContext). |
+| `backend/src/task_summoner/core/` | FSM + state store. Pure data structures, no I/O. |
+| `backend/src/task_summoner/states/` | Handlers for each lifecycle state. Call providers through protocols. |
+| `backend/src/task_summoner/runtime/` | Orchestrator, dispatcher, sync service. Owns the polling loop. |
+| `backend/src/task_summoner/providers/board/` | `BoardProvider` protocol + Jira/Linear adapters. |
+| `backend/src/task_summoner/providers/agent/` | `AgentProvider` protocol + Claude Code/Codex adapters. |
+| `backend/src/task_summoner/providers/config.py` | Pydantic config models for providers. |
+| `backend/src/task_summoner/models/` | Normalized domain models (Ticket, Comment, TicketContext). |
 
 ### Abstraction boundary
 
@@ -63,7 +74,7 @@ Files under `core/`, `states/`, `runtime/`, and `models/` **must not** import fr
 
 ## Adding a new board provider
 
-1. Create `src/task_summoner/providers/board/<name>/adapter.py`. Implement every method on `BoardProvider` (see `protocol.py`).
+1. Create `backend/src/task_summoner/providers/board/<name>/adapter.py`. Implement every method on `BoardProvider` (see `protocol.py`).
 2. Comment bodies you receive are **Markdown** — convert to the native format inside the adapter.
 3. `post_tagged_comment` should return the tag itself (not the native comment ID) so approval tracking survives state recovery.
 4. Add a typed config class in `providers/config.py` (e.g. `GitHubIssuesConfig`) and register a new `BoardProviderType` enum value.
@@ -73,7 +84,7 @@ Files under `core/`, `states/`, `runtime/`, and `models/` **must not** import fr
 
 ## Adding a new agent CLI provider
 
-1. Create `src/task_summoner/providers/agent/<name>/adapter.py`. Implement `AgentProvider.run()`, `supports_streaming()`, and `supports_tool_use()`.
+1. Create `backend/src/task_summoner/providers/agent/<name>/adapter.py`. Implement `AgentProvider.run()`, `supports_streaming()`, and `supports_tool_use()`.
 2. Map the incoming `AgentProfile` to whatever options the CLI expects.
 3. Emit generic `AgentEvent`s through `event_callback` — never leak SDK-specific types upward.
 4. Add a typed config class and enum value in `providers/config.py`; wire it into `providers/agent/factory.py`.
@@ -91,9 +102,15 @@ Files under `core/`, `states/`, `runtime/`, and `models/` **must not** import fr
 Before pushing:
 
 ```bash
+cd backend
 ruff format src tests
 ruff check src tests
 pytest
+
+cd ../frontend
+pnpm lint
+pnpm build
+pnpm test
 ```
 
 ## Commit conventions
@@ -109,13 +126,13 @@ Example: `feat(ENG-64): Add GitHub Issues board provider`
 1. Fork, branch off `main` (`git checkout -b {ticket-id}-{short-slug}`).
 2. Make your change plus tests.
 3. Run `ruff format`, `ruff check`, and `pytest` locally.
-4. Open a PR against `main`. CI runs ruff + pytest on Python 3.11 and 3.12.
+4. Open a PR against `main`. CI runs ruff + pytest (Python 3.11, 3.12) and biome + vitest + vite build (Node 22).
 5. A maintainer reviews. Squash-merge is the default.
 
 ## Where to find things
 
 - [Architecture & golden rules](CLAUDE.md)
-- [Example config](config.yaml.example)
+- [Example config](backend/config.yaml.example)
 - [Issue tracker](https://github.com/teachmewow/task-summoner/issues)
 
 Questions? Open an issue or discussion — we're happy to help.
