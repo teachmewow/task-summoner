@@ -144,24 +144,7 @@ def _prompt_agent_credentials(
     console: Console, agent_type: AgentProviderType
 ) -> ClaudeCodeConfig | CodexConfig:
     if agent_type == AgentProviderType.CLAUDE_CODE:
-        console.print("\n[bold]Claude Code credentials[/]")
-        api_key = Prompt.ask(
-            "[cyan]Anthropic API key[/] (or ${ENV_VAR})",
-            default="${ANTHROPIC_API_KEY}",
-        )
-        plugin_mode = Prompt.ask(
-            "[cyan]Plugin mode[/]",
-            choices=["installed", "local"],
-            default="installed",
-        )
-        plugin_path = ""
-        if plugin_mode == "local":
-            plugin_path = Prompt.ask("[cyan]Path to tmw-workflows plugin directory[/]")
-        return ClaudeCodeConfig(
-            api_key=api_key,
-            plugin_mode=plugin_mode,
-            plugin_path=plugin_path or None,
-        )
+        return _prompt_claude_code_credentials(console)
 
     console.print("\n[bold]Codex credentials[/]")
     api_key = Prompt.ask(
@@ -169,6 +152,52 @@ def _prompt_agent_credentials(
         default="${OPENAI_API_KEY}",
     )
     return CodexConfig(api_key=api_key)
+
+
+def _prompt_claude_code_credentials(console: Console) -> ClaudeCodeConfig:
+    from task_summoner.providers.agent.claude_code import claude_code_session_available
+
+    console.print("\n[bold]Claude Code credentials[/]")
+
+    session_available = claude_code_session_available()
+    if session_available:
+        console.print(
+            "[green]✓ Detected a logged-in Claude Code session.[/] Using your existing billing."
+        )
+    else:
+        console.print(
+            "[yellow]⚠ No Claude Code session found at ~/.claude/.[/] "
+            "Run `claude login` first if you want to use your personal session."
+        )
+
+    use_session = Confirm.ask(
+        "[cyan]Use your Claude Code personal session for billing?[/]",
+        default=session_available,
+    )
+
+    api_key: str | None = None
+    auth_method = "personal_session" if use_session else "api_key"
+    if not use_session:
+        api_key = Prompt.ask(
+            "[cyan]Anthropic API key[/] (or ${ENV_VAR})",
+            default="${ANTHROPIC_API_KEY}",
+        )
+
+    plugin_mode = Prompt.ask(
+        "[cyan]Plugin mode[/]",
+        choices=["installed", "local"],
+        default="installed",
+    )
+    plugin_path = ""
+    if plugin_mode == "local":
+        plugin_path = Prompt.ask("[cyan]Path to tmw-workflows plugin directory[/]")
+
+    return ClaudeCodeConfig(
+        auth_method=auth_method,
+        api_key=api_key,
+        plugin_mode=plugin_mode,
+        plugin_path=plugin_path or None,
+    )
 
 
 def _test_board_connection(console: Console, provider_config: ProviderConfig) -> None:
@@ -277,9 +306,11 @@ def _agent_config_dict(
 ) -> dict[str, str]:
     if isinstance(config, ClaudeCodeConfig):
         result: dict[str, str] = {
-            "api_key": config.api_key,
+            "auth_method": config.auth_method,
             "plugin_mode": config.plugin_mode,
         }
+        if config.auth_method == "api_key" and config.api_key:
+            result["api_key"] = config.api_key
         if config.plugin_path:
             result["plugin_path"] = config.plugin_path
         return result

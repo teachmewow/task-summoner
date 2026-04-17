@@ -90,7 +90,8 @@ providers:
   agent:
     type: claude_code
     claude_code:
-      api_key: ${ANTHROPIC_API_KEY}
+      auth_method: personal_session  # uses your logged-in Claude Code session
+      # or: auth_method: api_key + api_key: ${ANTHROPIC_API_KEY}
       plugin_mode: installed
 
 repos:

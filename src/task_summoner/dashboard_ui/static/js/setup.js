@@ -7,6 +7,9 @@ function toggleVisibility() {
   $('jira-fields').classList.toggle('hidden', $('board-type').value !== 'jira');
   $('claude-fields').classList.toggle('hidden', $('agent-type').value !== 'claude_code');
   $('codex-fields').classList.toggle('hidden', $('agent-type').value !== 'codex');
+
+  const authMethod = $('claude-auth-method').value;
+  $('claude-api-key-field').classList.toggle('hidden', authMethod !== 'api_key');
 }
 
 function buildPayload() {
@@ -27,12 +30,19 @@ function buildPayload() {
         watch_label: fd.get('linear_watch_label'),
       };
 
-  const agentConfig = agentType === 'codex'
-    ? { api_key: fd.get('codex_api_key') }
-    : {
-        api_key: fd.get('claude_api_key'),
-        plugin_mode: fd.get('claude_plugin_mode'),
-      };
+  let agentConfig;
+  if (agentType === 'codex') {
+    agentConfig = { api_key: fd.get('codex_api_key') };
+  } else {
+    const authMethod = fd.get('claude_auth_method') || 'personal_session';
+    agentConfig = {
+      auth_method: authMethod,
+      plugin_mode: fd.get('claude_plugin_mode'),
+    };
+    if (authMethod === 'api_key') {
+      agentConfig.api_key = fd.get('claude_api_key');
+    }
+  }
 
   return {
     board_type: boardType,
@@ -91,6 +101,7 @@ async function saveConfig(ev) {
 
 $('board-type').addEventListener('change', toggleVisibility);
 $('agent-type').addEventListener('change', toggleVisibility);
+$('claude-auth-method').addEventListener('change', toggleVisibility);
 $('test-btn').addEventListener('click', testConfig);
 $('setup-form').addEventListener('submit', saveConfig);
 toggleVisibility();
