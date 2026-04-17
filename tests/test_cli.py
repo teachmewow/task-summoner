@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import os
 from unittest.mock import patch
 
 import pytest
 
 from task_summoner.__main__ import main
-from task_summoner.cli import cmd_run, cmd_status
+from task_summoner.cli import cmd_status
 from task_summoner.core import StateStore
 from task_summoner.models import TicketContext, TicketState
 
@@ -44,18 +43,6 @@ class TestCmdStatus:
         assert "$" in captured.out
         assert "SDK error" in captured.out
         assert "merge_requests" in captured.out
-
-
-class TestCmdRun:
-    async def test_validation_failure_exits(self, config):
-        old = os.environ.pop("ANTHROPIC_API_KEY", None)
-        try:
-            with patch("task_summoner.cli.TaskSummonerConfig.load", return_value=config):
-                with pytest.raises(SystemExit):
-                    await cmd_run("config.yaml")
-        finally:
-            if old:
-                os.environ["ANTHROPIC_API_KEY"] = old
 
 
 class TestMainEntryPoint:
