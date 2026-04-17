@@ -2,13 +2,27 @@
 
 Local-first agentic board management — provider-agnostic, human-in-the-loop SDLC orchestrator.
 
+## Repo layout
+
+```
+task-summoner/
+├── backend/   # Python orchestrator + FastAPI (pytest, ruff)
+│   └── src/task_summoner/
+├── frontend/  # React 19 + TS + Vite + TanStack Router (pnpm, biome, vitest)
+└── .venv/     # shared Python venv
+```
+
+Frontend builds to `backend/src/task_summoner/web_dist/`, which FastAPI serves from `/` with SPA fallback. Dev mode spawns vite alongside uvicorn.
+
 ## Quick start
 
 ```bash
 source .venv/bin/activate
-task-summoner run          # orchestrator + dashboard on :8420
-task-summoner status       # show tracked tickets
-pytest                     # run test suite
+task-summoner run            # prod: serves pre-built web_dist/ on :8420
+task-summoner run --dev      # dev: uvicorn + vite hot reload (open :5173)
+task-summoner status         # show tracked tickets
+cd backend && pytest         # backend tests
+cd frontend && pnpm test     # frontend tests
 ```
 
 ## Architecture
@@ -112,20 +126,27 @@ Used by the Jira adapter. `Adf` factory in `tracker/adf.py` for rich comments. `
 ## Testing
 
 ```bash
+cd backend
 pytest                      # all tests
 pytest -x                   # stop on first failure
-pytest --cov                # with coverage (fail_under=89)
 pytest tests/test_states.py # specific file
+
+cd ../frontend
+pnpm test                   # vitest
+pnpm build                  # tsc --noEmit + vite build
+pnpm lint                   # biome
 ```
 
-Tests use `conftest.py` fixtures: `config`, `store`, `sample_ticket`, `sample_context`, `mock_services`. State handler tests mock `StateServices` with `AsyncMock`.
+Backend tests use `conftest.py` fixtures: `config`, `store`, `sample_ticket`, `sample_context`, `mock_services`. State handler tests mock `StateServices` with `AsyncMock`.
 
 ## Key files
 
-- `config.yaml` — local config (gitignored, copy from `config.yaml.example`)
-- `.env` — secrets (gitignored, copy from `.env.example`)
+- `config.yaml` — local config, repo root (gitignored, copy from `backend/config.yaml.example`)
+- `.env` — secrets, repo root (gitignored, copy from `backend/.env.example`)
 - `artifacts/{TICKET}/state.json` — persisted state per ticket
-- `core/state_machine.py` — the FSM transitions (read this first)
-- `states/base.py` — BaseState + BaseApprovalState + StateServices
-- `runtime/orchestrator.py` — main polling loop
-- `runtime/dispatcher.py` — task scheduling + trigger application
+- `backend/src/task_summoner/core/state_machine.py` — the FSM transitions (read this first)
+- `backend/src/task_summoner/states/base.py` — BaseState + BaseApprovalState + StateServices
+- `backend/src/task_summoner/runtime/orchestrator.py` — main polling loop
+- `backend/src/task_summoner/api/app.py` — FastAPI composition + SPA fallback
+- `frontend/src/routes/` — TanStack Router file-based routes
+- `frontend/vite.config.ts` — dev proxy + build output path (→ `backend/.../web_dist/`)
