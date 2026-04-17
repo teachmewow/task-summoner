@@ -299,7 +299,9 @@ def _validate_claude_auth(cc: ClaudeCodeConfig) -> list[str]:
 
 
 def _expand(path: str) -> str:
-    return str(Path(path).expanduser())
+    from task_summoner.utils import expand
+
+    return expand(path)
 
 
 def _substitute_env(data: Any) -> Any:

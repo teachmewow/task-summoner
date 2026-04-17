@@ -25,6 +25,7 @@ from task_summoner.providers.config import (
     ProviderConfig,
 )
 from task_summoner.setup_wizard import _render_config_yaml
+from task_summoner.utils import atomic_write
 
 _STATIC_DIR = Path(__file__).resolve().parent.parent / "dashboard_ui" / "static"
 _SETUP_HTML = _STATIC_DIR / "setup.html"
@@ -76,7 +77,7 @@ def create_setup_router(config_path: Path) -> APIRouter:
             polling_interval_sec=payload.polling_interval_sec,
             workspace_root=payload.workspace_root,
         )
-        config_path.write_text(yaml_text)
+        atomic_write(config_path, yaml_text)
         return {"ok": True, "path": str(config_path.resolve())}
 
     return router
