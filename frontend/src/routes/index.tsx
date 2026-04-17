@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Activity,
   BookOpen,
@@ -10,7 +10,9 @@ import {
   Stethoscope,
   Workflow,
 } from "lucide-react";
+import { useEffect } from "react";
 import { Card } from "~/components/Card";
+import { useConfigStatus } from "~/lib/config";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -76,6 +78,12 @@ const CARDS: CardSpec[] = [
 ];
 
 function Home() {
+  const navigate = useNavigate();
+  const { data } = useConfigStatus();
+  useEffect(() => {
+    if (data && !data.configured) navigate({ to: "/setup", replace: true });
+  }, [data, navigate]);
+
   return (
     <section className="space-y-8">
       <header className="space-y-2">

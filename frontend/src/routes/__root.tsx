@@ -1,5 +1,7 @@
 import { Link, Outlet, createRootRoute } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import logoUrl from "~/assets/logo.svg";
+import { SetupBanner } from "~/components/SetupBanner";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -8,6 +10,7 @@ export const Route = createRootRoute({
 function RootLayout() {
   return (
     <div className="min-h-screen">
+      <SetupBanner />
       <header className="border-b border-shadow-purple/50 bg-void-900/60 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center gap-8 px-6 py-4">
           <Link to="/" className="flex items-center gap-3">
@@ -30,7 +33,7 @@ function RootLayout() {
   );
 }
 
-function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
+function NavLink({ to, children }: { to: string; children: ReactNode }) {
   return (
     <Link
       to={to}

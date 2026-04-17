@@ -1,8 +1,10 @@
 """FastAPI composition — lifespan owns orchestrator/bus, routers own endpoints.
 
-The lifespan starts the orchestrator polling loop as a background task and
-attaches the shared `EventBus`, `StateStore`, and `config_path` to `app.state`
-so route handlers can reach them via `Depends(get_*)` helpers in `api/deps.py`.
+The lifespan tries to start the orchestrator polling loop as a background task
+when a valid config exists. If config is missing or invalid, the server still
+serves (UI-first onboarding — see ENG-69). The orchestrator can be restarted
+at runtime via `reload_orchestrator(app)` after `/api/config` writes a new
+config.yaml.
 """
 
 from __future__ import annotations
@@ -35,46 +37,18 @@ def create_app(config_path: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.config_path = resolved_config_path
-        event_bus = EventBus()
-        app.state.event_bus = event_bus
+        app.state.event_bus = EventBus()
+        app.state.orchestrator_task = None
+        app.state.configured = False
+        app.state.config_errors = []
+        app.state.store = StateStore("./artifacts")
 
-        orchestrator_task: asyncio.Task | None = None
-
-        if resolved_config_path.exists():
-            try:
-                config = TaskSummonerConfig.load(resolved_config_path)
-                errors = config.check_config()
-                if errors:
-                    app.state.configured = False
-                    app.state.config_errors = errors
-                    app.state.store = StateStore(config.artifacts_dir)
-                    for err in errors:
-                        log.error("Config validation failed", error=err)
-                else:
-                    orchestrator = Orchestrator(config, event_bus=event_bus)
-                    app.state.store = orchestrator.store
-                    app.state.configured = True
-                    app.state.config_errors = []
-                    orchestrator_task = asyncio.create_task(orchestrator.run())
-            except Exception as e:
-                log.exception("Failed to load config")
-                app.state.configured = False
-                app.state.config_errors = [str(e)]
-                app.state.store = StateStore("./artifacts")
-        else:
-            app.state.configured = False
-            app.state.config_errors = ["No config.yaml found. Visit /setup to create one."]
-            app.state.store = StateStore("./artifacts")
+        await reload_orchestrator(app)
 
         try:
             yield
         finally:
-            if orchestrator_task is not None:
-                orchestrator_task.cancel()
-                try:
-                    await orchestrator_task
-                except (asyncio.CancelledError, Exception):
-                    pass
+            await _stop_orchestrator(app)
 
     app = FastAPI(title="Task Summoner", version="0.1.0", lifespan=lifespan)
 
@@ -85,6 +59,62 @@ def create_app(config_path: Path | None = None) -> FastAPI:
     _mount_frontend(app)
 
     return app
+
+
+async def reload_orchestrator(app: FastAPI) -> None:
+    """Stop any running orchestrator, reload config, restart if valid.
+
+    Called on startup by the lifespan, and again after `/api/config` writes a
+    new config.yaml. Populates `app.state.{configured,config_errors,store}`
+    regardless of success so the UI can report status.
+    """
+    await _stop_orchestrator(app)
+
+    config_path: Path = app.state.config_path
+    event_bus: EventBus = app.state.event_bus
+
+    if not config_path.exists():
+        app.state.configured = False
+        app.state.config_errors = ["No config.yaml found. Visit /setup to create one."]
+        app.state.store = StateStore("./artifacts")
+        return
+
+    try:
+        config = TaskSummonerConfig.load(config_path)
+    except Exception as e:
+        log.exception("Failed to load config")
+        app.state.configured = False
+        app.state.config_errors = [str(e)]
+        app.state.store = StateStore("./artifacts")
+        return
+
+    errors = config.check_config()
+    if errors:
+        app.state.configured = False
+        app.state.config_errors = errors
+        app.state.store = StateStore(config.artifacts_dir)
+        for err in errors:
+            log.error("Config validation failed", error=err)
+        return
+
+    orchestrator = Orchestrator(config, event_bus=event_bus)
+    app.state.store = orchestrator.store
+    app.state.configured = True
+    app.state.config_errors = []
+    app.state.orchestrator_task = asyncio.create_task(orchestrator.run())
+    log.info("Orchestrator started")
+
+
+async def _stop_orchestrator(app: FastAPI) -> None:
+    task: asyncio.Task | None = getattr(app.state, "orchestrator_task", None)
+    if task is None:
+        return
+    task.cancel()
+    try:
+        await task
+    except (asyncio.CancelledError, Exception):
+        pass
+    app.state.orchestrator_task = None
 
 
 def _mount_frontend(app: FastAPI) -> None:
