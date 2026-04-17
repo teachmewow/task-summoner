@@ -52,7 +52,6 @@ class TestCmdRun:
     async def test_validation_failure_exits(self, config):
         from task_summoner.cli import cmd_run
 
-        # Remove API key to trigger validation failure
         old = os.environ.pop("ANTHROPIC_API_KEY", None)
         try:
             with patch("task_summoner.cli.TaskSummonerConfig.load", return_value=config):

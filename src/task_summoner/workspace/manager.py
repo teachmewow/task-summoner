@@ -35,13 +35,10 @@ class GitWorkspaceManager:
             log.info("Worktree already exists, reusing", ticket=ticket_key, path=str(worktree_path))
             return str(worktree_path)
 
-        # Fetch latest
         await self._git(repo_path, "fetch", "origin")
 
-        # Detect default branch
         base_branch = await self._detect_base_branch(repo_path)
 
-        # Create worktree with new branch
         await self._git(
             repo_path,
             "worktree",
@@ -76,12 +73,8 @@ class GitWorkspaceManager:
             return str(worktree_path)
 
         await self._git(repo_path, "fetch", "origin")
-
-        # Prune stale worktree entries — the old worktree dir was deleted
-        # but git still thinks the branch is checked out there.
         await self._git(repo_path, "worktree", "prune")
 
-        # Try attaching to the existing local branch
         try:
             await self._git(
                 repo_path,
@@ -99,7 +92,6 @@ class GitWorkspaceManager:
         except RuntimeError:
             pass
 
-        # Branch doesn't exist locally — create from remote tracking branch
         try:
             await self._git(
                 repo_path,
@@ -128,13 +120,9 @@ class GitWorkspaceManager:
         if not worktree_path.exists():
             return
 
-        # Find the base repo that owns this worktree
-        # git worktree remove needs to run from the main repo
-        # We can use the worktree path itself with --force
         try:
             await self._git(str(worktree_path), "worktree", "remove", str(worktree_path), "--force")
         except RuntimeError:
-            # Fallback: just remove the directory and let git prune later
             shutil.rmtree(worktree_path, ignore_errors=True)
             log.warning("Force-removed worktree directory", ticket=ticket_key)
 

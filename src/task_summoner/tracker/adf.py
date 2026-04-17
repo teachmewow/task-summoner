@@ -12,8 +12,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-# ═══════ Inline ═══════
-
 
 class AdfMark(BaseModel):
     """Inline mark (bold, code, link)."""
@@ -28,9 +26,6 @@ class AdfText(BaseModel):
     type: Literal["text"] = "text"
     text: str
     marks: list[AdfMark] | None = None
-
-
-# ═══════ Block nodes ═══════
 
 
 class AdfParagraph(BaseModel):
@@ -94,9 +89,6 @@ AdfBlockNode = (
 )
 
 
-# ═══════ Document ═══════
-
-
 class AdfDocument(BaseModel):
     """Top-level ADF document. Serialize with ``to_json()``."""
 
@@ -106,9 +98,6 @@ class AdfDocument(BaseModel):
 
     def to_json(self) -> str:
         return json.dumps(self.model_dump(exclude_none=True))
-
-
-# ═══════ Factory ═══════
 
 
 class Adf:

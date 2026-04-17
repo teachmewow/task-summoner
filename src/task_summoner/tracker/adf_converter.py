@@ -42,15 +42,14 @@ def markdown_to_adf(text: str) -> list[AdfBlockNode]:
     code_lines: list[str] = []
 
     list_items: list[AdfParagraph] = []
-    list_type = ""  # "bullet" | "ordered"
+    list_type = ""
 
     table_rows: list[list[str]] = []
     table_is_header_next = True
 
     def flush_table() -> None:
         nonlocal table_rows, table_is_header_next
-        if len(table_rows) < 2:  # need at least header + 1 body row
-            # Not a valid table, render as paragraphs
+        if len(table_rows) < 2:
             for row in table_rows:
                 content = parse_inline(" | ".join(row))
                 if content:
@@ -100,7 +99,6 @@ def markdown_to_adf(text: str) -> list[AdfBlockNode]:
     for line in lines:
         stripped = line.strip()
 
-        # Code fence toggle
         fence = _CODE_FENCE_RE.match(stripped)
         if fence:
             if in_code:
@@ -116,13 +114,11 @@ def markdown_to_adf(text: str) -> list[AdfBlockNode]:
             code_lines.append(line)
             continue
 
-        # Empty line — flush accumulated structures
         if not stripped:
             flush_list()
             flush_table()
             continue
 
-        # Heading
         heading = _HEADING_RE.match(stripped)
         if heading:
             flush_list()
@@ -130,13 +126,11 @@ def markdown_to_adf(text: str) -> list[AdfBlockNode]:
             nodes.append(Adf.heading(level, *parse_inline(heading.group(2))))
             continue
 
-        # Horizontal rule
         if _HR_RE.match(stripped):
             flush_list()
             nodes.append(Adf.rule())
             continue
 
-        # Bullet list item
         bullet = _BULLET_RE.match(line)
         if bullet:
             if list_type and list_type != "bullet":
@@ -145,7 +139,6 @@ def markdown_to_adf(text: str) -> list[AdfBlockNode]:
             list_items.append(AdfParagraph(content=parse_inline(bullet.group(1))))
             continue
 
-        # Ordered list item
         ordered = _ORDERED_RE.match(line)
         if ordered:
             if list_type and list_type != "ordered":
@@ -154,27 +147,23 @@ def markdown_to_adf(text: str) -> list[AdfBlockNode]:
             list_items.append(AdfParagraph(content=parse_inline(ordered.group(1))))
             continue
 
-        # Table row
         table_match = _TABLE_ROW_RE.match(stripped)
         if table_match:
             flush_list()
             if _TABLE_SEP_RE.match(stripped):
-                continue  # skip separator row (|---|---|)
+                continue
             cells = [c.strip() for c in table_match.group(1).split("|")]
             table_rows.append(cells)
             continue
 
-        # If we were accumulating table rows and hit a non-table line, flush
         if table_rows:
             flush_table()
 
-        # Regular paragraph
         flush_list()
         inline = parse_inline(stripped)
         if inline:
             nodes.append(AdfParagraph(content=inline))
 
-    # Flush remaining state
     flush_list()
     flush_table()
     if in_code:

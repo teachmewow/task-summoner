@@ -26,7 +26,6 @@ def create_app(
     app = FastAPI(title="Task Summoner Monitor", version="0.1.0")
     app.include_router(create_setup_router(config_path or Path("config.yaml")))
 
-    # Serve all static files (CSS, JS, assets)
     app.mount("/static", StaticFiles(directory=str(DASHBOARD_DIR)), name="static_files")
 
     @app.get("/", response_class=HTMLResponse)

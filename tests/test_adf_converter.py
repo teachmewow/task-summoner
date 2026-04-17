@@ -17,8 +17,6 @@ from task_summoner.tracker.adf import (
 from task_summoner.tracker.adf_converter import markdown_to_adf, parse_inline
 from task_summoner.tracker.message_tracker import MessageTag
 
-# ═══════ Factory tests ═══════
-
 
 class TestAdfFactory:
     def test_text(self):
@@ -84,9 +82,6 @@ class TestAdfFactory:
         assert len(doc.content) == 2
 
 
-# ═══════ Document serialization ═══════
-
-
 class TestAdfDocument:
     def test_to_json_basic(self):
         doc = Adf.doc(Adf.paragraph("hello"))
@@ -98,7 +93,6 @@ class TestAdfDocument:
     def test_to_json_excludes_none(self):
         doc = Adf.doc(Adf.paragraph("text"))
         data = json.loads(doc.to_json())
-        # marks=None should not appear
         text_node = data["content"][0]["content"][0]
         assert "marks" not in text_node
 
@@ -119,9 +113,6 @@ class TestAdfDocument:
         doc = Adf.doc(Adf.code_block("code"))
         data = json.loads(doc.to_json())
         assert "attrs" not in data["content"][0]
-
-
-# ═══════ Inline parser ═══════
 
 
 class TestParseInline:
@@ -149,9 +140,6 @@ class TestParseInline:
 
     def test_empty(self):
         assert parse_inline("") == []
-
-
-# ═══════ Markdown-to-ADF ═══════
 
 
 class TestMarkdownToAdf:
@@ -225,16 +213,13 @@ class TestMarkdownToAdf:
         assert any(t.marks and t.marks[0].type == "strong" for t in item_para.content)
 
 
-# ═══════ MessageTag integration ═══════
-
-
 class TestMessageTagAdf:
     def test_embed_in_adf(self):
         tag = MessageTag(ticket_key="T-1", state="test", short_id="abc12345")
         result = tag.embed_in_adf(Adf.paragraph("hello"))
         data = json.loads(result)
         assert data["version"] == 1
-        assert len(data["content"]) == 2  # paragraph + tag
+        assert len(data["content"]) == 2
         assert "[ts:T-1:test:abc12345]" in data["content"][-1]["content"][0]["text"]
 
     def test_embed_nodes_in_adf(self):
@@ -245,6 +230,5 @@ class TestMessageTagAdf:
         types = [n["type"] for n in data["content"]]
         assert "heading" in types
         assert "bulletList" in types
-        # Last is bd tag, second-to-last is approval
         assert "[ts:T-1:test:abc12345]" in data["content"][-1]["content"][0]["text"]
         assert "approval" in data["content"][-2]["content"][0]["text"]

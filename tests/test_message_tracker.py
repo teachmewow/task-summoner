@@ -63,9 +63,9 @@ class TestGetRepliesAfter:
         tag = "[ts:TEST-1:planning:abc]"
         comments = [
             {"id": "1", "body": f"Plan posted {tag}"},
-            {"id": "2", "body": "lgtm"},  # human
-            {"id": "3", "body": "Update [ts:TEST-1:fixing:def]"},  # agent
-            {"id": "4", "body": "retry please"},  # human
+            {"id": "2", "body": "lgtm"},
+            {"id": "3", "body": "Update [ts:TEST-1:fixing:def]"},
+            {"id": "4", "body": "retry please"},
         ]
         replies = get_replies_after(comments, tag)
         assert len(replies) == 2

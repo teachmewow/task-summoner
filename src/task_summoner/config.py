@@ -100,24 +100,19 @@ class TaskSummonerConfig(BaseModel):
 
     model_config = {"arbitrary_types_allowed": True}
 
-    # Polling & timeouts
     polling_interval_sec: int = Field(default=15, ge=1)
     artifacts_dir: str = "./artifacts"
     approval_timeout_hours: int = Field(default=24, ge=0)
     acli_timeout_sec: int = Field(default=30, ge=5)
     git_timeout_sec: int = Field(default=60, ge=10)
 
-    # Providers (core of the new schema)
     providers: ProviderConfig
 
-    # Repos
     default_repo: str = ""
     repos: dict[str, str] = Field(default_factory=dict)
 
-    # Workspace
     workspace_root: str = "/tmp/task-summoner-workspaces"
 
-    # Agent profiles — states reference these by name
     doc_checker: AgentConfig = Field(
         default_factory=lambda: AgentConfig(
             model="haiku",
@@ -143,7 +138,6 @@ class TaskSummonerConfig(BaseModel):
 
     retry: RetryConfig = Field(default_factory=RetryConfig)
 
-    # Legacy compat helpers (used by older parts of the codebase)
     @property
     def poll_interval_sec(self) -> int:
         return self.polling_interval_sec

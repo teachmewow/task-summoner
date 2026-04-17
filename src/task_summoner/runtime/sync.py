@@ -41,7 +41,7 @@ class BoardSyncService:
 
         for ticket in candidates:
             if self._store.load(ticket.key):
-                continue  # already tracked
+                continue
 
             try:
                 full_ticket = await self._board.fetch_ticket(ticket.key)

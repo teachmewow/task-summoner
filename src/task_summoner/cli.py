@@ -31,7 +31,7 @@ async def cmd_run(config_path: str, port: int = 8420, with_ui: bool = True) -> N
         log.info("No config found, launching setup wizard", path=config_path)
         run_wizard(path)
         if not path.exists():
-            raise SystemExit(0)  # user cancelled
+            raise SystemExit(0)
 
     config = TaskSummonerConfig.load(config_path)
 

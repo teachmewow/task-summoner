@@ -40,7 +40,6 @@ class EventBus:
                 try:
                     queue.put_nowait(event)
                 except asyncio.QueueFull:
-                    # Drop oldest event if subscriber is slow
                     try:
                         queue.get_nowait()
                         queue.put_nowait(event)

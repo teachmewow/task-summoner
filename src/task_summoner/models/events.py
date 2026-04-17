@@ -48,7 +48,7 @@ class StateTransitionEvent(BaseEvent):
 
 class AgentStartedEvent(BaseEvent):
     event_type: EventType = EventType.AGENT_STARTED
-    agent_name: str  # "planner", "implementer", "evaluator"
+    agent_name: str
     model: str = ""
     max_turns: int = 0
     budget_usd: float = 0.0
@@ -60,7 +60,7 @@ class AgentMessageEvent(BaseEvent):
     event_type: EventType = EventType.AGENT_MESSAGE
     agent_name: str
     text: str
-    is_partial: bool = False  # True for streaming chunks
+    is_partial: bool = False
 
 
 class AgentToolUseEvent(BaseEvent):
@@ -94,5 +94,5 @@ class ApprovalWaitingEvent(BaseEvent):
 
 class ApprovalReceivedEvent(BaseEvent):
     event_type: EventType = EventType.APPROVAL_RECEIVED
-    decision: str  # "approved" or "rejected"
-    source: str  # "comment" or "emoji"
+    decision: str
+    source: str
