@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import yaml
 
+from task_summoner.config import TaskSummonerConfig
 from task_summoner.providers.config import (
     AgentProviderType,
     BoardProviderType,
@@ -81,8 +82,6 @@ class TestRenderConfigYaml:
 
     def test_round_trip_produces_loadable_config(self, tmp_path, monkeypatch):
         """Wizard output must be readable by TaskSummonerConfig.load()."""
-        from task_summoner.config import TaskSummonerConfig
-
         monkeypatch.setenv("LINEAR_API_KEY", "lin-key")
         repo_path = tmp_path / "demo"
         repo_path.mkdir()

@@ -54,6 +54,11 @@ import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
+from task_summoner.providers.agent import claude_code as claude_code_module
+from task_summoner.providers.agent.claude_code.plugin_resolver import (
+    PluginMode,
+    PluginResolver,
+)
 from task_summoner.providers.config import (
     AgentProviderType,
     BoardProviderType,
@@ -63,6 +68,7 @@ from task_summoner.providers.config import (
     LinearConfig,
     ProviderConfig,
 )
+from task_summoner.utils import expand as _expand_path
 
 load_dotenv()
 
@@ -219,11 +225,6 @@ class TaskSummonerConfig(BaseModel):
 
     def build_plugin_resolver(self):
         """Create a PluginResolver from the Claude Code config (if active)."""
-        from task_summoner.providers.agent.claude_code.plugin_resolver import (
-            PluginMode,
-            PluginResolver,
-        )
-
         try:
             mode = PluginMode(self.plugin_mode)
         except ValueError:
@@ -275,10 +276,8 @@ class TaskSummonerConfig(BaseModel):
 
 def _validate_claude_auth(cc: ClaudeCodeConfig) -> list[str]:
     """Return validation errors for the Claude Code auth configuration."""
-    from task_summoner.providers.agent.claude_code import claude_code_session_available
-
     if cc.auth_method == "personal_session":
-        if not claude_code_session_available():
+        if not claude_code_module.claude_code_session_available():
             return [
                 "providers.agent.claude_code.auth_method='personal_session' "
                 "but no Claude Code session detected. Run `claude login` first "
@@ -293,9 +292,7 @@ def _validate_claude_auth(cc: ClaudeCodeConfig) -> list[str]:
 
 
 def _expand(path: str) -> str:
-    from task_summoner.utils import expand
-
-    return expand(path)
+    return _expand_path(path)
 
 
 def _substitute_env(data: Any) -> Any:

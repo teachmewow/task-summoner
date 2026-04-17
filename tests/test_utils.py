@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -48,8 +49,6 @@ class TestAtomicWriteJson:
     def test_writes_dict_as_json(self, tmp_path: Path):
         target = tmp_path / "out.json"
         atomic_write_json(target, {"a": 1, "b": [2, 3]})
-        import json
-
         assert json.loads(target.read_text()) == {"a": 1, "b": [2, 3]}
 
     def test_uses_indent(self, tmp_path: Path):

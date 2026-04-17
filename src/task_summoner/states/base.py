@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -210,8 +212,6 @@ class BaseApprovalState(BaseState):
 
     async def _recover_latest_tag(self, ticket: Ticket, svc: StateServices) -> str | None:
         """Scan comments for the most recent tag matching this ticket + state."""
-        import re
-
         pattern = re.compile(
             rf"\[ts:{re.escape(ticket.key)}:{re.escape(self.ts_tag_state)}:[a-z0-9]+\]"
         )
@@ -224,7 +224,5 @@ class BaseApprovalState(BaseState):
 
     def _build_tag(self, ticket_key: str) -> str:
         """Create a fresh tag for this state."""
-        import uuid
-
         short_id = uuid.uuid4().hex[:8]
         return f"[ts:{ticket_key}:{self.ts_tag_state}:{short_id}]"

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 import structlog
 
 from task_summoner.config import AgentConfig
@@ -61,6 +63,4 @@ class FixingMrState(BaseState):
 
 
 def _build_tag(ticket_key: str, state: str) -> str:
-    import uuid
-
     return f"[ts:{ticket_key}:{state}:{uuid.uuid4().hex[:8]}]"

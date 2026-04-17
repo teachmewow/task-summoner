@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from task_summoner.config import TaskSummonerConfig
+from task_summoner.core.state_machine import AGENT_STATES, APPROVAL_STATES
 from task_summoner.models import TicketContext, TicketState
 from task_summoner.providers.agent import AgentResult
 from task_summoner.providers.board import ApprovalDecision, ApprovalResult
@@ -21,8 +22,6 @@ class TestStateRegistry:
             assert state in registry, f"Missing handler for {state}"
 
     def test_agent_states_have_config(self, config: TaskSummonerConfig):
-        from task_summoner.core.state_machine import AGENT_STATES
-
         registry = build_state_registry(config)
         for state in AGENT_STATES:
             handler = registry[state]
@@ -30,8 +29,6 @@ class TestStateRegistry:
             assert handler.agent_config is not None
 
     def test_approval_states(self, config: TaskSummonerConfig):
-        from task_summoner.core.state_machine import APPROVAL_STATES
-
         registry = build_state_registry(config)
         for state in APPROVAL_STATES:
             assert registry[state].requires_approval is True

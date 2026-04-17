@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 
 import structlog
 
@@ -80,6 +81,4 @@ class ImplementingState(BaseState):
 
 
 def _build_tag(ticket_key: str, state: str) -> str:
-    import uuid
-
     return f"[ts:{ticket_key}:{state}:{uuid.uuid4().hex[:8]}]"

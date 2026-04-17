@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
+from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
 
 from task_summoner.providers.agent import (
     AgentEvent,
@@ -72,8 +73,6 @@ class TestClaudeCodeAdapterPlugins:
 class TestClaudeCodeAdapterRun:
     @pytest.mark.asyncio
     async def test_run_returns_agent_result_on_success(self, adapter, profile, tmp_path):
-        from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
-
         async def fake_query(prompt, options):
             yield AssistantMessage(content=[TextBlock(text="hello")], model="sonnet")
             yield ResultMessage(
@@ -116,8 +115,6 @@ class TestClaudeCodeAdapterRun:
 
     @pytest.mark.asyncio
     async def test_run_emits_events_through_callback(self, adapter, profile, tmp_path):
-        from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
-
         async def fake_query(prompt, options):
             yield AssistantMessage(content=[TextBlock(text="msg")], model="sonnet")
             yield ResultMessage(

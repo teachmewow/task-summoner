@@ -12,6 +12,7 @@ from task_summoner.core import StateStore
 from task_summoner.events.bus import EventBus
 from task_summoner.models import Ticket, TicketContext, TicketState
 from task_summoner.runtime import BoardSyncService, TaskDispatcher
+from task_summoner.states import StateServices, build_state_registry
 
 
 @pytest.fixture
@@ -117,8 +118,6 @@ class TestBoardSyncService:
 class TestTaskDispatcher:
     @pytest.fixture
     def dispatcher(self, config, store, board, bus):
-        from task_summoner.states import StateServices, build_state_registry
-
         services = StateServices(
             board=board,
             workspace=MagicMock(),

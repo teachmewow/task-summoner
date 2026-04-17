@@ -7,13 +7,14 @@ from unittest.mock import patch
 
 import pytest
 
+from task_summoner.__main__ import main
+from task_summoner.cli import cmd_run, cmd_status
+from task_summoner.core import StateStore
 from task_summoner.models import TicketContext, TicketState
 
 
 class TestCmdStatus:
     def test_empty(self, config, capsys):
-        from task_summoner.cli import cmd_status
-
         with patch("task_summoner.cli.TaskSummonerConfig.load", return_value=config):
             cmd_status("config.yaml")
 
@@ -21,9 +22,6 @@ class TestCmdStatus:
         assert "No tracked tickets" in captured.out
 
     def test_with_tickets(self, config, capsys):
-        from task_summoner.cli import cmd_status
-        from task_summoner.core import StateStore
-
         store = StateStore(config.artifacts_dir)
         store.save(TicketContext(ticket_key="LLMOPS-1", state=TicketState.PLANNING))
         store.save(TicketContext(ticket_key="LLMOPS-2", state=TicketState.DONE, total_cost_usd=5.0))
@@ -50,8 +48,6 @@ class TestCmdStatus:
 
 class TestCmdRun:
     async def test_validation_failure_exits(self, config):
-        from task_summoner.cli import cmd_run
-
         old = os.environ.pop("ANTHROPIC_API_KEY", None)
         try:
             with patch("task_summoner.cli.TaskSummonerConfig.load", return_value=config):
@@ -64,14 +60,10 @@ class TestCmdRun:
 
 class TestMainEntryPoint:
     def test_no_args_prints_help(self, capsys):
-        from task_summoner.__main__ import main
-
         with pytest.raises(SystemExit):
             main()
 
     def test_status_command(self, config, capsys):
-        from task_summoner.__main__ import main
-
         with patch("sys.argv", ["task-summoner", "status", "-c", "config.yaml"]):
             with patch("task_summoner.cli.TaskSummonerConfig.load", return_value=config):
                 main()
