@@ -8,7 +8,7 @@ import sys
 
 import structlog
 
-from task_summoner.cli import cmd_run, cmd_setup, cmd_status
+from task_summoner.cli import cmd_clean, cmd_run, cmd_setup, cmd_status
 
 structlog.configure(
     processors=[
@@ -38,6 +38,14 @@ def _build_parser() -> argparse.ArgumentParser:
     status_p = sub.add_parser("status", help="Show tracked tickets")
     status_p.add_argument("-c", "--config", default="config.yaml")
 
+    clean_p = sub.add_parser(
+        "clean",
+        help="Remove local state for tickets that no longer exist on the board",
+    )
+    clean_p.add_argument("-c", "--config", default="config.yaml")
+    clean_p.add_argument("--dry-run", action="store_true", help="Show what would be removed")
+    clean_p.add_argument("-y", "--force", action="store_true", help="Skip confirmation prompt")
+
     return parser
 
 
@@ -52,6 +60,8 @@ def main() -> None:
             cmd_setup(args.config)
         case "status":
             cmd_status(args.config)
+        case "clean":
+            cmd_clean(args.config, dry_run=args.dry_run, force=args.force)
         case _:
             parser.print_help()
             sys.exit(1)

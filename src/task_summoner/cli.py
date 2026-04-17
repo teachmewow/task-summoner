@@ -12,6 +12,12 @@ from task_summoner.api.app import create_app
 from task_summoner.config import TaskSummonerConfig
 from task_summoner.core import StateStore
 from task_summoner.events.bus import EventBus
+from task_summoner.models import TicketContext
+from task_summoner.providers.board import (
+    BoardNotFoundError,
+    BoardProvider,
+    BoardProviderFactory,
+)
 from task_summoner.runtime import Orchestrator
 from task_summoner.setup_wizard import run_wizard
 
@@ -85,3 +91,62 @@ def cmd_status(config_path: str) -> None:
             print(f"  ERROR: {ctx.error}")
         if ctx.mr_url:
             print(f"  MR: {ctx.mr_url}")
+
+
+def cmd_clean(config_path: str, *, dry_run: bool = False, force: bool = False) -> None:
+    """Remove local state for tickets that no longer exist on the current board."""
+    config = TaskSummonerConfig.load(config_path)
+    store = StateStore(config.artifacts_dir)
+    board = BoardProviderFactory.create(config.build_provider_config())
+
+    contexts = store.list_all()
+    if not contexts:
+        print("No tracked tickets.")
+        return
+
+    print(f"Scanning {len(contexts)} local tickets against the board...")
+    stale = asyncio.run(_find_stale_tickets(board, contexts))
+
+    if not stale:
+        print("All tracked tickets are reachable on the board. Nothing to clean.")
+        return
+
+    print(f"\nFound {len(stale)} ticket(s) not reachable on the current board:")
+    for ctx in stale:
+        marker = " (already quarantined)" if ctx.state.value == "FAILED" else ""
+        print(f"  - {ctx.ticket_key:<16} state={ctx.state.value}{marker}")
+
+    if dry_run:
+        print("\n--dry-run: no files were removed.")
+        return
+
+    if not force:
+        try:
+            answer = input("\nRemove all? [y/N]: ").strip().lower()
+        except EOFError:
+            answer = ""
+        if answer not in ("y", "yes"):
+            print("Cancelled.")
+            return
+
+    for ctx in stale:
+        store.delete(ctx.ticket_key)
+    print(f"Removed {len(stale)} ticket(s).")
+
+
+async def _find_stale_tickets(
+    board: BoardProvider, contexts: list[TicketContext]
+) -> list[TicketContext]:
+    stale: list[TicketContext] = []
+    for ctx in contexts:
+        try:
+            await board.fetch_ticket(ctx.ticket_key)
+        except BoardNotFoundError:
+            stale.append(ctx)
+        except Exception as e:
+            log.warning(
+                "Skipping ticket during scan (transient error)",
+                ticket=ctx.ticket_key,
+                error=str(e),
+            )
+    return stale

@@ -4,12 +4,14 @@ from task_summoner.providers.board.linear import LinearAdapter
 from task_summoner.providers.board.protocol import (
     ApprovalDecision,
     ApprovalResult,
+    BoardNotFoundError,
     BoardProvider,
 )
 
 __all__ = [
     "ApprovalDecision",
     "ApprovalResult",
+    "BoardNotFoundError",
     "BoardProvider",
     "BoardProviderFactory",
     "JiraAdapter",
