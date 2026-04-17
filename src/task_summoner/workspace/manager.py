@@ -43,8 +43,13 @@ class GitWorkspaceManager:
 
         # Create worktree with new branch
         await self._git(
-            repo_path, "worktree", "add",
-            str(worktree_path), "-b", branch_name, f"origin/{base_branch}",
+            repo_path,
+            "worktree",
+            "add",
+            str(worktree_path),
+            "-b",
+            branch_name,
+            f"origin/{base_branch}",
         )
 
         log.info(
@@ -79,12 +84,16 @@ class GitWorkspaceManager:
         # Try attaching to the existing local branch
         try:
             await self._git(
-                repo_path, "worktree", "add",
-                str(worktree_path), branch_name,
+                repo_path,
+                "worktree",
+                "add",
+                str(worktree_path),
+                branch_name,
             )
             log.info(
                 "Worktree recovered from local branch",
-                ticket=ticket_key, branch=branch_name,
+                ticket=ticket_key,
+                branch=branch_name,
             )
             return str(worktree_path)
         except RuntimeError:
@@ -93,19 +102,25 @@ class GitWorkspaceManager:
         # Branch doesn't exist locally — create from remote tracking branch
         try:
             await self._git(
-                repo_path, "worktree", "add",
-                str(worktree_path), "-b", branch_name, f"origin/{branch_name}",
+                repo_path,
+                "worktree",
+                "add",
+                str(worktree_path),
+                "-b",
+                branch_name,
+                f"origin/{branch_name}",
             )
             log.info(
                 "Worktree recovered from remote branch",
-                ticket=ticket_key, branch=branch_name,
+                ticket=ticket_key,
+                branch=branch_name,
             )
             return str(worktree_path)
         except RuntimeError as e:
             raise RuntimeError(
                 f"Cannot recover worktree for {ticket_key}: branch '{branch_name}' "
                 f"not found locally or on remote. Error: {e}"
-            )
+            ) from e
 
     async def remove(self, ticket_key: str) -> None:
         """Remove a worktree for a ticket."""
@@ -159,12 +174,10 @@ class GitWorkspaceManager:
             stderr=asyncio.subprocess.PIPE,
         )
         try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=effective_timeout
-            )
-        except asyncio.TimeoutError:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=effective_timeout)
+        except TimeoutError as e:
             proc.kill()
-            raise RuntimeError(f"git timed out after {effective_timeout}s: {' '.join(cmd)}")
+            raise RuntimeError(f"git timed out after {effective_timeout}s: {' '.join(cmd)}") from e
 
         if proc.returncode != 0:
             err = stderr.decode().strip()

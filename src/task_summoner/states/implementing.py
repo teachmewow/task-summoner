@@ -20,7 +20,6 @@ _PR_URL_PATTERN = re.compile(
 
 
 class ImplementingState(BaseState):
-
     @property
     def state(self) -> TicketState:
         return TicketState.IMPLEMENTING
@@ -46,9 +45,7 @@ class ImplementingState(BaseState):
             prompt += f"\nReviewer feedback: {feedback}\n"
         return prompt
 
-    async def handle(
-        self, ctx: TicketContext, ticket: Ticket, svc: StateServices
-    ) -> str:
+    async def handle(self, ctx: TicketContext, ticket: Ticket, svc: StateServices) -> str:
         workspace = await self._ensure_workspace(ctx, ticket, svc)
         prompt = self.build_prompt(ctx, ticket)
 
@@ -65,10 +62,7 @@ class ImplementingState(BaseState):
 
         if result.success and ctx.mr_url:
             tag = _build_tag(ticket.key, "implementing")
-            body = (
-                f"PR created: [{ctx.mr_url}]({ctx.mr_url})\n\n"
-                f"{APPROVAL_INSTRUCTIONS}"
-            )
+            body = f"PR created: [{ctx.mr_url}]({ctx.mr_url})\n\n{APPROVAL_INSTRUCTIONS}"
             posted = await svc.board.post_tagged_comment(ticket.key, tag, body)
             ctx.set_meta("mr_comment_id", posted)
             return "mr_created"

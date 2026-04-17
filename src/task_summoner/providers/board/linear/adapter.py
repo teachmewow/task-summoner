@@ -103,9 +103,7 @@ class LinearAdapter:
         }
         """
         issue_node_id = await self._resolve_issue_node_id(ticket_id)
-        data = await self._client.query(
-            mutation, {"issueId": issue_node_id, "body": body}
-        )
+        data = await self._client.query(mutation, {"issueId": issue_node_id, "body": body})
         payload = data.get("commentCreate", {})
         if not payload.get("success"):
             raise RuntimeError(f"Linear comment create failed for {ticket_id}")
@@ -130,9 +128,7 @@ class LinearAdapter:
           issueUpdate(id: $id, input: {stateId: $stateId}) { success }
         }
         """
-        await self._client.query(
-            mutation, {"id": issue_node_id, "stateId": state_id}
-        )
+        await self._client.query(mutation, {"id": issue_node_id, "stateId": state_id})
         log.info("Ticket transitioned", ticket=ticket_id, status=status)
 
     async def add_label(self, ticket_id: str, label: str) -> None:
@@ -143,9 +139,7 @@ class LinearAdapter:
           issueAddLabel(id: $id, labelId: $labelId) { success }
         }
         """
-        await self._client.query(
-            mutation, {"id": issue_node_id, "labelId": label_id}
-        )
+        await self._client.query(mutation, {"id": issue_node_id, "labelId": label_id})
 
     async def remove_label(self, ticket_id: str, label: str) -> None:
         label_id = self._label_cache.get(label) or await self._resolve_label_id(label)
@@ -157,9 +151,7 @@ class LinearAdapter:
           issueRemoveLabel(id: $id, labelId: $labelId) { success }
         }
         """
-        await self._client.query(
-            mutation, {"id": issue_node_id, "labelId": label_id}
-        )
+        await self._client.query(mutation, {"id": issue_node_id, "labelId": label_id})
 
     async def assign(self, ticket_id: str, assignee: str | None) -> None:
         issue_node_id = await self._resolve_issue_node_id(ticket_id)
@@ -169,9 +161,7 @@ class LinearAdapter:
           issueUpdate(id: $id, input: {assigneeId: $assigneeId}) { success }
         }
         """
-        await self._client.query(
-            mutation, {"id": issue_node_id, "assigneeId": assignee_id}
-        )
+        await self._client.query(mutation, {"id": issue_node_id, "assigneeId": assignee_id})
 
     async def set_state_label(self, ticket_id: str, state: TicketState) -> None:
         label = f"ts:{state.value.lower()}"
@@ -186,9 +176,7 @@ class LinearAdapter:
                 error=str(e),
             )
 
-    async def get_comment_replies(
-        self, ticket_id: str, after_comment_id: str
-    ) -> list[Comment]:
+    async def get_comment_replies(self, ticket_id: str, after_comment_id: str) -> list[Comment]:
         """Return replies posted after the anchor comment. The anchor may be
         identified by native comment ID or by its embedded tag string."""
         raw = await self._fetch_raw_comments(ticket_id)
@@ -206,9 +194,7 @@ class LinearAdapter:
                 replies.append(c)
         return [self._to_comment(c) for c in replies]
 
-    def _find_anchor(
-        self, raw: list[dict[str, Any]], identifier: str
-    ) -> dict[str, Any] | None:
+    def _find_anchor(self, raw: list[dict[str, Any]], identifier: str) -> dict[str, Any] | None:
         """Find a comment by native ID or by embedded tag substring."""
         for c in raw:
             if c.get("id") == identifier:
@@ -218,18 +204,14 @@ class LinearAdapter:
                 return c
         return None
 
-    async def post_tagged_comment(
-        self, ticket_id: str, tag: str, body: str
-    ) -> str:
+    async def post_tagged_comment(self, ticket_id: str, tag: str, body: str) -> str:
         """Post a comment with an embedded tag. Returns the tag itself, which is the
         robust approval-tracking identifier (native IDs don't survive state recovery)."""
         tagged_body = f"{body}\n\n{tag}"
         await self.post_comment(ticket_id, tagged_body)
         return tag
 
-    async def check_approval(
-        self, ticket_id: str, comment_id: str
-    ) -> ApprovalResult:
+    async def check_approval(self, ticket_id: str, comment_id: str) -> ApprovalResult:
         if not comment_id:
             return ApprovalResult(decision=ApprovalDecision.PENDING)
 
@@ -324,9 +306,7 @@ class LinearAdapter:
           }
         }
         """
-        data = await self._client.query(
-            mutation, {"teamId": self._config.team_id, "name": name}
-        )
+        data = await self._client.query(mutation, {"teamId": self._config.team_id, "name": name})
         payload = data.get("issueLabelCreate", {})
         if not payload.get("success"):
             raise RuntimeError(f"Linear label create failed: {name}")

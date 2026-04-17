@@ -42,9 +42,7 @@ async def cmd_run(config_path: str, port: int = 8420, with_ui: bool = True) -> N
 
     if with_ui:
         tasks.append(
-            asyncio.create_task(
-                _start_dashboard(event_bus, orchestrator.store, port, path)
-            )
+            asyncio.create_task(_start_dashboard(event_bus, orchestrator.store, port, path))
         )
 
     await asyncio.gather(*tasks)
@@ -60,9 +58,7 @@ async def _start_dashboard(
 ) -> None:
     """Launch the FastAPI dashboard on the given port."""
     app = create_app(event_bus, store, config_path=config_path)
-    server = uvicorn.Server(
-        uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning")
-    )
+    server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning"))
     log.info("Dashboard available", url=f"http://localhost:{port}")
     await server.serve()
 

@@ -21,9 +21,7 @@ class BoardProviderFactory:
         match config.board:
             case BoardProviderType.JIRA:
                 if not isinstance(config.board_config, JiraConfig):
-                    raise ValueError(
-                        "Board provider is 'jira' but board_config is not JiraConfig"
-                    )
+                    raise ValueError("Board provider is 'jira' but board_config is not JiraConfig")
                 return JiraAdapter(config.board_config)
             case BoardProviderType.LINEAR:
                 if not isinstance(config.board_config, LinearConfig):

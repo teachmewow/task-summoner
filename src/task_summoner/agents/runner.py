@@ -66,13 +66,15 @@ class AgentRunner:
             cwd=cwd,
         )
 
-        await self._emit(AgentStartedEvent(
-            ticket_key=ticket_key,
-            agent_name=agent_name,
-            model=agent_config.model,
-            max_turns=agent_config.max_turns,
-            budget_usd=agent_config.max_budget_usd,
-        ))
+        await self._emit(
+            AgentStartedEvent(
+                ticket_key=ticket_key,
+                agent_name=agent_name,
+                model=agent_config.model,
+                max_turns=agent_config.max_turns,
+                budget_usd=agent_config.max_budget_usd,
+            )
+        )
 
         output_parts: list[str] = []
         cost = 0.0
@@ -85,18 +87,22 @@ class AgentRunner:
                     for block in message.content:
                         if isinstance(block, TextBlock):
                             output_parts.append(block.text)
-                            await self._emit(AgentMessageEvent(
-                                ticket_key=ticket_key,
-                                agent_name=agent_name,
-                                text=block.text,
-                            ))
+                            await self._emit(
+                                AgentMessageEvent(
+                                    ticket_key=ticket_key,
+                                    agent_name=agent_name,
+                                    text=block.text,
+                                )
+                            )
                         elif isinstance(block, ToolUseBlock):
-                            await self._emit(AgentToolUseEvent(
-                                ticket_key=ticket_key,
-                                agent_name=agent_name,
-                                tool_name=block.name,
-                                tool_input=_safe_tool_input(block.input),
-                            ))
+                            await self._emit(
+                                AgentToolUseEvent(
+                                    ticket_key=ticket_key,
+                                    agent_name=agent_name,
+                                    tool_name=block.name,
+                                    tool_input=_safe_tool_input(block.input),
+                                )
+                            )
                 elif isinstance(message, ResultMessage):
                     cost = getattr(message, "total_cost_usd", 0.0) or 0.0
                     turns = getattr(message, "num_turns", 0) or 0
@@ -107,14 +113,16 @@ class AgentRunner:
             log.error("Agent SDK error", agent=agent_name, error=str(e))
             error = str(e)
 
-        await self._emit(AgentCompletedEvent(
-            ticket_key=ticket_key,
-            agent_name=agent_name,
-            success=error is None,
-            cost_usd=cost,
-            num_turns=turns,
-            error=error,
-        ))
+        await self._emit(
+            AgentCompletedEvent(
+                ticket_key=ticket_key,
+                agent_name=agent_name,
+                success=error is None,
+                cost_usd=cost,
+                num_turns=turns,
+                error=error,
+            )
+        )
 
         log.info("Agent finished", agent=agent_name, turns=turns, cost=f"${cost:.4f}")
 

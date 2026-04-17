@@ -7,7 +7,6 @@ directly via `task-summoner setup`. Uses `rich` for a clean terminal UI.
 from __future__ import annotations
 
 import os
-import shutil
 from pathlib import Path
 
 import yaml
@@ -71,9 +70,7 @@ def run_wizard(config_path: Path = _DEFAULT_CONFIG_PATH) -> Path:
     repos = _prompt_repos(console)
     default_repo = _prompt_default_repo(console, repos)
 
-    polling_sec = IntPrompt.ask(
-        "[cyan]Poll interval (seconds)[/]", default=10
-    )
+    polling_sec = IntPrompt.ask("[cyan]Poll interval (seconds)[/]", default=10)
     workspace_root = Prompt.ask(
         "[cyan]Workspace root[/]",
         default="/tmp/task-summoner-workspaces",
@@ -105,9 +102,7 @@ def run_wizard(config_path: Path = _DEFAULT_CONFIG_PATH) -> Path:
 
 def _prompt_board_type(console: Console) -> BoardProviderType:
     console.print("\n[bold]Board provider[/]")
-    choice = Prompt.ask(
-        "[cyan]Which board?[/]", choices=["linear", "jira"], default="linear"
-    )
+    choice = Prompt.ask("[cyan]Which board?[/]", choices=["linear", "jira"], default="linear")
     return BoardProviderType(choice)
 
 
@@ -125,17 +120,11 @@ def _prompt_board_credentials(
             default="${ATLASSIAN_TOKEN}",
             password=False,
         )
-        watch_label = Prompt.ask(
-            "[cyan]Watch label[/]", default="task-summoner"
-        )
-        return JiraConfig(
-            email=email, token=token, watch_label=watch_label
-        )
+        watch_label = Prompt.ask("[cyan]Watch label[/]", default="task-summoner")
+        return JiraConfig(email=email, token=token, watch_label=watch_label)
 
     console.print("\n[bold]Linear credentials[/]")
-    api_key = Prompt.ask(
-        "[cyan]API key[/] (or ${ENV_VAR})", default="${LINEAR_API_KEY}"
-    )
+    api_key = Prompt.ask("[cyan]API key[/] (or ${ENV_VAR})", default="${LINEAR_API_KEY}")
     team_id = Prompt.ask("[cyan]Team ID (UUID)[/]")
     watch_label = Prompt.ask("[cyan]Watch label[/]", default="task-summoner")
     return LinearConfig(api_key=api_key, team_id=team_id, watch_label=watch_label)
@@ -167,9 +156,7 @@ def _prompt_agent_credentials(
         )
         plugin_path = ""
         if plugin_mode == "local":
-            plugin_path = Prompt.ask(
-                "[cyan]Path to tmw-workflows plugin directory[/]"
-            )
+            plugin_path = Prompt.ask("[cyan]Path to tmw-workflows plugin directory[/]")
         return ClaudeCodeConfig(
             api_key=api_key,
             plugin_mode=plugin_mode,
@@ -184,18 +171,12 @@ def _prompt_agent_credentials(
     return CodexConfig(api_key=api_key)
 
 
-def _test_board_connection(
-    console: Console, provider_config: ProviderConfig
-) -> None:
-    if not Confirm.ask(
-        "\n[cyan]Test board connection now?[/]", default=True
-    ):
+def _test_board_connection(console: Console, provider_config: ProviderConfig) -> None:
+    if not Confirm.ask("\n[cyan]Test board connection now?[/]", default=True):
         return
     try:
         board = BoardProviderFactory.create(provider_config)
-        console.print(
-            f"[green]✓ {provider_config.board.value} adapter instantiated.[/]"
-        )
+        console.print(f"[green]✓ {provider_config.board.value} adapter instantiated.[/]")
         del board  # live API call is deferred — the factory + config shape are validated
     except Exception as e:
         console.print(f"[red]✗ Board setup failed:[/] {e}")
@@ -203,9 +184,7 @@ def _test_board_connection(
 
 def _prompt_repos(console: Console) -> dict[str, str]:
     console.print("\n[bold]Repos to watch[/]")
-    console.print(
-        "[dim]Enter repos one per line. Blank line to finish.[/]"
-    )
+    console.print("[dim]Enter repos one per line. Blank line to finish.[/]")
     repos: dict[str, str] = {}
     while True:
         name = Prompt.ask("[cyan]Repo name[/] (blank to finish)", default="")
@@ -221,9 +200,7 @@ def _prompt_repos(console: Console) -> dict[str, str]:
         repos[name] = expanded
 
     if not repos:
-        console.print(
-            "[yellow]⚠ No repos configured — you can add them to config.yaml later.[/]"
-        )
+        console.print("[yellow]⚠ No repos configured — you can add them to config.yaml later.[/]")
     return repos
 
 

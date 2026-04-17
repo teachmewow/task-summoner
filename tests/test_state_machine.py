@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from task_summoner.models import TicketState
 from task_summoner.core.state_machine import (
     InvalidTransitionError,
     is_agent_running,
@@ -12,6 +11,7 @@ from task_summoner.core.state_machine import (
     is_terminal,
     transition,
 )
+from task_summoner.models import TicketState
 
 
 class TestTransition:
@@ -65,17 +65,31 @@ class TestStatePredicates:
         assert not is_terminal(TicketState.PLANNING)
 
     def test_agent_states(self):
-        for s in [TicketState.CHECKING_DOC, TicketState.CREATING_DOC, TicketState.IMPROVING_DOC,
-                  TicketState.PLANNING, TicketState.IMPLEMENTING, TicketState.FIXING_MR]:
+        for s in [
+            TicketState.CHECKING_DOC,
+            TicketState.CREATING_DOC,
+            TicketState.IMPROVING_DOC,
+            TicketState.PLANNING,
+            TicketState.IMPLEMENTING,
+            TicketState.FIXING_MR,
+        ]:
             assert is_agent_running(s), f"{s} should be agent state"
 
     def test_non_agent_states(self):
-        for s in [TicketState.QUEUED, TicketState.WAITING_DOC_REVIEW,
-                  TicketState.WAITING_PLAN_REVIEW, TicketState.WAITING_MR_REVIEW,
-                  TicketState.DONE, TicketState.FAILED]:
+        for s in [
+            TicketState.QUEUED,
+            TicketState.WAITING_DOC_REVIEW,
+            TicketState.WAITING_PLAN_REVIEW,
+            TicketState.WAITING_MR_REVIEW,
+            TicketState.DONE,
+            TicketState.FAILED,
+        ]:
             assert not is_agent_running(s), f"{s} should NOT be agent state"
 
     def test_approval_states(self):
-        for s in [TicketState.WAITING_DOC_REVIEW, TicketState.WAITING_PLAN_REVIEW,
-                  TicketState.WAITING_MR_REVIEW]:
+        for s in [
+            TicketState.WAITING_DOC_REVIEW,
+            TicketState.WAITING_PLAN_REVIEW,
+            TicketState.WAITING_MR_REVIEW,
+        ]:
             assert is_approval_waiting(s), f"{s} should be approval state"

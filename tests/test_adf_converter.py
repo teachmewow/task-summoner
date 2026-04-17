@@ -17,7 +17,6 @@ from task_summoner.tracker.adf import (
 from task_summoner.tracker.adf_converter import markdown_to_adf, parse_inline
 from task_summoner.tracker.message_tracker import MessageTag
 
-
 # ═══════ Factory tests ═══════
 
 

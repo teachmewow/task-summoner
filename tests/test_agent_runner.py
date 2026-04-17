@@ -9,20 +9,29 @@ import pytest
 from task_summoner.agents.options import AgentOptionsFactory
 from task_summoner.agents.plugin_resolver import PluginMode, PluginResolver
 from task_summoner.agents.runner import AgentRunner
-from task_summoner.config import AgentConfig, TaskSummonerConfig
+from task_summoner.config import AgentConfig
 
 
 def _make_assistant_msg(text: str):
     from claude_agent_sdk import AssistantMessage, TextBlock
+
     return AssistantMessage(content=[TextBlock(text=text)], model="sonnet")
 
 
-def _make_result_msg(*, cost: float = 0.0, turns: int = 0, is_error: bool = False, result: str = "done"):
+def _make_result_msg(
+    *, cost: float = 0.0, turns: int = 0, is_error: bool = False, result: str = "done"
+):
     from claude_agent_sdk import ResultMessage
+
     return ResultMessage(
-        subtype="result", duration_ms=100, duration_api_ms=80,
-        is_error=is_error, num_turns=turns, session_id="test-session",
-        total_cost_usd=cost, result=result,
+        subtype="result",
+        duration_ms=100,
+        duration_api_ms=80,
+        is_error=is_error,
+        num_turns=turns,
+        session_id="test-session",
+        total_cost_usd=cost,
+        result=result,
     )
 
 
@@ -36,8 +45,11 @@ class TestAgentRunner:
     @pytest.fixture
     def agent_config(self) -> AgentConfig:
         return AgentConfig(
-            enabled=True, model="sonnet", max_turns=5,
-            max_budget_usd=1.0, tools=["Read"],
+            enabled=True,
+            model="sonnet",
+            max_turns=5,
+            max_budget_usd=1.0,
+            tools=["Read"],
         )
 
     async def test_successful_run(self, runner, agent_config):
@@ -66,8 +78,10 @@ class TestAgentRunner:
 
         with patch("task_summoner.agents.runner.query", side_effect=fake_query):
             result = await runner.run(
-                prompt="test", system_prompt="test",
-                cwd="/tmp", agent_config=agent_config,
+                prompt="test",
+                system_prompt="test",
+                cwd="/tmp",
+                agent_config=agent_config,
             )
 
         assert result.success
@@ -77,12 +91,14 @@ class TestAgentRunner:
     async def test_sdk_exception(self, runner, agent_config):
         async def failing_query(**kwargs):
             raise RuntimeError("SDK connection failed")
-            yield  # noqa: unreachable
+            yield  # pragma: no cover
 
         with patch("task_summoner.agents.runner.query", side_effect=failing_query):
             result = await runner.run(
-                prompt="test", system_prompt="test",
-                cwd="/tmp", agent_config=agent_config,
+                prompt="test",
+                system_prompt="test",
+                cwd="/tmp",
+                agent_config=agent_config,
             )
 
         assert not result.success
@@ -94,8 +110,10 @@ class TestAgentRunner:
 
         with patch("task_summoner.agents.runner.query", side_effect=error_query):
             result = await runner.run(
-                prompt="test", system_prompt="test",
-                cwd="/tmp", agent_config=agent_config,
+                prompt="test",
+                system_prompt="test",
+                cwd="/tmp",
+                agent_config=agent_config,
             )
 
         assert not result.success

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -47,16 +46,12 @@ class TestClaudeCodeAdapterContract:
 
 class TestClaudeCodeAdapterPlugins:
     def test_installed_mode_returns_empty_plugin_list(self, profile):
-        adapter = ClaudeCodeAdapter(
-            ClaudeCodeConfig(api_key="k", plugin_mode="installed")
-        )
+        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(api_key="k", plugin_mode="installed"))
         assert adapter._resolve_plugins(profile) == []
 
     def test_local_mode_returns_local_plugin_entry(self, profile, tmp_path):
         adapter = ClaudeCodeAdapter(
-            ClaudeCodeConfig(
-                api_key="k", plugin_mode="local", plugin_path=str(tmp_path)
-            )
+            ClaudeCodeConfig(api_key="k", plugin_mode="local", plugin_path=str(tmp_path))
         )
         plugins = adapter._resolve_plugins(profile)
         assert len(plugins) == 1
@@ -64,25 +59,19 @@ class TestClaudeCodeAdapterPlugins:
         assert plugins[0]["path"] == str(tmp_path.resolve())
 
     def test_local_mode_without_path_raises(self, profile):
-        adapter = ClaudeCodeAdapter(
-            ClaudeCodeConfig(api_key="k", plugin_mode="local")
-        )
+        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(api_key="k", plugin_mode="local"))
         with pytest.raises(ValueError, match="plugin_path"):
             adapter._resolve_plugins(profile)
 
     def test_unknown_plugin_mode_raises(self, profile):
-        adapter = ClaudeCodeAdapter(
-            ClaudeCodeConfig(api_key="k", plugin_mode="bogus")
-        )
+        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(api_key="k", plugin_mode="bogus"))
         with pytest.raises(ValueError, match="Unknown plugin_mode"):
             adapter._resolve_plugins(profile)
 
 
 class TestClaudeCodeAdapterRun:
     @pytest.mark.asyncio
-    async def test_run_returns_agent_result_on_success(
-        self, adapter, profile, tmp_path
-    ):
+    async def test_run_returns_agent_result_on_success(self, adapter, profile, tmp_path):
         from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
 
         async def fake_query(prompt, options):
@@ -111,9 +100,7 @@ class TestClaudeCodeAdapterRun:
         assert result.error is None
 
     @pytest.mark.asyncio
-    async def test_run_surfaces_sdk_exception_as_error(
-        self, adapter, profile, tmp_path
-    ):
+    async def test_run_surfaces_sdk_exception_as_error(self, adapter, profile, tmp_path):
         async def fake_query(prompt, options):
             raise RuntimeError("boom")
             yield  # pragma: no cover
@@ -128,9 +115,7 @@ class TestClaudeCodeAdapterRun:
         assert result.error == "boom"
 
     @pytest.mark.asyncio
-    async def test_run_emits_events_through_callback(
-        self, adapter, profile, tmp_path
-    ):
+    async def test_run_emits_events_through_callback(self, adapter, profile, tmp_path):
         from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
 
         async def fake_query(prompt, options):

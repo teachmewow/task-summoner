@@ -14,13 +14,10 @@ from .base import BaseState, StateServices
 
 log = structlog.get_logger()
 
-_CONFLUENCE_URL_PATTERN = re.compile(
-    r"(https?://[^\s)\"']*atlassian[^\s)\"']*wiki[^\s)\"']*)"
-)
+_CONFLUENCE_URL_PATTERN = re.compile(r"(https?://[^\s)\"']*atlassian[^\s)\"']*wiki[^\s)\"']*)")
 
 
 class CheckingDocState(BaseState):
-
     @property
     def state(self) -> TicketState:
         return TicketState.CHECKING_DOC
@@ -41,9 +38,7 @@ class CheckingDocState(BaseState):
             f'args="{ticket.key} --headless")\n'
         )
 
-    async def handle(
-        self, ctx: TicketContext, ticket: Ticket, svc: StateServices
-    ) -> str:
+    async def handle(self, ctx: TicketContext, ticket: Ticket, svc: StateServices) -> str:
         workspace = await self._ensure_workspace(ctx, ticket, svc)
         prompt = self.build_prompt(ticket)
 

@@ -92,7 +92,7 @@ def get_replies_after(comments: list[dict], tag_str: str) -> list[dict]:
         return []
 
     replies = []
-    for c in comments[idx + 1:]:
+    for c in comments[idx + 1 :]:
         if not is_ts_comment(c):
             replies.append(c)
     return replies

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import structlog
 
-from task_summoner.workspace import derive_branch_name
 from task_summoner.models import Ticket, TicketContext, TicketState
+from task_summoner.workspace import derive_branch_name
 
 from .base import BaseState, StateServices
 
@@ -13,14 +13,11 @@ log = structlog.get_logger()
 
 
 class QueuedState(BaseState):
-
     @property
     def state(self) -> TicketState:
         return TicketState.QUEUED
 
-    async def handle(
-        self, ctx: TicketContext, ticket: Ticket, svc: StateServices
-    ) -> str:
+    async def handle(self, ctx: TicketContext, ticket: Ticket, svc: StateServices) -> str:
         repo_name, repo_path = self._config.resolve_repo(ticket.labels)
         branch = derive_branch_name(ticket)
 

@@ -20,11 +20,7 @@ from task_summoner.providers.config import (
 from task_summoner.states.base import StateServices
 
 _PLUGIN_PATH = str(
-    Path(__file__).resolve().parents[1]
-    / ".."
-    / "aiops-claude-code"
-    / "plugins"
-    / "aiops-workflows"
+    Path(__file__).resolve().parents[1] / ".." / "aiops-claude-code" / "plugins" / "aiops-workflows"
 )
 
 
@@ -55,9 +51,7 @@ def config(tmp_path: Path) -> TaskSummonerConfig:
         default_repo="test-repo",
         repos={"test-repo": str(tmp_path / "repo")},
         workspace_root=str(tmp_path / "workspaces"),
-        doc_checker=AgentConfig(
-            model="haiku", max_turns=5, max_budget_usd=1.0, tools=["Read"]
-        ),
+        doc_checker=AgentConfig(model="haiku", max_turns=5, max_budget_usd=1.0, tools=["Read"]),
         standard=AgentConfig(model="sonnet", max_turns=10, max_budget_usd=5.0),
         heavy=AgentConfig(model="sonnet", max_turns=20, max_budget_usd=10.0),
         retry=RetryConfig(max_retries=2, base_delay_sec=1, max_backoff_sec=5),

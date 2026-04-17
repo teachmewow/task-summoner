@@ -16,7 +16,6 @@ from task_summoner.events.models import (
     BaseEvent,
     EventType,
     StateTransitionEvent,
-    TicketDiscoveredEvent,
     TicketErrorEvent,
 )
 
@@ -28,37 +27,49 @@ class TestEventModels:
 
     def test_state_transition(self):
         e = StateTransitionEvent(
-            ticket_key="TEST-1", old_state="QUEUED",
-            new_state="PLANNING", trigger="start_planning",
+            ticket_key="TEST-1",
+            old_state="QUEUED",
+            new_state="PLANNING",
+            trigger="start_planning",
         )
         assert e.event_type == EventType.STATE_TRANSITION
         assert e.timestamp is not None
 
     def test_agent_started(self):
         e = AgentStartedEvent(
-            ticket_key="TEST-1", agent_name="planner",
-            model="sonnet", max_turns=30, budget_usd=5.0,
+            ticket_key="TEST-1",
+            agent_name="planner",
+            model="sonnet",
+            max_turns=30,
+            budget_usd=5.0,
         )
         assert e.agent_name == "planner"
         assert e.budget_usd == 5.0
 
     def test_agent_message(self):
         e = AgentMessageEvent(
-            ticket_key="TEST-1", agent_name="planner", text="Hello world",
+            ticket_key="TEST-1",
+            agent_name="planner",
+            text="Hello world",
         )
         assert e.text == "Hello world"
 
     def test_agent_tool_use(self):
         e = AgentToolUseEvent(
-            ticket_key="TEST-1", agent_name="implementer",
-            tool_name="Bash", tool_input={"command": "ls"},
+            ticket_key="TEST-1",
+            agent_name="implementer",
+            tool_name="Bash",
+            tool_input={"command": "ls"},
         )
         assert e.tool_name == "Bash"
 
     def test_agent_completed(self):
         e = AgentCompletedEvent(
-            ticket_key="TEST-1", agent_name="planner",
-            success=True, cost_usd=0.5, num_turns=3,
+            ticket_key="TEST-1",
+            agent_name="planner",
+            success=True,
+            cost_usd=0.5,
+            num_turns=3,
         )
         assert e.success
         assert e.cost_usd == 0.5
@@ -69,7 +80,9 @@ class TestEventModels:
 
     def test_serialization(self):
         e = AgentStartedEvent(
-            ticket_key="TEST-1", agent_name="planner", model="sonnet",
+            ticket_key="TEST-1",
+            agent_name="planner",
+            model="sonnet",
         )
         d = e.model_dump(mode="json")
         assert d["event_type"] == "agent_started"
@@ -80,7 +93,9 @@ class TestEventBus:
     async def test_emit_and_history(self):
         bus = EventBus()
         event = AgentStartedEvent(
-            ticket_key="TEST-1", agent_name="planner", model="sonnet",
+            ticket_key="TEST-1",
+            agent_name="planner",
+            model="sonnet",
         )
         await bus.emit(event)
         assert len(bus.get_history()) == 1

@@ -78,7 +78,13 @@ class AgentConfig(BaseModel):
     max_budget_usd: float = Field(default=50.0, gt=0)
     tools: list[str] = Field(
         default_factory=lambda: [
-            "Read", "Glob", "Grep", "Bash", "Edit", "Write", "Skill",
+            "Read",
+            "Glob",
+            "Grep",
+            "Bash",
+            "Edit",
+            "Write",
+            "Skill",
         ]
     )
 
@@ -114,18 +120,24 @@ class TaskSummonerConfig(BaseModel):
     # Agent profiles — states reference these by name
     doc_checker: AgentConfig = Field(
         default_factory=lambda: AgentConfig(
-            model="haiku", max_turns=20, max_budget_usd=5.0,
+            model="haiku",
+            max_turns=20,
+            max_budget_usd=5.0,
             tools=["Read", "Glob", "Grep", "Bash"],
         ),
     )
     standard: AgentConfig = Field(
         default_factory=lambda: AgentConfig(
-            model="sonnet", max_turns=200, max_budget_usd=50.0,
+            model="sonnet",
+            max_turns=200,
+            max_budget_usd=50.0,
         ),
     )
     heavy: AgentConfig = Field(
         default_factory=lambda: AgentConfig(
-            model="sonnet", max_turns=500, max_budget_usd=50.0,
+            model="sonnet",
+            max_turns=500,
+            max_budget_usd=50.0,
         ),
     )
 
@@ -154,8 +166,7 @@ class TaskSummonerConfig(BaseModel):
         path = Path(path)
         if not path.exists():
             raise FileNotFoundError(
-                f"Config file not found: {path}. "
-                f"Run `task-summoner setup` to create one."
+                f"Config file not found: {path}. Run `task-summoner setup` to create one."
             )
 
         with open(path) as f:
@@ -179,9 +190,7 @@ class TaskSummonerConfig(BaseModel):
             providers=providers,
             default_repo=raw.get("default_repo", ""),
             repos={k: _expand(v) for k, v in (raw.get("repos") or {}).items()},
-            workspace_root=_expand(
-                raw.get("workspace_root", "/tmp/task-summoner-workspaces")
-            ),
+            workspace_root=_expand(raw.get("workspace_root", "/tmp/task-summoner-workspaces")),
             retry=_parse_retry(raw.get("retry", {})),
         )
 
@@ -191,13 +200,9 @@ class TaskSummonerConfig(BaseModel):
                 profiles_raw["doc_checker"], config.doc_checker
             )
         if "standard" in profiles_raw:
-            config.standard = _parse_agent_config(
-                profiles_raw["standard"], config.standard
-            )
+            config.standard = _parse_agent_config(profiles_raw["standard"], config.standard)
         if "heavy" in profiles_raw:
-            config.heavy = _parse_agent_config(
-                profiles_raw["heavy"], config.heavy
-            )
+            config.heavy = _parse_agent_config(profiles_raw["heavy"], config.heavy)
 
         return config
 
@@ -205,12 +210,11 @@ class TaskSummonerConfig(BaseModel):
         """Resolve repo name and path from ticket labels (repo:<name>)."""
         for label in labels:
             if label.startswith("repo:"):
-                repo_name = label[len("repo:"):]
+                repo_name = label[len("repo:") :]
                 if repo_name in self.repos:
                     return repo_name, self.repos[repo_name]
                 raise ValueError(
-                    f"Unknown repo '{repo_name}'. "
-                    f"Available: {list(self.repos.keys())}"
+                    f"Unknown repo '{repo_name}'. Available: {list(self.repos.keys())}"
                 )
         if self.default_repo and self.default_repo in self.repos:
             return self.default_repo, self.repos[self.default_repo]
@@ -259,22 +263,17 @@ class TaskSummonerConfig(BaseModel):
                     errors.append("providers.agent.claude_code.api_key is empty")
                 if cc.plugin_mode not in ("installed", "local"):
                     errors.append(
-                        f"plugin_mode must be 'installed' or 'local', "
-                        f"got '{cc.plugin_mode}'"
+                        f"plugin_mode must be 'installed' or 'local', got '{cc.plugin_mode}'"
                     )
                 errors.extend(self.build_plugin_resolver().validate())
 
         if not self.repos:
             errors.append("No repos configured")
         if self.default_repo and self.default_repo not in self.repos:
-            errors.append(
-                f"default_repo '{self.default_repo}' not in repos"
-            )
+            errors.append(f"default_repo '{self.default_repo}' not in repos")
         for repo_name, repo_path in self.repos.items():
             if not Path(repo_path).is_dir():
-                errors.append(
-                    f"Repo path for {repo_name} does not exist: {repo_path}"
-                )
+                errors.append(f"Repo path for {repo_name} does not exist: {repo_path}")
         return errors
 
 
@@ -285,6 +284,7 @@ def _expand(path: str) -> str:
 def _substitute_env(data: Any) -> Any:
     """Recursively replace `${VAR}` placeholders with os.environ values."""
     if isinstance(data, str):
+
         def replace(match: re.Match[str]) -> str:
             var = match.group(1)
             return os.environ.get(var, "")

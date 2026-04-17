@@ -9,8 +9,13 @@ from __future__ import annotations
 import re
 
 from .adf import (
-    Adf, AdfBlockNode, AdfParagraph, AdfTableCell, AdfTableHeader,
-    AdfTableRow, AdfText,
+    Adf,
+    AdfBlockNode,
+    AdfParagraph,
+    AdfTableCell,
+    AdfTableHeader,
+    AdfTableRow,
+    AdfText,
 )
 
 _INLINE_PATTERN = re.compile(r"(\*\*.*?\*\*|`[^`]+`)")
@@ -54,16 +59,22 @@ def markdown_to_adf(text: str) -> list[AdfBlockNode]:
             table_is_header_next = True
             return
         header_cells = table_rows[0]
-        header = AdfTableRow(content=[
-            AdfTableHeader(content=[AdfParagraph(content=parse_inline(cell))])
-            for cell in header_cells
-        ])
+        header = AdfTableRow(
+            content=[
+                AdfTableHeader(content=[AdfParagraph(content=parse_inline(cell))])
+                for cell in header_cells
+            ]
+        )
         body = []
         for row in table_rows[1:]:
-            body.append(AdfTableRow(content=[
-                AdfTableCell(content=[AdfParagraph(content=parse_inline(cell))])
-                for cell in row
-            ]))
+            body.append(
+                AdfTableRow(
+                    content=[
+                        AdfTableCell(content=[AdfParagraph(content=parse_inline(cell))])
+                        for cell in row
+                    ]
+                )
+            )
         nodes.append(Adf.table(header, body))
         table_rows = []
         table_is_header_next = True

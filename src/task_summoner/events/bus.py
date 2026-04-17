@@ -7,7 +7,6 @@ Uses the Observer pattern. Components publish events, subscribers
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict
 
 import structlog
 
@@ -35,7 +34,7 @@ class EventBus:
         async with self._lock:
             self._history.append(event)
             if len(self._history) > self._max_history:
-                self._history = self._history[-self._max_history:]
+                self._history = self._history[-self._max_history :]
 
             for queue in self._subscribers:
                 try:
@@ -54,9 +53,7 @@ class EventBus:
             ticket=event.ticket_key,
         )
 
-    async def subscribe(
-        self, ticket_key: str | None = None, include_history: bool = True
-    ):
+    async def subscribe(self, ticket_key: str | None = None, include_history: bool = True):
         """Async generator that yields events.
 
         Args:

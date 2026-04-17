@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from task_summoner.config import TaskSummonerConfig
-from task_summoner.models import Ticket, TicketContext, TicketState
+from task_summoner.models import TicketContext, TicketState
 from task_summoner.providers.agent import AgentResult
 from task_summoner.providers.board import ApprovalDecision, ApprovalResult
 from task_summoner.states import build_state_registry
@@ -38,15 +38,11 @@ class TestStateRegistry:
 
 
 class TestQueuedState:
-    async def test_handle_creates_workspace_and_claims(
-        self, config, sample_ticket, mock_services
-    ):
+    async def test_handle_creates_workspace_and_claims(self, config, sample_ticket, mock_services):
         registry = build_state_registry(config)
         handler = registry[TicketState.QUEUED]
         ctx = TicketContext(ticket_key="LLMOPS-42", state=TicketState.QUEUED)
-        mock_services.workspace.create = AsyncMock(
-            return_value="/tmp/ws/LLMOPS-42"
-        )
+        mock_services.workspace.create = AsyncMock(return_value="/tmp/ws/LLMOPS-42")
 
         trigger = await handler.handle(ctx, sample_ticket, mock_services)
 
@@ -67,9 +63,7 @@ class TestCheckingDocState:
             branch_name="LLMOPS-42-test",
         )
         mock_services.agent.run = AsyncMock(
-            return_value=AgentResult(
-                success=True, output="DOC_EXISTS", cost_usd=0.1
-            )
+            return_value=AgentResult(success=True, output="DOC_EXISTS", cost_usd=0.1)
         )
         mock_services.board.post_tagged_comment = AsyncMock(return_value="tag-x")
 
@@ -86,9 +80,7 @@ class TestCheckingDocState:
             branch_name="LLMOPS-42-test",
         )
         mock_services.agent.run = AsyncMock(
-            return_value=AgentResult(
-                success=True, output="DOC_NOT_NEEDED", cost_usd=0.1
-            )
+            return_value=AgentResult(success=True, output="DOC_NOT_NEEDED", cost_usd=0.1)
         )
         mock_services.board.post_tagged_comment = AsyncMock(return_value="tag-x")
 
@@ -105,9 +97,7 @@ class TestCheckingDocState:
             branch_name="LLMOPS-42-test",
         )
         mock_services.agent.run = AsyncMock(
-            return_value=AgentResult(
-                success=True, output="DOC_NEEDED", cost_usd=0.1
-            )
+            return_value=AgentResult(success=True, output="DOC_NEEDED", cost_usd=0.1)
         )
 
         trigger = await handler.handle(ctx, sample_ticket, mock_services)
@@ -125,15 +115,11 @@ class TestApprovalStates:
             (TicketState.WAITING_MR_REVIEW, "mr_comment_id"),
         ],
     )
-    async def test_approved(
-        self, config, sample_ticket, mock_services, state, meta_key
-    ):
+    async def test_approved(self, config, sample_ticket, mock_services, state, meta_key):
         registry = build_state_registry(config)
         handler = registry[state]
         tag = "[ts:LLMOPS-42:test:abc12345]"
-        ctx = TicketContext(
-            ticket_key="LLMOPS-42", state=state, metadata={meta_key: tag}
-        )
+        ctx = TicketContext(ticket_key="LLMOPS-42", state=state, metadata={meta_key: tag})
         mock_services.board.check_approval = AsyncMock(
             return_value=ApprovalResult(decision=ApprovalDecision.APPROVED)
         )
@@ -149,15 +135,11 @@ class TestApprovalStates:
             (TicketState.WAITING_MR_REVIEW, "mr_comment_id"),
         ],
     )
-    async def test_retry(
-        self, config, sample_ticket, mock_services, state, meta_key
-    ):
+    async def test_retry(self, config, sample_ticket, mock_services, state, meta_key):
         registry = build_state_registry(config)
         handler = registry[state]
         tag = "[ts:LLMOPS-42:test:abc12345]"
-        ctx = TicketContext(
-            ticket_key="LLMOPS-42", state=state, metadata={meta_key: tag}
-        )
+        ctx = TicketContext(ticket_key="LLMOPS-42", state=state, metadata={meta_key: tag})
         mock_services.board.check_approval = AsyncMock(
             return_value=ApprovalResult(decision=ApprovalDecision.RETRY)
         )
@@ -174,14 +156,10 @@ class TestApprovalStates:
             (TicketState.WAITING_MR_REVIEW, "mr_comment_id"),
         ],
     )
-    async def test_waiting(
-        self, config, sample_ticket, mock_services, state, meta_key
-    ):
+    async def test_waiting(self, config, sample_ticket, mock_services, state, meta_key):
         registry = build_state_registry(config)
         handler = registry[state]
-        ctx = TicketContext(
-            ticket_key="LLMOPS-42", state=state, metadata={meta_key: "12345"}
-        )
+        ctx = TicketContext(ticket_key="LLMOPS-42", state=state, metadata={meta_key: "12345"})
         mock_services.board.check_approval = AsyncMock(
             return_value=ApprovalResult(decision=ApprovalDecision.PENDING)
         )
@@ -220,13 +198,9 @@ class TestPlanningState:
         (plan_dir / "plan.md").write_text("## Plan\nDo it")
 
         mock_services.agent.run = AsyncMock(
-            return_value=AgentResult(
-                success=True, output="thinking...", cost_usd=1.0
-            )
+            return_value=AgentResult(success=True, output="thinking...", cost_usd=1.0)
         )
-        mock_services.board.post_tagged_comment = AsyncMock(
-            side_effect=lambda tid, tag, body: tag
-        )
+        mock_services.board.post_tagged_comment = AsyncMock(side_effect=lambda tid, tag, body: tag)
 
         trigger = await handler.handle(ctx, sample_ticket, mock_services)
 
@@ -236,9 +210,7 @@ class TestPlanningState:
         body = posted_call.args[2]
         assert "## Plan" in body
 
-    async def test_handle_failure_retries(
-        self, config, sample_ticket, mock_services
-    ):
+    async def test_handle_failure_retries(self, config, sample_ticket, mock_services):
         registry = build_state_registry(config)
         handler = registry[TicketState.PLANNING]
         ctx = TicketContext(
@@ -257,9 +229,7 @@ class TestPlanningState:
 
 
 class TestImplementingState:
-    async def test_handle_success_with_pr(
-        self, config, sample_ticket, mock_services
-    ):
+    async def test_handle_success_with_pr(self, config, sample_ticket, mock_services):
         registry = build_state_registry(config)
         handler = registry[TicketState.IMPLEMENTING]
         ctx = TicketContext(
@@ -279,36 +249,24 @@ class TestImplementingState:
                 cost_usd=5.0,
             )
         )
-        mock_services.board.post_tagged_comment = AsyncMock(
-            side_effect=lambda tid, tag, body: tag
-        )
+        mock_services.board.post_tagged_comment = AsyncMock(side_effect=lambda tid, tag, body: tag)
 
         trigger = await handler.handle(ctx, sample_ticket, mock_services)
         assert trigger == "mr_created"
         assert "42" in ctx.mr_url
-        assert ctx.get_meta("mr_comment_id").startswith(
-            "[ts:LLMOPS-42:implementing:"
-        )
+        assert ctx.get_meta("mr_comment_id").startswith("[ts:LLMOPS-42:implementing:")
 
 
 class TestTerminalStates:
-    async def test_done_transitions_board(
-        self, config, sample_ticket, mock_services
-    ):
+    async def test_done_transitions_board(self, config, sample_ticket, mock_services):
         registry = build_state_registry(config)
         ctx = TicketContext(ticket_key="LLMOPS-42", state=TicketState.DONE)
-        trigger = await registry[TicketState.DONE].handle(
-            ctx, sample_ticket, mock_services
-        )
+        trigger = await registry[TicketState.DONE].handle(ctx, sample_ticket, mock_services)
         assert trigger == "_noop"
-        mock_services.board.transition.assert_called_once_with(
-            "LLMOPS-42", "Done"
-        )
+        mock_services.board.transition.assert_called_once_with("LLMOPS-42", "Done")
 
     async def test_failed_is_noop(self, config, sample_ticket, mock_services):
         registry = build_state_registry(config)
         ctx = TicketContext(ticket_key="LLMOPS-42", state=TicketState.FAILED)
-        trigger = await registry[TicketState.FAILED].handle(
-            ctx, sample_ticket, mock_services
-        )
+        trigger = await registry[TicketState.FAILED].handle(ctx, sample_ticket, mock_services)
         assert trigger == "_noop"

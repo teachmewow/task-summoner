@@ -6,9 +6,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
+from task_summoner.models.comment import Comment
 from task_summoner.models.enums import TicketState
 from task_summoner.models.ticket import Ticket
-from task_summoner.models.comment import Comment
 
 
 class ApprovalDecision(str, Enum):
@@ -67,20 +67,14 @@ class BoardProvider(Protocol):
         """Set a ts:<state> label on the ticket, removing previous state labels."""
         ...
 
-    async def get_comment_replies(
-        self, ticket_id: str, after_comment_id: str
-    ) -> list[Comment]:
+    async def get_comment_replies(self, ticket_id: str, after_comment_id: str) -> list[Comment]:
         """Get comments posted after a specific comment (for approval polling)."""
         ...
 
-    async def post_tagged_comment(
-        self, ticket_id: str, tag: str, body: str
-    ) -> str:
+    async def post_tagged_comment(self, ticket_id: str, tag: str, body: str) -> str:
         """Post a comment with an embedded tag (for approval tracking). Returns comment ID."""
         ...
 
-    async def check_approval(
-        self, ticket_id: str, comment_id: str
-    ) -> ApprovalResult:
+    async def check_approval(self, ticket_id: str, comment_id: str) -> ApprovalResult:
         """Check if a tagged comment has been approved, retry-requested, or is still pending."""
         ...

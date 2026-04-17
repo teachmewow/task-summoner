@@ -13,7 +13,6 @@ log = structlog.get_logger()
 
 
 class CreatingDocState(BaseState):
-
     @property
     def state(self) -> TicketState:
         return TicketState.CREATING_DOC
@@ -33,9 +32,7 @@ class CreatingDocState(BaseState):
             f'args="{ticket.key} --headless")\n'
         )
 
-    async def handle(
-        self, ctx: TicketContext, ticket: Ticket, svc: StateServices
-    ) -> str:
+    async def handle(self, ctx: TicketContext, ticket: Ticket, svc: StateServices) -> str:
         workspace = await self._ensure_workspace(ctx, ticket, svc)
         prompt = self.build_prompt(ticket)
 

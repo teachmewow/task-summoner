@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from task_summoner.config import TaskSummonerConfig
-from task_summoner.workspace import GitWorkspaceManager, derive_branch_name
 from task_summoner.models import Ticket
+from task_summoner.workspace import GitWorkspaceManager, derive_branch_name
 
 
 class TestDeriveBranchName:

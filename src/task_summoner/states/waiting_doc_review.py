@@ -8,7 +8,6 @@ from .base import BaseApprovalState
 
 
 class WaitingDocReviewState(BaseApprovalState):
-
     @property
     def state(self) -> TicketState:
         return TicketState.WAITING_DOC_REVIEW

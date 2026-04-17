@@ -93,7 +93,7 @@ class Orchestrator:
                     self._shutdown_event.wait(),
                     timeout=self._config.poll_interval_sec,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
         log.info("Shutting down, waiting for agents...")

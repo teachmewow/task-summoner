@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -23,9 +22,7 @@ def adapter() -> JiraAdapter:
 class TestJiraAdapter:
     @pytest.mark.asyncio
     async def test_search_eligible_returns_normalized_tickets(self, adapter):
-        payload = json.dumps([
-            {"key": "LLMOPS-1", "fields": {"summary": "hello", "labels": []}}
-        ])
+        payload = json.dumps([{"key": "LLMOPS-1", "fields": {"summary": "hello", "labels": []}}])
         with patch.object(adapter, "_run_acli", AsyncMock(return_value=payload)):
             tickets = await adapter.search_eligible()
         assert len(tickets) == 1
@@ -42,14 +39,16 @@ class TestJiraAdapter:
 
     @pytest.mark.asyncio
     async def test_list_comments_returns_normalized_comments(self, adapter):
-        raw = json.dumps([
-            {
-                "id": "c1",
-                "body": "hello",
-                "author": {"displayName": "Matheus"},
-                "created": "2026-04-16T10:00:00Z",
-            }
-        ])
+        raw = json.dumps(
+            [
+                {
+                    "id": "c1",
+                    "body": "hello",
+                    "author": {"displayName": "Matheus"},
+                    "created": "2026-04-16T10:00:00Z",
+                }
+            ]
+        )
         with patch.object(adapter, "_run_acli", AsyncMock(return_value=raw)):
             comments = await adapter.list_comments("LLMOPS-3")
         assert len(comments) == 1
@@ -60,14 +59,16 @@ class TestJiraAdapter:
 
     @pytest.mark.asyncio
     async def test_list_comments_marks_tagged_comment_as_bot(self, adapter):
-        raw = json.dumps([
-            {
-                "id": "c2",
-                "body": "Plan here [ts:LLMOPS-4:planning:abc12345]",
-                "author": {"displayName": "bot"},
-                "created": "2026-04-16T10:00:00Z",
-            }
-        ])
+        raw = json.dumps(
+            [
+                {
+                    "id": "c2",
+                    "body": "Plan here [ts:LLMOPS-4:planning:abc12345]",
+                    "author": {"displayName": "bot"},
+                    "created": "2026-04-16T10:00:00Z",
+                }
+            ]
+        )
         with patch.object(adapter, "_run_acli", AsyncMock(return_value=raw)):
             comments = await adapter.list_comments("LLMOPS-4")
         assert comments[0].is_bot is True
@@ -83,9 +84,7 @@ class TestJiraAdapter:
             {"id": "c1", "body": "[ts:LLMOPS-5:planning:aaa]", "author": {}},
         ]
         with patch.object(adapter, "_raw_list_comments", AsyncMock(return_value=raw)):
-            result = await adapter.check_approval(
-                "LLMOPS-5", "[ts:LLMOPS-5:planning:aaa]"
-            )
+            result = await adapter.check_approval("LLMOPS-5", "[ts:LLMOPS-5:planning:aaa]")
         assert result.decision == ApprovalDecision.PENDING
 
     @pytest.mark.asyncio
@@ -95,9 +94,7 @@ class TestJiraAdapter:
             {"id": "c2", "body": "lgtm go for it"},
         ]
         with patch.object(adapter, "_raw_list_comments", AsyncMock(return_value=raw)):
-            result = await adapter.check_approval(
-                "LLMOPS-6", "[ts:LLMOPS-6:planning:bbb]"
-            )
+            result = await adapter.check_approval("LLMOPS-6", "[ts:LLMOPS-6:planning:bbb]")
         assert result.decision == ApprovalDecision.APPROVED
         assert result.feedback == "go for it"
 
@@ -108,9 +105,7 @@ class TestJiraAdapter:
             {"id": "c2", "body": "retry tests failing"},
         ]
         with patch.object(adapter, "_raw_list_comments", AsyncMock(return_value=raw)):
-            result = await adapter.check_approval(
-                "LLMOPS-7", "[ts:LLMOPS-7:planning:ccc]"
-            )
+            result = await adapter.check_approval("LLMOPS-7", "[ts:LLMOPS-7:planning:ccc]")
         assert result.decision == ApprovalDecision.RETRY
         assert result.feedback == "tests failing"
 
@@ -122,9 +117,7 @@ class TestJiraAdapter:
             {"id": "c3", "body": "lgtm"},
         ]
         with patch.object(adapter, "_raw_list_comments", AsyncMock(return_value=raw)):
-            result = await adapter.check_approval(
-                "LLMOPS-8", "[ts:LLMOPS-8:planning:ddd]"
-            )
+            result = await adapter.check_approval("LLMOPS-8", "[ts:LLMOPS-8:planning:ddd]")
         assert result.decision == ApprovalDecision.APPROVED
 
     @pytest.mark.asyncio
