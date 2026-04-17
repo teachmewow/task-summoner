@@ -8,6 +8,12 @@ Where a response is just the persisted domain model, we re-export it from
 shape and the `/api/tickets/{key}` response.
 """
 
+from task_summoner.api.schemas.agent_profile import (
+    AgentProfileOut,
+    AgentProfilePayload,
+    AgentProfileSaveResponse,
+    AgentProfilesResponse,
+)
 from task_summoner.api.schemas.config import (
     ConfigPayload,
     ConfigSaveResponse,
@@ -34,6 +40,10 @@ from task_summoner.api.schemas.failure import (
 from task_summoner.api.schemas.ticket import TicketResponse
 
 __all__ = [
+    "AgentProfileOut",
+    "AgentProfilePayload",
+    "AgentProfileSaveResponse",
+    "AgentProfilesResponse",
     "BudgetStatus",
     "ConfigPayload",
     "ConfigSaveResponse",

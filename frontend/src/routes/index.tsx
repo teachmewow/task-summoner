@@ -55,7 +55,7 @@ const CARDS: CardSpec[] = [
     icon: FlaskConical,
     title: "Agent Configurator",
     description: "Tune models, tools, and profiles per workflow.",
-    comingSoon: true,
+    href: "/agents",
   },
   {
     icon: BookOpen,
