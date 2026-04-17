@@ -12,7 +12,7 @@ from typing import Protocol
 import structlog
 
 from task_summoner.config import AgentConfig, TaskSummonerConfig
-from task_summoner.models import Ticket, TicketContext, TicketState, branch_from_labels
+from task_summoner.models import CostEntry, Ticket, TicketContext, TicketState, branch_from_labels
 from task_summoner.providers.agent import AgentProfile, AgentProvider, AgentResult
 from task_summoner.providers.board import (
     ApprovalDecision,
@@ -123,14 +123,38 @@ class BaseState(ABC):
         agent_name: str,
         prompt: str,
         workspace: str,
+        ctx: TicketContext | None = None,
     ) -> AgentResult:
-        """Invoke the agent provider with the handler's configured profile."""
+        """Invoke the agent provider. If `ctx` is given, also records cost_history."""
         profile = agent_profile_from_config(agent_name, self.agent_config or AgentConfig())
-        return await svc.agent.run(
+        result = await svc.agent.run(
             prompt=prompt,
             profile=profile,
             working_dir=Path(workspace),
         )
+        if ctx is not None:
+            ctx.total_cost_usd += result.cost_usd
+            ctx.cost_history.append(
+                CostEntry(
+                    cost_usd=result.cost_usd,
+                    turns=result.turns_used,
+                    profile=self._profile_name(),
+                    state=self.state.value,
+                )
+            )
+        return result
+
+    def _profile_name(self) -> str:
+        cfg = self.agent_config
+        if cfg is None:
+            return "unknown"
+        if cfg is self._config.doc_checker:
+            return "doc_checker"
+        if cfg is self._config.standard:
+            return "standard"
+        if cfg is self._config.heavy:
+            return "heavy"
+        return "unknown"
 
 
 class BaseApprovalState(BaseState):

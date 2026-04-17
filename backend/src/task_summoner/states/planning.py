@@ -45,12 +45,10 @@ class PlanningState(BaseState):
         workspace = await self._ensure_workspace(ctx, ticket, svc)
         prompt = self.build_prompt(ctx, ticket)
 
-        result = await self._run_agent(svc, "planner", prompt, workspace)
+        result = await self._run_agent(svc, "planner", prompt, workspace, ctx=ctx)
 
         artifact_dir = self._artifact_dir(ticket.key)
         plan_path = artifact_dir / "plan.md"
-
-        ctx.total_cost_usd += result.cost_usd
 
         if plan_path.exists():
             plan_text = plan_path.read_text()

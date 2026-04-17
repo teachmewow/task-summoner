@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from .cost import CostEntry
 from .enums import TicketState
 
 
@@ -26,6 +27,7 @@ class TicketContext(BaseModel):
     mr_url: str | None = None
     retry_count: int = Field(default=0, ge=0)
     total_cost_usd: float = Field(default=0.0, ge=0.0)
+    cost_history: list[CostEntry] = Field(default_factory=list)
     error: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 

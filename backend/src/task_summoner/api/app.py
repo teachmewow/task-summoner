@@ -19,7 +19,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from task_summoner.api.routers import config_router, events_router, tickets_router
+from task_summoner.api.routers import config_router, cost_router, events_router, tickets_router
 from task_summoner.config import TaskSummonerConfig
 from task_summoner.core import StateStore
 from task_summoner.events.bus import EventBus
@@ -55,6 +55,7 @@ def create_app(config_path: Path | None = None) -> FastAPI:
     app.include_router(tickets_router)
     app.include_router(events_router)
     app.include_router(config_router)
+    app.include_router(cost_router)
 
     _mount_frontend(app)
 
@@ -99,6 +100,7 @@ async def reload_orchestrator(app: FastAPI) -> None:
 
     orchestrator = Orchestrator(config, event_bus=event_bus)
     app.state.store = orchestrator.store
+    app.state.config = config
     app.state.configured = True
     app.state.config_errors = []
     app.state.orchestrator_task = asyncio.create_task(orchestrator.run())

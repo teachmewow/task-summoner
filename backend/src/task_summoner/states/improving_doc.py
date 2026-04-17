@@ -41,8 +41,7 @@ class ImprovingDocState(BaseState):
         workspace = await self._ensure_workspace(ctx, ticket, svc)
         prompt = self.build_prompt(ctx, ticket)
 
-        result = await self._run_agent(svc, "doc_improver", prompt, workspace)
-        ctx.total_cost_usd += result.cost_usd
+        result = await self._run_agent(svc, "doc_improver", prompt, workspace, ctx=ctx)
 
         if result.success:
             return "improved"

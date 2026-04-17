@@ -144,6 +144,8 @@ class TaskSummonerConfig(BaseModel):
 
     retry: RetryConfig = Field(default_factory=RetryConfig)
 
+    monthly_budget_usd: float | None = Field(default=None, ge=0.0)
+
     @property
     def poll_interval_sec(self) -> int:
         return self.polling_interval_sec
@@ -192,6 +194,7 @@ class TaskSummonerConfig(BaseModel):
             repos={k: _expand(v) for k, v in (raw.get("repos") or {}).items()},
             workspace_root=_expand(raw.get("workspace_root", "/tmp/task-summoner-workspaces")),
             retry=_parse_retry(raw.get("retry", {})),
+            monthly_budget_usd=raw.get("monthly_budget_usd"),
         )
 
         profiles_raw = raw.get("agent_profiles", {})
