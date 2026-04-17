@@ -19,7 +19,13 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from task_summoner.api.routers import config_router, cost_router, events_router, tickets_router
+from task_summoner.api.routers import (
+    config_router,
+    cost_router,
+    events_router,
+    failures_router,
+    tickets_router,
+)
 from task_summoner.config import TaskSummonerConfig
 from task_summoner.core import StateStore
 from task_summoner.events.bus import EventBus
@@ -56,6 +62,7 @@ def create_app(config_path: Path | None = None) -> FastAPI:
     app.include_router(events_router)
     app.include_router(config_router)
     app.include_router(cost_router)
+    app.include_router(failures_router)
 
     _mount_frontend(app)
 
