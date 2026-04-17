@@ -277,6 +277,97 @@ class TestFailureSummary:
         assert response.status_code == 404
 
 
+class TestAgentProfiles:
+    def _write_valid_config(self, client, tmp_path: Path) -> None:
+        repo = tmp_path / "r"
+        repo.mkdir()
+        payload = {
+            "board_type": "linear",
+            "board_config": {
+                "api_key": "k",
+                "team_id": "team",
+                "watch_label": "task-summoner",
+            },
+            "agent_type": "claude_code",
+            "agent_config": {
+                "auth_method": "api_key",
+                "api_key": "ak",
+                "plugin_mode": "installed",
+            },
+            "repos": {"demo": str(repo)},
+            "default_repo": "demo",
+            "polling_interval_sec": 10,
+            "workspace_root": str(tmp_path / "ws"),
+        }
+        r = client.post("/api/config", json=payload)
+        assert r.status_code == 200, r.text
+
+    def test_list_requires_config(self, app_and_store):
+        client, _ = app_and_store
+        response = client.get("/api/agent-profiles")
+        assert response.status_code == 409
+
+    def test_list_returns_three_profiles(self, app_and_store, tmp_path: Path):
+        client, _ = app_and_store
+        self._write_valid_config(client, tmp_path)
+        body = client.get("/api/agent-profiles").json()
+        assert body["agent_provider"] == "claude_code"
+        assert "sonnet" in body["available_models"]
+        names = {p["name"] for p in body["profiles"]}
+        assert names == {"doc_checker", "standard", "heavy"}
+
+    def test_save_persists_and_reloads(self, app_and_store, tmp_path: Path):
+        client, _ = app_and_store
+        self._write_valid_config(client, tmp_path)
+        payload = {
+            "model": "opus",
+            "max_turns": 300,
+            "max_budget_usd": 60.0,
+            "tools": ["Read", "Bash"],
+            "enabled": True,
+        }
+        response = client.post("/api/agent-profiles/heavy", json=payload)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["ok"] is True
+        assert body["profile"]["model"] == "opus"
+        assert body["profile"]["max_turns"] == 300
+
+        reloaded = client.get("/api/agent-profiles").json()
+        heavy = next(p for p in reloaded["profiles"] if p["name"] == "heavy")
+        assert heavy["model"] == "opus"
+        assert heavy["max_turns"] == 300
+        assert heavy["tools"] == ["Read", "Bash"]
+
+    def test_save_unknown_profile_is_404(self, app_and_store, tmp_path: Path):
+        client, _ = app_and_store
+        self._write_valid_config(client, tmp_path)
+        r = client.post(
+            "/api/agent-profiles/nope",
+            json={
+                "model": "sonnet",
+                "max_turns": 10,
+                "max_budget_usd": 1,
+                "tools": [],
+            },
+        )
+        assert r.status_code == 404
+
+    def test_save_rejects_unknown_model(self, app_and_store, tmp_path: Path):
+        client, _ = app_and_store
+        self._write_valid_config(client, tmp_path)
+        r = client.post(
+            "/api/agent-profiles/standard",
+            json={
+                "model": "gpt-4o",
+                "max_turns": 10,
+                "max_budget_usd": 1,
+                "tools": [],
+            },
+        )
+        assert r.status_code == 400
+
+
 class TestReloadOnSave:
     """POST /api/config should trigger reload_orchestrator and flip configured → True."""
 

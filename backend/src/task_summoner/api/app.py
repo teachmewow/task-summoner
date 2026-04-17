@@ -20,6 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from task_summoner.api.routers import (
+    agent_profiles_router,
     config_router,
     cost_router,
     events_router,
@@ -63,6 +64,7 @@ def create_app(config_path: Path | None = None) -> FastAPI:
     app.include_router(config_router)
     app.include_router(cost_router)
     app.include_router(failures_router)
+    app.include_router(agent_profiles_router)
 
     _mount_frontend(app)
 

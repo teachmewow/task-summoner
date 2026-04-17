@@ -244,6 +244,13 @@ def _prompt_default_repo(console: Console, repos: dict[str, str]) -> str:
     )
 
 
+_DEFAULT_PROFILES: dict[str, dict] = {
+    "doc_checker": {"model": "haiku", "max_turns": 20, "max_budget_usd": 5},
+    "standard": {"model": "sonnet", "max_turns": 200, "max_budget_usd": 50},
+    "heavy": {"model": "opus", "max_turns": 500, "max_budget_usd": 50},
+}
+
+
 def _render_config_yaml(
     *,
     board_type: BoardProviderType,
@@ -254,6 +261,8 @@ def _render_config_yaml(
     default_repo: str,
     polling_interval_sec: int,
     workspace_root: str,
+    agent_profiles: dict[str, dict] | None = None,
+    monthly_budget_usd: float | None = None,
 ) -> str:
     data: dict = {
         "providers": {
@@ -271,15 +280,13 @@ def _render_config_yaml(
         "workspace_root": workspace_root,
         "artifacts_dir": "./artifacts",
         "approval_timeout_hours": 24,
-        "agent_profiles": {
-            "doc_checker": {"model": "haiku", "max_turns": 20, "max_budget_usd": 5},
-            "standard": {"model": "sonnet", "max_turns": 200, "max_budget_usd": 50},
-            "heavy": {"model": "opus", "max_turns": 500, "max_budget_usd": 50},
-        },
+        "agent_profiles": agent_profiles or _DEFAULT_PROFILES,
         "retry": {"max_retries": 3, "base_delay_sec": 10, "max_backoff_sec": 300},
     }
     if default_repo:
         data["default_repo"] = default_repo
+    if monthly_budget_usd is not None:
+        data["monthly_budget_usd"] = monthly_budget_usd
 
     return yaml.dump(data, sort_keys=False, default_flow_style=False)
 
