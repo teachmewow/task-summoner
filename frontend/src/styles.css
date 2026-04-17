@@ -1,20 +1,47 @@
 @import "tailwindcss";
 
 @theme {
+  --color-void-black: #0a0514;
+  --color-void-900: #0f0a1f;
+  --color-void-800: #1a0f2e;
+  --color-void-700: #261841;
+  --color-shadow-purple: #3d1b6b;
   --color-arise-violet: #a855f7;
-  --color-arise-deep: #0b0614;
-  --color-arise-ink: #1a0f2e;
+  --color-arise-violet-bright: #c084fc;
+  --color-soul-cyan: #c4b5fd;
+  --color-ghost-white: #e9d5ff;
+  --color-mana-green: #34d399;
+  --color-ember-red: #f87171;
+  --color-amber-flame: #fbbf24;
+
+  --arise-glow: rgba(168, 85, 247, 0.25);
+  --arise-glow-strong: rgba(168, 85, 247, 0.45);
 }
 
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: radial-gradient(1200px 800px at 20% -10%, rgba(168, 85, 247, 0.08), transparent 60%),
+      radial-gradient(900px 600px at 85% 110%, rgba(61, 27, 107, 0.25), transparent 55%),
+      var(--color-void-black);
+    color: var(--color-ghost-white);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-feature-settings: "ss01", "cv02";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--arise-glow-strong);
+    color: var(--color-ghost-white);
+  }
 }
 
-body {
-  background: var(--color-arise-deep);
-  color: white;
-  font-family: system-ui, -apple-system, sans-serif;
+@utility glow-violet {
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.35), 0 0 24px var(--arise-glow);
 }

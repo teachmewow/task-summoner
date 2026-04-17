@@ -10,6 +10,6 @@ describe("App router", () => {
       history: createMemoryHistory({ initialEntries: ["/"] }),
     });
     render(<RouterProvider router={router} />);
-    expect(await screen.findByText(/Task Summoner/i)).toBeInTheDocument();
+    expect(await screen.findByText(/shadow army/i)).toBeInTheDocument();
   });
 });

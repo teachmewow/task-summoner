@@ -1,4 +1,5 @@
 import { Link, Outlet, createRootRoute } from "@tanstack/react-router";
+import logoUrl from "~/assets/logo.svg";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -7,22 +8,36 @@ export const Route = createRootRoute({
 function RootLayout() {
   return (
     <div className="min-h-screen">
-      <header className="border-b border-arise-ink px-6 py-4">
-        <nav className="flex gap-6 text-sm">
-          <Link to="/" className="text-arise-violet hover:underline">
-            Home
+      <header className="border-b border-shadow-purple/50 bg-void-900/60 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-6xl items-center gap-8 px-6 py-4">
+          <Link to="/" className="flex items-center gap-3">
+            <img src={logoUrl} alt="" className="h-8 w-8" />
+            <span className="text-lg font-semibold tracking-wide text-ghost-white">
+              Task Summoner
+            </span>
           </Link>
-          <Link to="/monitor" className="text-arise-violet hover:underline">
-            Monitor
-          </Link>
-          <Link to="/setup" className="text-arise-violet hover:underline">
-            Setup
-          </Link>
-        </nav>
+          <nav className="flex gap-5 text-sm">
+            <NavLink to="/">Home</NavLink>
+            <NavLink to="/monitor">Monitor</NavLink>
+            <NavLink to="/setup">Setup</NavLink>
+          </nav>
+        </div>
       </header>
-      <main className="p-8">
+      <main className="mx-auto max-w-6xl px-6 py-10">
         <Outlet />
       </main>
     </div>
+  );
+}
+
+function NavLink({ to, children }: { to: string; children: React.ReactNode }) {
+  return (
+    <Link
+      to={to}
+      className="text-soul-cyan transition-colors hover:text-arise-violet-bright"
+      activeProps={{ className: "text-arise-violet" }}
+    >
+      {children}
+    </Link>
   );
 }

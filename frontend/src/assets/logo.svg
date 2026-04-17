@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="ts-rune" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#C084FC" />
+      <stop offset="1" stop-color="#7C3AED" />
+    </linearGradient>
+    <filter id="ts-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.4" />
+    </filter>
+  </defs>
+  <g stroke="url(#ts-rune)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 6 L32 58" />
+    <path d="M20 16 L32 22 L44 16" />
+    <path d="M18 34 L32 28 L46 34" />
+    <path d="M22 50 L32 44 L42 50" />
+    <circle cx="32" cy="32" r="14" stroke-dasharray="3 4" opacity="0.55" />
+  </g>
+  <circle cx="32" cy="32" r="2.2" fill="#E9D5FF" filter="url(#ts-glow)" />
+</svg>
