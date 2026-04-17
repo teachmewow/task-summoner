@@ -139,3 +139,30 @@ class TestEventHistory:
         response = client.get("/api/events/history")
         assert response.status_code == 200
         assert response.json() == []
+
+
+class TestReloadOnSave:
+    """POST /api/config should trigger reload_orchestrator and flip configured → True."""
+
+    def test_reload_flips_configured_flag(self, app_and_store, tmp_path: Path):
+        client, _ = app_and_store
+
+        initial = client.get("/api/config/status").json()
+        assert initial["configured"] is False
+
+        repo_dir = tmp_path / "demo_repo"
+        repo_dir.mkdir()
+        payload = _valid_payload()
+        payload["repos"] = {"demo": str(repo_dir)}
+        payload["agent_config"] = {
+            "auth_method": "api_key",
+            "api_key": "ak",
+            "plugin_mode": "installed",
+        }
+
+        response = client.post("/api/config", json=payload)
+        assert response.status_code == 200, response.text
+
+        final = client.get("/api/config/status").json()
+        assert final["configured"] is True
+        assert final["errors"] == []

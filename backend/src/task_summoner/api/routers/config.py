@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from task_summoner.api.deps import get_config_path, get_config_status
 from task_summoner.api.schemas import (
@@ -48,6 +48,7 @@ async def test_config(payload: ConfigPayload) -> ConfigTestResponse:
 @router.post("/api/config", response_model=ConfigSaveResponse)
 async def save_config(
     payload: ConfigPayload,
+    request: Request,
     config_path: Path = Depends(get_config_path),
 ) -> ConfigSaveResponse:
     try:
@@ -66,6 +67,10 @@ async def save_config(
         workspace_root=payload.workspace_root,
     )
     atomic_write(config_path, yaml_text)
+
+    from task_summoner.api.app import reload_orchestrator
+
+    await reload_orchestrator(request.app)
     return ConfigSaveResponse(ok=True, path=str(config_path.resolve()))
 
 
