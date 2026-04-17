@@ -102,6 +102,17 @@ class StateStore:
                 results.append(ctx)
         return results
 
+    def delete(self, ticket_key: str) -> bool:
+        """Remove the on-disk state for a ticket. Returns True if it existed."""
+        import shutil
+
+        ticket_dir = self._root / ticket_key
+        if not ticket_dir.exists():
+            return False
+        shutil.rmtree(ticket_dir)
+        log.info("Ticket state deleted", ticket=ticket_key)
+        return True
+
     def artifact_dir(self, ticket_key: str) -> Path:
         """Return the artifact directory for a ticket, creating if needed."""
         return self._ticket_dir(ticket_key)

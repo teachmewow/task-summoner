@@ -16,10 +16,14 @@ import structlog
 from task_summoner.models.comment import Comment
 from task_summoner.models.enums import TicketState
 from task_summoner.models.ticket import Ticket
-from task_summoner.providers.board.linear.client import LinearClient
+from task_summoner.providers.board.linear.client import (
+    LinearAPIError,
+    LinearClient,
+)
 from task_summoner.providers.board.protocol import (
     ApprovalDecision,
     ApprovalResult,
+    BoardNotFoundError,
 )
 from task_summoner.providers.config import LinearConfig
 from task_summoner.tracker.feedback import FeedbackExtractor, ReactionDecision
@@ -87,10 +91,15 @@ class LinearAdapter:
           }
         }
         """
-        data = await self._client.query(query, {"id": ticket_id})
+        try:
+            data = await self._client.query(query, {"id": ticket_id})
+        except LinearAPIError as e:
+            if _is_entity_not_found(str(e)):
+                raise BoardNotFoundError(f"Linear issue not found: {ticket_id}") from e
+            raise
         node = data.get("issue")
         if not node:
-            raise RuntimeError(f"Linear issue not found: {ticket_id}")
+            raise BoardNotFoundError(f"Linear issue not found: {ticket_id}")
         return self._to_ticket(node)
 
     async def post_comment(self, ticket_id: str, body: str) -> str:
@@ -371,3 +380,10 @@ class LinearAdapter:
             except ValueError:
                 pass
         return datetime.min
+
+
+def _is_entity_not_found(error_message: str) -> bool:
+    """Detect Linear's entity-not-found signal in a raw GraphQL error string."""
+    needles = ("entity not found", "could not find referenced")
+    lowered = error_message.lower()
+    return any(n in lowered for n in needles)

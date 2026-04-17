@@ -10,7 +10,7 @@ from task_summoner.core import StateStore
 from task_summoner.events.bus import EventBus
 from task_summoner.events.models import StateTransitionEvent, TicketErrorEvent
 from task_summoner.models import Ticket, TicketContext, TicketState
-from task_summoner.providers.board import BoardProvider
+from task_summoner.providers.board import BoardNotFoundError, BoardProvider
 from task_summoner.states import StateServices
 from task_summoner.states.base import BaseState
 
@@ -52,10 +52,31 @@ class TaskDispatcher:
                 continue
             try:
                 ticket = await self._board.fetch_ticket(fresh.ticket_key)
+            except BoardNotFoundError as e:
+                self._quarantine(fresh, str(e))
+                continue
             except Exception as e:
-                log.error("Failed to fetch ticket", ticket=fresh.ticket_key, error=str(e))
+                log.error(
+                    "Failed to fetch ticket",
+                    ticket=fresh.ticket_key,
+                    error=str(e),
+                )
                 continue
             await self._dispatch_one(fresh, ticket)
+
+    def _quarantine(self, ctx: TicketContext, reason: str) -> None:
+        """Mark a ticket as FAILED so it stops being retried every poll cycle."""
+        if ctx.state == TicketState.FAILED:
+            return  # already quarantined — silent
+        log.warning(
+            "Ticket quarantined (not found on board)",
+            ticket=ctx.ticket_key,
+            previous_state=ctx.state.value,
+            reason=reason,
+        )
+        ctx.error = f"Not reachable on board: {reason}"
+        ctx.state = TicketState.FAILED
+        self._store.save(ctx)
 
     def cancel_all(self) -> None:
         for key, task in self._running.items():

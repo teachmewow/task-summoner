@@ -19,6 +19,7 @@ from task_summoner.models.ticket import Ticket
 from task_summoner.providers.board.protocol import (
     ApprovalDecision,
     ApprovalResult,
+    BoardNotFoundError,
 )
 from task_summoner.providers.config import JiraConfig
 from task_summoner.tracker.feedback import (
@@ -67,9 +68,14 @@ class JiraAdapter:
         return [Ticket.from_acli_json(item) for item in items]
 
     async def fetch_ticket(self, ticket_id: str) -> Ticket:
-        raw = await self._run_acli(
-            "jira", "workitem", "view", ticket_id, "--fields", "*all", "--json"
-        )
+        try:
+            raw = await self._run_acli(
+                "jira", "workitem", "view", ticket_id, "--fields", "*all", "--json"
+            )
+        except RuntimeError as e:
+            if _is_not_found_error(str(e)):
+                raise BoardNotFoundError(f"Jira issue not found: {ticket_id}") from e
+            raise
         data = json.loads(raw)
         return Ticket.from_acli_json(data)
 
@@ -282,3 +288,10 @@ class JiraAdapter:
             raise RuntimeError(f"acli failed (exit {proc.returncode}): {err}")
 
         return stdout.decode()
+
+
+def _is_not_found_error(error_message: str) -> bool:
+    """Detect acli/Jira signals that a ticket does not exist."""
+    needles = ("does not exist", "not found", "no such issue")
+    lowered = error_message.lower()
+    return any(n in lowered for n in needles)

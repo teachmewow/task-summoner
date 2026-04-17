@@ -11,6 +11,15 @@ from task_summoner.models.enums import TicketState
 from task_summoner.models.ticket import Ticket
 
 
+class BoardNotFoundError(RuntimeError):
+    """Raised by adapters when a ticket does not exist on the board.
+
+    Used by the dispatcher to distinguish permanent "this ticket is gone"
+    failures from transient network errors, and to auto-quarantine contexts
+    pointing to tickets that have been deleted or renamed.
+    """
+
+
 class ApprovalDecision(str, Enum):
     """Outcome of checking for human approval on a tagged comment."""
 
