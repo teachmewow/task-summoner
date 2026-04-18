@@ -45,6 +45,11 @@ from task_summoner.api.schemas.health import (
     LocalStateHealth,
     TestBoardResponse,
 )
+from task_summoner.api.schemas.setup import (
+    LinearTeamsRequest,
+    LinearTeamsResponse,
+    LinearTeamSummary,
+)
 from task_summoner.api.schemas.skill import (
     SkillDetail,
     SkillSavePayload,
@@ -79,6 +84,9 @@ __all__ = [
     "BoardHealth",
     "CleanResponse",
     "HealthResponse",
+    "LinearTeamSummary",
+    "LinearTeamsRequest",
+    "LinearTeamsResponse",
     "LocalStateHealth",
     "TestBoardResponse",
     "CostSummaryResponse",
