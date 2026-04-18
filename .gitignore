@@ -19,3 +19,6 @@ backend/src/task_summoner/web_dist/
 
 # Node / frontend
 node_modules/
+
+# install.sh generates this wrapper
+/task-summoner
