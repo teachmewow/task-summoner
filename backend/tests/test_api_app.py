@@ -478,6 +478,41 @@ class TestSkills:
         assert body["reason"]
 
 
+class TestWorkflow:
+    def test_nodes_cover_every_state(self, app_and_store):
+        client, _ = app_and_store
+        body = client.get("/api/workflow").json()
+        ids = {n["id"] for n in body["nodes"]}
+        assert {"QUEUED", "DONE", "FAILED", "PLANNING", "IMPLEMENTING"} <= ids
+        # Node kinds are derived from the frozensets in state_machine.
+        kinds = {n["id"]: n["kind"] for n in body["nodes"]}
+        assert kinds["QUEUED"] == "start"
+        assert kinds["DONE"] == "terminal"
+        assert kinds["FAILED"] == "terminal"
+        assert kinds["PLANNING"] == "agent"
+        assert kinds["WAITING_PLAN_REVIEW"] == "approval"
+
+    def test_every_edge_has_a_known_source_and_target(self, app_and_store):
+        client, _ = app_and_store
+        body = client.get("/api/workflow").json()
+        node_ids = {n["id"] for n in body["nodes"]}
+        for edge in body["edges"]:
+            assert edge["source"] in node_ids
+            assert edge["target"] in node_ids
+            assert edge["trigger"]
+
+    def test_live_counts_reflect_store(self, app_and_store):
+        client, store = app_and_store
+        store.save(TicketContext(ticket_key="ENG-1", state=TicketState.PLANNING))
+        store.save(TicketContext(ticket_key="ENG-2", state=TicketState.PLANNING))
+        store.save(TicketContext(ticket_key="ENG-3", state=TicketState.DONE))
+        body = client.get("/api/workflow/live").json()
+        assert body["total_tickets"] == 3
+        counts = {c["state"]: c["count"] for c in body["counts"]}
+        assert counts["PLANNING"] == 2
+        assert counts["DONE"] == 1
+
+
 class TestReloadOnSave:
     """POST /api/config should trigger reload_orchestrator and flip configured → True."""
 

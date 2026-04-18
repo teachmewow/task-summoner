@@ -45,6 +45,13 @@ from task_summoner.api.schemas.skill import (
     SkillSummary,
 )
 from task_summoner.api.schemas.ticket import TicketResponse
+from task_summoner.api.schemas.workflow import (
+    WorkflowEdge,
+    WorkflowLiveCount,
+    WorkflowLiveResponse,
+    WorkflowNode,
+    WorkflowResponse,
+)
 
 __all__ = [
     "AgentProfileOut",
@@ -74,4 +81,9 @@ __all__ = [
     "SkillsResponse",
     "TicketResponse",
     "TurnsBucket",
+    "WorkflowEdge",
+    "WorkflowLiveCount",
+    "WorkflowLiveResponse",
+    "WorkflowNode",
+    "WorkflowResponse",
 ]
