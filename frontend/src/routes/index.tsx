@@ -73,7 +73,7 @@ const CARDS: CardSpec[] = [
     icon: Stethoscope,
     title: "Board Health",
     description: "Sync latency, stale tickets, orphaned worktrees.",
-    comingSoon: true,
+    href: "/health",
   },
 ];
 
