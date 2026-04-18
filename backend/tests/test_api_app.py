@@ -368,6 +368,116 @@ class TestAgentProfiles:
         assert r.status_code == 400
 
 
+class TestSkills:
+    def _write_config_and_plugin(self, client, tmp_path: Path) -> Path:
+        plugin = tmp_path / "tmw-workflows"
+        (plugin / "skills" / "alpha").mkdir(parents=True)
+        (plugin / "skills" / "alpha" / "SKILL.md").write_text(
+            '---\nname: alpha\ndescription: "Alpha skill"\nuser-invocable: true\n---\n\n# Alpha\n\nBody.\n'
+        )
+        (plugin / "skills" / "beta").mkdir(parents=True)
+        (plugin / "skills" / "beta" / "SKILL.md").write_text(
+            '---\nname: beta\ndescription: "Beta skill"\nuser-invocable: false\n---\n\n# Beta\n'
+        )
+        repo = tmp_path / "r"
+        repo.mkdir()
+        r = client.post(
+            "/api/config",
+            json={
+                "board_type": "linear",
+                "board_config": {
+                    "api_key": "k",
+                    "team_id": "team",
+                    "watch_label": "task-summoner",
+                },
+                "agent_type": "claude_code",
+                "agent_config": {
+                    "auth_method": "api_key",
+                    "api_key": "ak",
+                    "plugin_mode": "local",
+                    "plugin_path": str(plugin),
+                },
+                "repos": {"demo": str(repo)},
+                "default_repo": "demo",
+                "polling_interval_sec": 10,
+                "workspace_root": str(tmp_path / "ws"),
+            },
+        )
+        assert r.status_code == 200, r.text
+        return plugin
+
+    def test_list_returns_skills_with_metadata(self, app_and_store, tmp_path: Path):
+        client, _ = app_and_store
+        self._write_config_and_plugin(client, tmp_path)
+        body = client.get("/api/skills").json()
+        assert body["editable"] is True
+        names = {s["name"] for s in body["skills"]}
+        assert names == {"alpha", "beta"}
+        alpha = next(s for s in body["skills"] if s["name"] == "alpha")
+        assert alpha["description"] == "Alpha skill"
+        assert alpha["user_invocable"] is True
+
+    def test_get_returns_content(self, app_and_store, tmp_path: Path):
+        client, _ = app_and_store
+        self._write_config_and_plugin(client, tmp_path)
+        body = client.get("/api/skills/alpha").json()
+        assert body["name"] == "alpha"
+        assert "# Alpha" in body["content"]
+
+    def test_put_writes_content(self, app_and_store, tmp_path: Path):
+        client, _ = app_and_store
+        plugin = self._write_config_and_plugin(client, tmp_path)
+        new_content = '---\nname: alpha\ndescription: "Updated alpha"\nuser-invocable: true\n---\n\n# Alpha v2\n'
+        r = client.put("/api/skills/alpha", json={"content": new_content})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["skill"]["description"] == "Updated alpha"
+        assert (plugin / "skills" / "alpha" / "SKILL.md").read_text() == new_content
+
+    def test_unknown_skill_is_404(self, app_and_store, tmp_path: Path):
+        client, _ = app_and_store
+        self._write_config_and_plugin(client, tmp_path)
+        assert client.get("/api/skills/nope").status_code == 404
+        assert client.put("/api/skills/nope", json={"content": "anything"}).status_code == 404
+
+    def test_rejects_hidden_names(self, app_and_store, tmp_path: Path):
+        client, _ = app_and_store
+        self._write_config_and_plugin(client, tmp_path)
+        # Dot-prefixed names are rejected — prevents reaching e.g. `.git`.
+        assert client.get("/api/skills/.git").status_code == 400
+        assert client.put("/api/skills/.git", json={"content": "x"}).status_code == 400
+
+    def test_installed_mode_is_read_only(self, app_and_store, tmp_path: Path):
+        client, _ = app_and_store
+        repo = tmp_path / "r"
+        repo.mkdir()
+        r = client.post(
+            "/api/config",
+            json={
+                "board_type": "linear",
+                "board_config": {
+                    "api_key": "k",
+                    "team_id": "team",
+                    "watch_label": "task-summoner",
+                },
+                "agent_type": "claude_code",
+                "agent_config": {
+                    "auth_method": "api_key",
+                    "api_key": "ak",
+                    "plugin_mode": "installed",
+                },
+                "repos": {"demo": str(repo)},
+                "default_repo": "demo",
+                "polling_interval_sec": 10,
+                "workspace_root": str(tmp_path / "ws"),
+            },
+        )
+        assert r.status_code == 200, r.text
+        body = client.get("/api/skills").json()
+        assert body["editable"] is False
+        assert body["reason"]
+
+
 class TestReloadOnSave:
     """POST /api/config should trigger reload_orchestrator and flip configured → True."""
 
