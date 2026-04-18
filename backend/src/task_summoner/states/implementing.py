@@ -38,7 +38,7 @@ class ImplementingState(BaseState):
         prompt = (
             "You are a headless agent. Invoke the skill and follow its instructions.\n"
             f"Save implementation report to: {artifact_dir}/implementation_report.md\n\n"
-            f'Use the Skill tool: Skill(skill="tmw-workflows:ticket-implement", '
+            f'Use the Skill tool: Skill(skill="task-summoner-workflows:ticket-implement", '
             f'args="{ticket.key} --headless")\n'
         )
         feedback = ctx.get_meta("reviewer_feedback", "")

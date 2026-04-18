@@ -30,7 +30,7 @@ class FixingMrState(BaseState):
     def build_prompt(self, ctx: TicketContext, ticket: Ticket) -> str:
         prompt = (
             "You are a headless agent. Invoke the skill and follow its instructions.\n\n"
-            f'Use the Skill tool: Skill(skill="tmw-workflows:review-pr", '
+            f'Use the Skill tool: Skill(skill="task-summoner-workflows:review-pr", '
             f'args="{ticket.key} --headless")\n'
         )
         feedback = ctx.get_meta("reviewer_feedback", "")
