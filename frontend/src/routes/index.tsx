@@ -67,7 +67,7 @@ const CARDS: CardSpec[] = [
     icon: Workflow,
     title: "Workflow Designer",
     description: "Draft state machines visually before shipping.",
-    comingSoon: true,
+    href: "/workflows",
   },
   {
     icon: Stethoscope,

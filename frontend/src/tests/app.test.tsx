@@ -27,7 +27,7 @@ function renderAt(path: string) {
 }
 
 describe("Home card grid", () => {
-  it("renders 8 cards: 6 active, 2 coming-soon", async () => {
+  it("renders 8 cards: 7 active, 1 coming-soon", async () => {
     renderAt("/");
     await screen.findByText(/shadow army/i);
 
@@ -36,10 +36,10 @@ describe("Home card grid", () => {
 
     const active = document.querySelectorAll('[data-card][data-kind="active"]');
     const placeholders = document.querySelectorAll('[data-card][data-kind="placeholder"]');
-    expect(active).toHaveLength(6);
-    expect(placeholders).toHaveLength(2);
+    expect(active).toHaveLength(7);
+    expect(placeholders).toHaveLength(1);
 
-    expect(screen.getByText("Skills Editor")).toBeInTheDocument();
-    expect(screen.getAllByText(/coming soon/i)).toHaveLength(2);
+    expect(screen.getByText("Workflow Designer")).toBeInTheDocument();
+    expect(screen.getAllByText(/coming soon/i)).toHaveLength(1);
   });
 });

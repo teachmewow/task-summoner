@@ -27,6 +27,7 @@ from task_summoner.api.routers import (
     failures_router,
     skills_router,
     tickets_router,
+    workflow_router,
 )
 from task_summoner.config import TaskSummonerConfig
 from task_summoner.core import StateStore
@@ -67,6 +68,7 @@ def create_app(config_path: Path | None = None) -> FastAPI:
     app.include_router(failures_router)
     app.include_router(agent_profiles_router)
     app.include_router(skills_router)
+    app.include_router(workflow_router)
 
     _mount_frontend(app)
 
