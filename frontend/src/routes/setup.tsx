@@ -207,7 +207,7 @@ function Setup() {
                 label="Plugin path"
                 value={form.claude_code.plugin_path}
                 onChange={(e) => patchClaude("plugin_path", e.target.value)}
-                placeholder="~/code/tmw-claude-code/plugins/tmw-workflows"
+                placeholder="~/code/task-summoner-plugin/plugins/tmw-workflows"
               />
             ) : null}
           </>
