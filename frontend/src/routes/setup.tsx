@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Download, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Dropdown } from "~/components/Dropdown";
 import { Field, Segmented } from "~/components/Field";
 import {
   type ConfigPayload,
@@ -339,6 +340,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+const TEAM_FETCH_DEBOUNCE_MS = 500;
+
 function LinearBoardFields({
   apiKey,
   teamId,
@@ -357,66 +360,84 @@ function LinearBoardFields({
   const fetchTeams = useFetchLinearTeams();
   const [teams, setTeams] = useState<LinearTeamSummary[]>([]);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
-  const onLoadTeams = async () => {
-    setLookupError(null);
-    const res = await fetchTeams.mutateAsync(apiKey);
-    if (!res.ok) {
+  // Auto-fetch teams after the API key settles (debounced). Latest key wins —
+  // stale responses get dropped via the request-id guard. Only the apiKey
+  // change should retrigger — teamId / callbacks are intentionally stale.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: see above
+  useEffect(() => {
+    const trimmed = apiKey.trim();
+    if (!trimmed) {
       setTeams([]);
-      setLookupError(res.message || "Lookup failed.");
+      setLookupError(null);
       return;
     }
-    setTeams(res.teams);
-    // Preselect the first team if the form hasn't already been set to a valid value.
-    const known = new Set(res.teams.map((t) => t.id));
-    if (res.teams.length > 0 && !known.has(teamId)) {
-      onTeamIdChange(res.teams[0]?.id ?? "");
-    }
-  };
+    const myRequest = ++requestIdRef.current;
+    const timer = window.setTimeout(() => {
+      fetchTeams.mutate(trimmed, {
+        onSuccess: (res) => {
+          if (myRequest !== requestIdRef.current) return;
+          if (!res.ok) {
+            setTeams([]);
+            setLookupError(res.message || "Lookup failed.");
+            return;
+          }
+          setTeams(res.teams);
+          setLookupError(null);
+          const known = new Set(res.teams.map((t) => t.id));
+          if (res.teams.length > 0 && !known.has(teamId)) {
+            onTeamIdChange(res.teams[0]?.id ?? "");
+          }
+        },
+        onError: (err) => {
+          if (myRequest !== requestIdRef.current) return;
+          setTeams([]);
+          setLookupError(err instanceof Error ? err.message : "Lookup failed.");
+        },
+      });
+    }, TEAM_FETCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [apiKey]);
+
+  const options = teams.map((t) => ({
+    value: t.id,
+    label: `${t.name} (${t.key})`,
+    hint: t.id,
+  }));
+
+  const showDropdown = teams.length > 0;
 
   return (
     <>
-      <div className="flex items-end gap-2">
-        <div className="flex-1">
-          <Field
-            label="API key"
-            type="password"
-            value={apiKey}
-            onChange={(e) => onApiKeyChange(e.target.value)}
-            placeholder="lin_api_..."
-          />
-        </div>
-        <button
-          type="button"
-          onClick={onLoadTeams}
-          disabled={!apiKey.trim() || fetchTeams.isPending}
-          className="mb-1 inline-flex h-10 items-center gap-1.5 rounded-md border border-shadow-purple/60 bg-void-900/60 px-3 text-xs font-medium text-soul-cyan transition hover:border-arise-violet/70 hover:text-ghost-white disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <Download size={12} strokeWidth={2} />
-          {fetchTeams.isPending ? "Loading…" : "Load teams"}
-        </button>
-      </div>
+      <Field
+        label="API key"
+        type="password"
+        value={apiKey}
+        onChange={(e) => onApiKeyChange(e.target.value)}
+        placeholder="lin_api_..."
+        hint="Teams load automatically as you type."
+      />
 
-      {teams.length > 0 ? (
+      {showDropdown ? (
         <div className="space-y-1">
-          <label htmlFor="linear-team-select" className="text-sm font-medium text-ghost-white">
-            Team
-          </label>
-          <select
-            id="linear-team-select"
+          <Dropdown
+            label="Team"
             value={teamId}
-            onChange={(e) => onTeamIdChange(e.target.value)}
-            className="w-full rounded-md border border-shadow-purple/60 bg-void-900/60 px-3 py-2 text-sm text-ghost-white focus:border-arise-violet focus:outline-none focus:ring-2 focus:ring-arise-violet/40"
-          >
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name} ({t.key})
-              </option>
-            ))}
-          </select>
+            onChange={onTeamIdChange}
+            options={options}
+            placeholder="Select a team"
+          />
           <span className="block text-xs text-soul-cyan/70">
-            Resolved {teams.length} team{teams.length === 1 ? "" : "s"} — stored as{" "}
-            <code className="font-mono text-[11px]">{teamId}</code>.
+            Resolved {teams.length} team{teams.length === 1 ? "" : "s"}
+            {teamId ? (
+              <>
+                {" — stored as "}
+                <code className="font-mono text-[11px] text-ghost-white/90">{teamId}</code>.
+              </>
+            ) : (
+              "."
+            )}
           </span>
         </div>
       ) : (
@@ -425,11 +446,24 @@ function LinearBoardFields({
           value={teamId}
           onChange={(e) => onTeamIdChange(e.target.value)}
           placeholder="fb14c704-25eb-..."
-          hint="Paste a UUID, or fill the API key above and click Load teams."
+          hint={
+            fetchTeams.isPending
+              ? "Fetching teams…"
+              : lookupError
+                ? "Paste a UUID below, or fix the API key to retry."
+                : "Paste a UUID, or fill the API key above to auto-load teams."
+          }
         />
       )}
 
-      {lookupError ? <p className="text-xs text-ember-red">{lookupError}</p> : null}
+      {fetchTeams.isPending ? (
+        <p className="flex items-center gap-1.5 text-xs text-soul-cyan/70">
+          <Loader2 size={11} strokeWidth={2} className="animate-spin" />
+          Fetching Linear teams…
+        </p>
+      ) : lookupError ? (
+        <p className="text-xs text-ember-red">{lookupError}</p>
+      ) : null}
 
       <Field
         label="Watch label"
