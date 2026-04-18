@@ -1,8 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Plus, Trash2 } from "lucide-react";
+import { Download, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Field, Segmented } from "~/components/Field";
-import { type ConfigPayload, useSaveConfig, useTestConfig } from "~/lib/config";
+import {
+  type ConfigPayload,
+  type LinearTeamSummary,
+  useFetchLinearTeams,
+  useSaveConfig,
+  useTestConfig,
+} from "~/lib/config";
 
 export const Route = createFileRoute("/setup")({
   component: Setup,
@@ -126,27 +132,14 @@ function Setup() {
           onChange={(v) => setForm((f) => ({ ...f, board_type: v }))}
         />
         {form.board_type === "linear" ? (
-          <>
-            <Field
-              label="API key"
-              type="password"
-              value={form.linear.api_key}
-              onChange={(e) => patchLinear("api_key", e.target.value)}
-              placeholder="lin_api_..."
-            />
-            <Field
-              label="Team ID"
-              value={form.linear.team_id}
-              onChange={(e) => patchLinear("team_id", e.target.value)}
-              placeholder="fb14c704-25eb-..."
-            />
-            <Field
-              label="Watch label"
-              value={form.linear.watch_label}
-              onChange={(e) => patchLinear("watch_label", e.target.value)}
-              hint="Tickets with this label are picked up by the orchestrator."
-            />
-          </>
+          <LinearBoardFields
+            apiKey={form.linear.api_key}
+            teamId={form.linear.team_id}
+            watchLabel={form.linear.watch_label}
+            onApiKeyChange={(v) => patchLinear("api_key", v)}
+            onTeamIdChange={(v) => patchLinear("team_id", v)}
+            onWatchLabelChange={(v) => patchLinear("watch_label", v)}
+          />
         ) : (
           <>
             <Field
@@ -343,5 +336,107 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </h2>
       <div className="space-y-4">{children}</div>
     </section>
+  );
+}
+
+function LinearBoardFields({
+  apiKey,
+  teamId,
+  watchLabel,
+  onApiKeyChange,
+  onTeamIdChange,
+  onWatchLabelChange,
+}: {
+  apiKey: string;
+  teamId: string;
+  watchLabel: string;
+  onApiKeyChange: (v: string) => void;
+  onTeamIdChange: (v: string) => void;
+  onWatchLabelChange: (v: string) => void;
+}) {
+  const fetchTeams = useFetchLinearTeams();
+  const [teams, setTeams] = useState<LinearTeamSummary[]>([]);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
+  const onLoadTeams = async () => {
+    setLookupError(null);
+    const res = await fetchTeams.mutateAsync(apiKey);
+    if (!res.ok) {
+      setTeams([]);
+      setLookupError(res.message || "Lookup failed.");
+      return;
+    }
+    setTeams(res.teams);
+    // Preselect the first team if the form hasn't already been set to a valid value.
+    const known = new Set(res.teams.map((t) => t.id));
+    if (res.teams.length > 0 && !known.has(teamId)) {
+      onTeamIdChange(res.teams[0]?.id ?? "");
+    }
+  };
+
+  return (
+    <>
+      <div className="flex items-end gap-2">
+        <div className="flex-1">
+          <Field
+            label="API key"
+            type="password"
+            value={apiKey}
+            onChange={(e) => onApiKeyChange(e.target.value)}
+            placeholder="lin_api_..."
+          />
+        </div>
+        <button
+          type="button"
+          onClick={onLoadTeams}
+          disabled={!apiKey.trim() || fetchTeams.isPending}
+          className="mb-1 inline-flex h-10 items-center gap-1.5 rounded-md border border-shadow-purple/60 bg-void-900/60 px-3 text-xs font-medium text-soul-cyan transition hover:border-arise-violet/70 hover:text-ghost-white disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Download size={12} strokeWidth={2} />
+          {fetchTeams.isPending ? "Loading…" : "Load teams"}
+        </button>
+      </div>
+
+      {teams.length > 0 ? (
+        <div className="space-y-1">
+          <label htmlFor="linear-team-select" className="text-sm font-medium text-ghost-white">
+            Team
+          </label>
+          <select
+            id="linear-team-select"
+            value={teamId}
+            onChange={(e) => onTeamIdChange(e.target.value)}
+            className="w-full rounded-md border border-shadow-purple/60 bg-void-900/60 px-3 py-2 text-sm text-ghost-white focus:border-arise-violet focus:outline-none focus:ring-2 focus:ring-arise-violet/40"
+          >
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.key})
+              </option>
+            ))}
+          </select>
+          <span className="block text-xs text-soul-cyan/70">
+            Resolved {teams.length} team{teams.length === 1 ? "" : "s"} — stored as{" "}
+            <code className="font-mono text-[11px]">{teamId}</code>.
+          </span>
+        </div>
+      ) : (
+        <Field
+          label="Team ID"
+          value={teamId}
+          onChange={(e) => onTeamIdChange(e.target.value)}
+          placeholder="fb14c704-25eb-..."
+          hint="Paste a UUID, or fill the API key above and click Load teams."
+        />
+      )}
+
+      {lookupError ? <p className="text-xs text-ember-red">{lookupError}</p> : null}
+
+      <Field
+        label="Watch label"
+        value={watchLabel}
+        onChange={(e) => onWatchLabelChange(e.target.value)}
+        hint="Tickets with this label are picked up by the orchestrator."
+      />
+    </>
   );
 }

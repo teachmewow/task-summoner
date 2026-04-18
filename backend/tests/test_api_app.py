@@ -597,6 +597,50 @@ class TestHealth:
         assert store.load("LIVE-1") is not None
 
 
+class TestLinearTeamsLookup:
+    def test_empty_key_is_rejected(self, app_and_store):
+        client, _ = app_and_store
+        body = client.post("/api/setup/linear-teams", json={"api_key": "  "}).json()
+        assert body["ok"] is False
+        assert "required" in body["message"].lower()
+        assert body["teams"] == []
+
+    def test_success_returns_teams(self, app_and_store, monkeypatch: pytest.MonkeyPatch):
+        from task_summoner.api.routers import setup as setup_module
+
+        async def fake_query(self, query):  # noqa: ARG001
+            return {
+                "teams": {
+                    "nodes": [
+                        {"id": "uuid-1", "name": "teachmewow", "key": "ENG"},
+                        {"id": "uuid-2", "name": "platform", "key": "PLAT"},
+                    ]
+                }
+            }
+
+        monkeypatch.setattr(setup_module.LinearClient, "query", fake_query)
+        client, _ = app_and_store
+        body = client.post("/api/setup/linear-teams", json={"api_key": "lin_api_xxx"}).json()
+        assert body["ok"] is True
+        assert [t["id"] for t in body["teams"]] == ["uuid-1", "uuid-2"]
+        assert body["teams"][0]["name"] == "teachmewow"
+        assert body["teams"][0]["key"] == "ENG"
+
+    def test_api_error_surfaces_inline(self, app_and_store, monkeypatch: pytest.MonkeyPatch):
+        from task_summoner.api.routers import setup as setup_module
+        from task_summoner.providers.board.linear.client import LinearAPIError
+
+        async def boom(self, query):  # noqa: ARG001
+            raise LinearAPIError("Linear API HTTP 401: unauthorized")
+
+        monkeypatch.setattr(setup_module.LinearClient, "query", boom)
+        client, _ = app_and_store
+        body = client.post("/api/setup/linear-teams", json={"api_key": "bad"}).json()
+        assert body["ok"] is False
+        assert "401" in body["message"]
+        assert body["teams"] == []
+
+
 class TestReloadOnSave:
     """POST /api/config should trigger reload_orchestrator and flip configured → True."""
 

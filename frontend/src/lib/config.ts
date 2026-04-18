@@ -48,6 +48,28 @@ export function useTestConfig() {
   });
 }
 
+export interface LinearTeamSummary {
+  id: string;
+  name: string;
+  key: string;
+}
+
+export interface LinearTeamsResponse {
+  ok: boolean;
+  message: string;
+  teams: LinearTeamSummary[];
+}
+
+export function useFetchLinearTeams() {
+  return useMutation({
+    mutationFn: (api_key: string) =>
+      apiFetch<LinearTeamsResponse>("/api/setup/linear-teams", {
+        method: "POST",
+        body: JSON.stringify({ api_key }),
+      }),
+  });
+}
+
 export function useSaveConfig() {
   const qc = useQueryClient();
   return useMutation({
