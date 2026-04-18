@@ -37,6 +37,14 @@ from task_summoner.api.schemas.failure import (
     FailureSummaryResponse,
     RetryResponse,
 )
+from task_summoner.api.schemas.health import (
+    AgentHealth,
+    BoardHealth,
+    CleanResponse,
+    HealthResponse,
+    LocalStateHealth,
+    TestBoardResponse,
+)
 from task_summoner.api.schemas.skill import (
     SkillDetail,
     SkillSavePayload,
@@ -67,6 +75,12 @@ __all__ = [
     "CostByProfile",
     "CostByState",
     "CostByTicket",
+    "AgentHealth",
+    "BoardHealth",
+    "CleanResponse",
+    "HealthResponse",
+    "LocalStateHealth",
+    "TestBoardResponse",
     "CostSummaryResponse",
     "EventResponse",
     "FailedTicket",

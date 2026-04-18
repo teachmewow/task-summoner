@@ -513,6 +513,90 @@ class TestWorkflow:
         assert counts["DONE"] == 1
 
 
+class TestHealth:
+    def _write_config(self, client, tmp_path: Path) -> Path:
+        repo = tmp_path / "r"
+        repo.mkdir()
+        r = client.post(
+            "/api/config",
+            json={
+                "board_type": "linear",
+                "board_config": {
+                    "api_key": "k",
+                    "team_id": "team-uuid",
+                    "watch_label": "task-summoner",
+                },
+                "agent_type": "claude_code",
+                "agent_config": {
+                    "auth_method": "api_key",
+                    "api_key": "ak",
+                    "plugin_mode": "installed",
+                },
+                "repos": {"demo": str(repo)},
+                "default_repo": "demo",
+                "polling_interval_sec": 10,
+                "workspace_root": str(tmp_path / "ws"),
+            },
+        )
+        assert r.status_code == 200, r.text
+        return repo
+
+    def test_health_requires_config(self, app_and_store):
+        client, _ = app_and_store
+        assert client.get("/api/health").status_code == 409
+
+    def test_health_reports_all_sections(self, app_and_store, tmp_path: Path):
+        client, _ = app_and_store
+        self._write_config(client, tmp_path)
+        # After the config save, reload_orchestrator swaps in the orchestrator's
+        # own store; write through that one so the health endpoint sees the rows.
+        active = client.app.state.store  # type: ignore[attr-defined]
+        active.save(TicketContext(ticket_key="ENG-1", state=TicketState.PLANNING))
+        active.save(TicketContext(ticket_key="ENG-2", state=TicketState.DONE))
+        active.save(TicketContext(ticket_key="ENG-3", state=TicketState.FAILED))
+
+        body = client.get("/api/health").json()
+        assert body["board"]["provider"] == "linear"
+        assert body["board"]["watch_label"] == "task-summoner"
+        assert body["agent"]["provider"] == "claude_code"
+        assert body["agent"]["plugin_mode"] == "installed"
+        assert body["local"]["total_tickets"] == 3
+        assert body["local"]["terminal_tickets"] == 2
+        assert body["local"]["active_tickets"] == 1
+        assert "workspace_bytes" in body["local"]
+
+    def test_clean_removes_unknown_tickets(
+        self, app_and_store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        from task_summoner.api.routers import health as health_router_module
+        from task_summoner.providers.board import BoardNotFoundError
+
+        client, _ = app_and_store
+        self._write_config(client, tmp_path)
+        store = client.app.state.store  # type: ignore[attr-defined]
+        store.save(TicketContext(ticket_key="GONE-1", state=TicketState.FAILED))
+        store.save(TicketContext(ticket_key="LIVE-1", state=TicketState.PLANNING))
+
+        class StubBoard:
+            async def fetch_ticket(self, key: str):
+                if key == "GONE-1":
+                    raise BoardNotFoundError(key)
+                return None
+
+        monkeypatch.setattr(
+            health_router_module.BoardProviderFactory,
+            "create",
+            lambda _cfg: StubBoard(),
+        )
+
+        body = client.post("/api/health/clean").json()
+        assert body["ok"] is True
+        assert "GONE-1" in body["removed"]
+        assert "LIVE-1" not in body["removed"]
+        assert store.load("GONE-1") is None
+        assert store.load("LIVE-1") is not None
+
+
 class TestReloadOnSave:
     """POST /api/config should trigger reload_orchestrator and flip configured → True."""
 
