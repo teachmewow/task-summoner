@@ -37,6 +37,13 @@ from task_summoner.api.schemas.failure import (
     FailureSummaryResponse,
     RetryResponse,
 )
+from task_summoner.api.schemas.skill import (
+    SkillDetail,
+    SkillSavePayload,
+    SkillSaveResponse,
+    SkillsResponse,
+    SkillSummary,
+)
 from task_summoner.api.schemas.ticket import TicketResponse
 
 __all__ = [
@@ -60,6 +67,11 @@ __all__ = [
     "FailureByPhase",
     "FailureSummaryResponse",
     "RetryResponse",
+    "SkillDetail",
+    "SkillSavePayload",
+    "SkillSaveResponse",
+    "SkillSummary",
+    "SkillsResponse",
     "TicketResponse",
     "TurnsBucket",
 ]

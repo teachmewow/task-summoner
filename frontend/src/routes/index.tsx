@@ -61,7 +61,7 @@ const CARDS: CardSpec[] = [
     icon: BookOpen,
     title: "Skills Editor",
     description: "Author and version the skills your agents use.",
-    comingSoon: true,
+    href: "/skills",
   },
   {
     icon: Workflow,
