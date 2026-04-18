@@ -40,7 +40,7 @@ providers:
       # plugin_mode: installed — plugin comes from your Claude Code setup.
       # plugin_mode: local    — load from plugin_path (for CI or evaluators).
       plugin_mode: installed
-      # plugin_path: ~/path/to/task-summoner-plugin/plugins/tmw-workflows
+      # plugin_path: ~/path/to/task-summoner-plugin/plugins/task-summoner-workflows
 
     # If type = codex, fill this block instead:
     # codex:

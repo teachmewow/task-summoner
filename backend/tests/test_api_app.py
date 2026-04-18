@@ -370,7 +370,7 @@ class TestAgentProfiles:
 
 class TestSkills:
     def _write_config_and_plugin(self, client, tmp_path: Path) -> Path:
-        plugin = tmp_path / "tmw-workflows"
+        plugin = tmp_path / "task-summoner-workflows"
         (plugin / "skills" / "alpha").mkdir(parents=True)
         (plugin / "skills" / "alpha" / "SKILL.md").write_text(
             '---\nname: alpha\ndescription: "Alpha skill"\nuser-invocable: true\n---\n\n# Alpha\n\nBody.\n'

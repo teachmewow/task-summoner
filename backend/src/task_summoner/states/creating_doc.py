@@ -28,7 +28,7 @@ class CreatingDocState(BaseState):
     def build_prompt(self, ticket: Ticket) -> str:
         return (
             "You are a headless agent. Invoke the skill and follow its instructions.\n\n"
-            f'Use the Skill tool: Skill(skill="tmw-workflows:create-design", '
+            f'Use the Skill tool: Skill(skill="task-summoner-workflows:create-design", '
             f'args="{ticket.key} --headless")\n'
         )
 

@@ -3,7 +3,7 @@
 Skills are discovered from the active Claude Code plugin path. In `local`
 plugin mode we read `plugin_path/skills/*/SKILL.md` directly and writes
 are allowed. In `installed` mode we best-effort discover the plugin from
-`~/.claude/plugins/*/tmw-workflows`; writes are disabled there because
+`~/.claude/plugins/*/task-summoner-workflows`; writes are disabled there because
 touching an installed plugin is confusing and the user should fork to
 local first.
 """
@@ -67,8 +67,8 @@ def _resolve_plugin_root(config: TaskSummonerConfig) -> tuple[Path | None, str, 
             return None, str(root), False, f"Plugin path does not exist: {root}"
         return root, f"local:{root}", True, None
     candidates = [
-        Path.home() / ".claude" / "plugins" / "tmw-workflows",
-        Path.home() / ".config" / "claude" / "plugins" / "tmw-workflows",
+        Path.home() / ".claude" / "plugins" / "task-summoner-workflows",
+        Path.home() / ".config" / "claude" / "plugins" / "task-summoner-workflows",
     ]
     for c in candidates:
         if c.is_dir():
@@ -83,7 +83,7 @@ def _resolve_plugin_root(config: TaskSummonerConfig) -> tuple[Path | None, str, 
         None,
         "",
         False,
-        "plugin_mode=installed but tmw-workflows was not found under ~/.claude/plugins.",
+        "plugin_mode=installed but task-summoner-workflows was not found under ~/.claude/plugins.",
     )
 
 

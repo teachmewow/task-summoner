@@ -35,7 +35,7 @@ class CheckingDocState(BaseState):
         return (
             "You are a headless agent. Invoke the skill and follow its instructions.\n"
             "Your final line MUST be one of: DOC_EXISTS <url>, DOC_NEEDED, DOC_NOT_NEEDED\n\n"
-            f'Use the Skill tool: Skill(skill="tmw-workflows:ticket-plan", '
+            f'Use the Skill tool: Skill(skill="task-summoner-workflows:ticket-plan", '
             f'args="{ticket.key} --headless")\n'
         )
 

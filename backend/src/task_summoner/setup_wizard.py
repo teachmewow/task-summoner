@@ -190,7 +190,7 @@ def _prompt_claude_code_credentials(console: Console) -> ClaudeCodeConfig:
     )
     plugin_path = ""
     if plugin_mode == "local":
-        plugin_path = Prompt.ask("[cyan]Path to tmw-workflows plugin directory[/]")
+        plugin_path = Prompt.ask("[cyan]Path to task-summoner-workflows plugin directory[/]")
 
     return ClaudeCodeConfig(
         auth_method=auth_method,

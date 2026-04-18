@@ -1,4 +1,4 @@
-"""Plugin resolution strategy — decides how the tmw-workflows plugin is loaded.
+"""Plugin resolution strategy — decides how the task-summoner-workflows plugin is loaded.
 
 Two modes:
 - INSTALLED: plugin is already registered in the user's Claude Code setup.
@@ -22,7 +22,7 @@ log = structlog.get_logger()
 
 
 class PluginMode(str, Enum):
-    """How the tmw-workflows plugin is provided to Claude Code agents."""
+    """How the task-summoner-workflows plugin is provided to Claude Code agents."""
 
     INSTALLED = "installed"
     LOCAL = "local"

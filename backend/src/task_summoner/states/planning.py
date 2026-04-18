@@ -33,7 +33,7 @@ class PlanningState(BaseState):
         prompt = (
             "You are a headless agent. Invoke the skill and follow its instructions.\n"
             f"Save the plan to: {artifact_dir}/plan.md\n\n"
-            f'Use the Skill tool: Skill(skill="tmw-workflows:ticket-plan", '
+            f'Use the Skill tool: Skill(skill="task-summoner-workflows:ticket-plan", '
             f'args="{ticket.key} --headless")\n'
         )
         feedback = ctx.get_meta("reviewer_feedback", "")
