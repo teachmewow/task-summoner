@@ -124,6 +124,43 @@ polling_interval_sec: 10
 
 See [`backend/config.yaml.example`](backend/config.yaml.example) for the full annotated schema.
 
+### User-level config (`task-summoner config`)
+
+Per-user preferences that skills need at runtime live in a separate file at
+`$XDG_CONFIG_HOME/task-summoner/config.json` (defaults to
+`~/.config/task-summoner/config.json`). This is distinct from the project-level
+`config.yaml` above. Today the only key is `docs_repo` — the absolute path to
+the git repo where your RFCs / decisions / c4s live (used by the
+`create-design-doc` skill and friends).
+
+```bash
+# One-time setup: fork the docs template and point task-summoner at it.
+gh repo create my-docs --template teachmewow/task-summoner-docs-template --clone
+task-summoner config set docs_repo "$(pwd)/my-docs"
+
+# Inspect
+task-summoner config list
+task-summoner config get docs_repo     # exits 0 if set, 1 if unset
+
+# Remove
+task-summoner config unset docs_repo
+```
+
+Set values can be overridden per-invocation via an environment variable —
+useful in CI or one-off runs:
+
+| Key         | Env var                      |
+|-------------|------------------------------|
+| `docs_repo` | `TASK_SUMMONER_DOCS_REPO`    |
+
+Resolution precedence is `env > file > unset`. `config get` reports the source
+it resolved from.
+
+The `docs_repo` value is validated on `set`: it must be an absolute path, an
+existing git repo, and contain `.task-summoner/config.yml` (created by the
+[task-summoner-docs-template](https://github.com/teachmewow/task-summoner-docs-template)
+fork — see ENG-93).
+
 ## Testing
 
 ```bash
