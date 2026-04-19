@@ -87,6 +87,15 @@ class CheckingDocState(BaseState):
             log.info("Design doc not needed", ticket=ticket.key)
             return "doc_not_needed"
 
+        body = _compose_body(
+            "Design doc required, creating now.",
+            reasoning,
+            "Next step: proceed to design doc creation.",
+            APPROVAL_INSTRUCTIONS,
+        )
+        posted = await svc.board.post_tagged_comment(ticket.key, tag, body)
+        ctx.set_meta("doc_comment_id", posted)
+
         log.info("Design doc needed", ticket=ticket.key)
         return "doc_needed"
 

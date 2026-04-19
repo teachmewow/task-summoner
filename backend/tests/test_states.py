@@ -96,9 +96,15 @@ class TestCheckingDocState:
         mock_services.agent.run = AsyncMock(
             return_value=AgentResult(success=True, output="DOC_NEEDED", cost_usd=0.1)
         )
+        mock_services.board.post_tagged_comment = AsyncMock(return_value="tag-x")
 
         trigger = await handler.handle(ctx, sample_ticket, mock_services)
         assert trigger == "doc_needed"
+        mock_services.board.post_tagged_comment.assert_called_once()
+        call_args = mock_services.board.post_tagged_comment.call_args
+        body = call_args.args[2] if len(call_args.args) >= 3 else call_args.kwargs["body"]
+        assert "Design doc required" in body
+        assert ctx.metadata.get("doc_comment_id") == "tag-x"
 
 
 class TestApprovalStates:
