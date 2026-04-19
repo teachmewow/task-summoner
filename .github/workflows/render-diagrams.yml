@@ -91,7 +91,7 @@ jobs:
 
       - name: Upload rendered PNGs as artifact
         if: steps.changed.outputs.count != '0'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rendered-diagrams
           path: .render-output/**/*.png
