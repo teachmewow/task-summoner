@@ -81,3 +81,85 @@ export function useSaveConfig() {
     onSuccess: () => qc.invalidateQueries({ queryKey: configStatusKey }),
   });
 }
+
+// Mirrors MASKED_SECRET_SENTINEL on the backend — send this back on save when
+// the user didn't touch a secret field and the backend preserves the on-disk
+// value instead of overwriting with the mask literal.
+export const MASKED_SECRET_SENTINEL = "********";
+
+export interface SetupBoardSection {
+  provider: "linear" | "jira" | "";
+  api_key_masked: boolean;
+  api_key: string | null;
+  email: string | null;
+  team_id: string;
+  team_name: string;
+  watch_label: string;
+}
+
+export interface SetupAgentSection {
+  provider: "claude_code" | "codex" | "";
+  auth_method: "personal_session" | "api_key" | "";
+  api_key_masked: boolean;
+  api_key: string | null;
+  plugin_mode: "installed" | "local" | "";
+  plugin_path: string;
+}
+
+export interface SetupRepoEntry {
+  name: string;
+  path: string;
+}
+
+export interface SetupGeneralSection {
+  default_repo: string;
+  polling_interval_sec: number;
+  workspace_root: string;
+  docs_repo: string;
+}
+
+export interface SetupStateResponse {
+  board: SetupBoardSection;
+  agent: SetupAgentSection;
+  repos: SetupRepoEntry[];
+  general: SetupGeneralSection;
+}
+
+export interface SetupSavePayload {
+  board: Record<string, unknown>;
+  agent: Record<string, unknown>;
+  repos: SetupRepoEntry[];
+  general: SetupGeneralSection;
+}
+
+export interface SetupSaveResponse {
+  ok: boolean;
+  config_path: string;
+  docs_repo_saved: boolean;
+  errors: string[];
+}
+
+export const setupStateKey = ["setup", "state"] as const;
+
+export function useSetupState() {
+  return useQuery({
+    queryKey: setupStateKey,
+    queryFn: () => apiFetch<SetupStateResponse>("/api/setup/state"),
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useSaveSetup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SetupSavePayload) =>
+      apiFetch<SetupSaveResponse>("/api/setup/save", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: configStatusKey });
+      qc.invalidateQueries({ queryKey: setupStateKey });
+    },
+  });
+}

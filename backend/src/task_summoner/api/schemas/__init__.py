@@ -60,9 +60,17 @@ from task_summoner.api.schemas.health import (
 )
 from task_summoner.api.schemas.rfc import RfcResponse
 from task_summoner.api.schemas.setup import (
+    MASKED_SECRET_SENTINEL,
     LinearTeamsRequest,
     LinearTeamsResponse,
     LinearTeamSummary,
+    SetupAgentSection,
+    SetupBoardSection,
+    SetupGeneralSection,
+    SetupRepoEntry,
+    SetupSavePayload,
+    SetupSaveResponse,
+    SetupStateResponse,
 )
 from task_summoner.api.schemas.skill import (
     SkillDetail,
@@ -102,6 +110,14 @@ __all__ = [
     "LinearTeamsRequest",
     "LinearTeamsResponse",
     "LocalStateHealth",
+    "MASKED_SECRET_SENTINEL",
+    "SetupAgentSection",
+    "SetupBoardSection",
+    "SetupGeneralSection",
+    "SetupRepoEntry",
+    "SetupSavePayload",
+    "SetupSaveResponse",
+    "SetupStateResponse",
     "TestBoardResponse",
     "CostSummaryResponse",
     "DecisionSummary",
