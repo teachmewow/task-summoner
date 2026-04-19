@@ -11,7 +11,7 @@ from task_summoner.constants import APPROVAL_INSTRUCTIONS
 from task_summoner.models import Ticket, TicketContext, TicketState
 from task_summoner.observability import state_trace_metadata, traceable
 
-from .base import BaseState, StateServices
+from .base import GATE_SUMMARY_FALLBACK, BaseState, StateServices, _extract_gate_summary
 
 log = structlog.get_logger()
 
@@ -60,7 +60,9 @@ class PlanningState(BaseState):
         if plan_path.exists():
             plan_text = plan_path.read_text()
             tag = _build_tag(ticket.key, "planning")
-            body = f"{plan_text}\n\n{APPROVAL_INSTRUCTIONS}"
+            summary = _resolve_summary(result.output or "", ticket.key)
+            ctx.set_meta("gate_summary", summary)
+            body = _compose_plan_body(summary, plan_text)
             posted = await svc.board.post_tagged_comment(ticket.key, tag, body)
             ctx.set_meta("plan_comment_id", posted)
             return "plan_complete"
@@ -79,3 +81,21 @@ class PlanningState(BaseState):
 
 def _build_tag(ticket_key: str, state: str) -> str:
     return f"[ts:{ticket_key}:{state}:{uuid.uuid4().hex[:8]}]"
+
+
+def _resolve_summary(output: str, ticket_key: str) -> str:
+    """Return the skill's GATE_SUMMARY sentence or the fallback, logging misses."""
+    summary = _extract_gate_summary(output)
+    if summary is None:
+        log.warning(
+            "GATE_SUMMARY missing from agent output",
+            ticket=ticket_key,
+            state=TicketState.PLANNING.value,
+        )
+        return GATE_SUMMARY_FALLBACK
+    return summary
+
+
+def _compose_plan_body(summary: str, plan_text: str) -> str:
+    """Plan-review body: one-line summary on top, full plan below, approval CTA."""
+    return f"{summary}\n\n{plan_text}\n\n{APPROVAL_INSTRUCTIONS}"

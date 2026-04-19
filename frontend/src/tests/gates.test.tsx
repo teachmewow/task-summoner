@@ -25,6 +25,7 @@ function baseGate(overrides: Partial<GateResponse> = {}): GateResponse {
     related_prs: [],
     linear_status_type: "started",
     linear_status_name: "In Progress",
+    summary: "RFC drafted covering storage + rollout; open for review.",
     ...overrides,
   };
 }
@@ -108,5 +109,33 @@ describe("GateCard", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /retry with feedback/i }));
     expect(screen.getByPlaceholderText(/needs to change/i)).toBeInTheDocument();
+  });
+
+  it("renders the skill-emitted summary prominently", () => {
+    wrap(
+      <GateCard
+        issueKey="ENG-95"
+        gate={baseGate({ summary: "Plan committed; 3 files, ~50 LOC estimated." })}
+        onRefresh={() => undefined}
+        isRefreshing={false}
+      />,
+    );
+    const el = screen.getByText(/Plan committed; 3 files/);
+    expect(el).toBeInTheDocument();
+    expect(el).toHaveAttribute("data-gate-summary");
+  });
+
+  it("renders a dimmed fallback when summary is missing", () => {
+    wrap(
+      <GateCard
+        issueKey="ENG-95"
+        gate={baseGate({ summary: null })}
+        onRefresh={() => undefined}
+        isRefreshing={false}
+      />,
+    );
+    const el = screen.getByText(/No summary available/i);
+    expect(el).toBeInTheDocument();
+    expect(el).toHaveAttribute("data-gate-summary", "missing");
   });
 });

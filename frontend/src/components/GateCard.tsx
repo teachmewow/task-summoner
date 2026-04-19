@@ -104,6 +104,16 @@ export function GateCard({
         </button>
       </header>
 
+      {gate.summary ? (
+        <p data-gate-summary className="text-sm leading-relaxed text-ghost-white/90">
+          {gate.summary}
+        </p>
+      ) : (
+        <p data-gate-summary="missing" className="text-sm italic text-soul-cyan/50">
+          No summary available
+        </p>
+      )}
+
       {gate.state === "manual_check" && gate.reason ? (
         <div className="flex items-start gap-2 rounded-md border border-ember-red/40 bg-ember-red/10 px-3 py-2 text-sm text-ember-red">
           <AlertTriangle size={14} strokeWidth={2} className="mt-0.5 shrink-0" />

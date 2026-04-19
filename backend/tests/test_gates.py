@@ -8,9 +8,12 @@ that encode the decision doc.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from unittest.mock import Mock
+
 import pytest
 
-from task_summoner.api.routers.gates import _status_type_for
+from task_summoner.api.routers.gates import _load_gate_summary, _status_type_for
 from task_summoner.gates import (
     GateSignals,
     GateState,
@@ -19,6 +22,7 @@ from task_summoner.gates import (
     format_doc_branch,
     infer_gate_state,
 )
+from task_summoner.models import TicketContext, TicketState
 
 
 def _linear(status_type: str, name: str = "", all_children_done: bool = True) -> LinearSignal:
@@ -198,3 +202,56 @@ class TestBranchHelper:
     def test_format_doc_branch_lowercases(self):
         assert format_doc_branch("ENG-95") == "rfc/eng-95"
         assert format_doc_branch("eng-95") == "rfc/eng-95"
+
+
+class TestLoadGateSummary:
+    """``_load_gate_summary`` surfaces the skill-emitted sentence to the UI.
+
+    Contract: the pre-gate state handlers stash ``gate_summary`` in
+    ``TicketContext.metadata`` right after posting their tagged comment, and
+    the gate endpoint reads it back out. A missing store, missing context, or
+    missing metadata key degrades to ``None`` so the endpoint never 500s.
+    """
+
+    def _request_with_store(self, store):
+        app_state = SimpleNamespace(store=store)
+        app = SimpleNamespace(state=app_state)
+        return SimpleNamespace(app=app)
+
+    def test_reads_summary_from_persisted_context(self):
+        ctx = TicketContext(
+            ticket_key="ENG-95",
+            state=TicketState.PLANNING,
+            metadata={"gate_summary": "Plan committed; 3 files, ~50 LOC."},
+        )
+        store = Mock()
+        store.load.return_value = ctx
+
+        assert (
+            _load_gate_summary(self._request_with_store(store), "ENG-95")
+            == "Plan committed; 3 files, ~50 LOC."
+        )
+
+    def test_returns_none_when_context_missing(self):
+        store = Mock()
+        store.load.return_value = None
+        assert _load_gate_summary(self._request_with_store(store), "ENG-95") is None
+
+    def test_returns_none_when_summary_metadata_absent(self):
+        ctx = TicketContext(
+            ticket_key="ENG-95",
+            state=TicketState.PLANNING,
+            metadata={},
+        )
+        store = Mock()
+        store.load.return_value = ctx
+        assert _load_gate_summary(self._request_with_store(store), "ENG-95") is None
+
+    def test_returns_none_when_store_missing(self):
+        # Lifespan hasn't attached a store yet (e.g. config is invalid).
+        assert _load_gate_summary(self._request_with_store(None), "ENG-95") is None
+
+    def test_store_exception_degrades_to_none(self):
+        store = Mock()
+        store.load.side_effect = RuntimeError("disk full")
+        assert _load_gate_summary(self._request_with_store(store), "ENG-95") is None

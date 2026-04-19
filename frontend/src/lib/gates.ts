@@ -30,6 +30,11 @@ export interface GateResponse {
   related_prs: PrInfo[];
   linear_status_type: string;
   linear_status_name: string;
+  // One-sentence human-readable rationale emitted by the pre-gate skill.
+  // ``null`` when the ticket hasn't run yet, or the skill skipped the
+  // ``GATE_SUMMARY:`` contract. The ``GateCard`` renders a dimmed fallback
+  // when absent so the layout doesn't shift.
+  summary: string | null;
 }
 
 export interface GateActionResponse {

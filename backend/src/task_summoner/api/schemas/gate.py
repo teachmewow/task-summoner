@@ -26,6 +26,12 @@ class GateResponse(BaseModel):
     # a second fetch.
     linear_status_type: str
     linear_status_name: str
+    # One-sentence human-readable rationale emitted by the pre-gate skill as
+    # ``GATE_SUMMARY:<text>``. Populated from ``ctx.metadata["gate_summary"]``
+    # — the state handler stashes it there right after posting the tagged
+    # Linear comment. ``None`` when the context is not yet persisted or the
+    # skill forgot to emit the contract line.
+    summary: str | None = None
 
 
 class GateApprovePayload(BaseModel):

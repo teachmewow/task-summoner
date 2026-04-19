@@ -8,7 +8,7 @@ from task_summoner.config import AgentConfig
 from task_summoner.models import Ticket, TicketContext, TicketState
 from task_summoner.observability import state_trace_metadata, traceable
 
-from .base import BaseState, StateServices
+from .base import GATE_SUMMARY_FALLBACK, BaseState, StateServices, _extract_gate_summary
 
 log = structlog.get_logger()
 
@@ -51,6 +51,7 @@ class ImprovingDocState(BaseState):
         result = await self._run_agent(svc, "doc_improver", prompt, workspace, ctx=ctx)
 
         if result.success:
+            ctx.set_meta("gate_summary", _resolve_summary(result.output or "", ticket.key))
             return "improved"
 
         ctx.retry_count += 1
@@ -58,3 +59,16 @@ class ImprovingDocState(BaseState):
             ctx.error = result.error or "Failed to improve doc"
             return "improve_failed"
         return "_retry"
+
+
+def _resolve_summary(output: str, ticket_key: str) -> str:
+    """Return the skill's GATE_SUMMARY sentence or the fallback, logging misses."""
+    summary = _extract_gate_summary(output)
+    if summary is None:
+        log.warning(
+            "GATE_SUMMARY missing from agent output",
+            ticket=ticket_key,
+            state=TicketState.IMPROVING_DOC.value,
+        )
+        return GATE_SUMMARY_FALLBACK
+    return summary

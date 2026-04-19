@@ -115,8 +115,20 @@ async def _resolve_target_repo_slug(config: TaskSummonerConfig) -> str | None:
 @router.get("/{ticket_key}", response_model=GateResponse)
 async def get_gate(
     ticket_key: str,
+    request: Request,
     config_path: Path = Depends(get_config_path),
 ) -> GateResponse:
+    """Return the gate snapshot for ``ticket_key``.
+
+    The ``summary`` field reads ``TicketContext.metadata['gate_summary']``,
+    which the pre-gate state handlers stash immediately after posting the
+    tagged Linear comment. Contract: skills emit a final ``GATE_SUMMARY:<text>``
+    line; ``_extract_gate_summary`` in ``states/base.py`` parses it; the
+    handler writes it to ``ctx.metadata`` via ``ctx.set_meta``. When the
+    context is not yet persisted (first dispatch hasn't completed) or the
+    skill skipped the contract, ``summary`` is ``None`` and the UI renders a
+    dimmed fallback.
+    """
     config = _load_config(config_path)
     board = BoardProviderFactory.create(config.build_provider_config())
 
@@ -146,6 +158,7 @@ async def get_gate(
     )
 
     snapshot = infer_gate_state(GateSignals(linear=linear, doc_pr=doc_pr, code_pr=code_pr))
+    summary = _load_gate_summary(request, ticket_key)
 
     return GateResponse(
         issue_key=ticket_key,
@@ -156,7 +169,28 @@ async def get_gate(
         related_prs=[p for p in (_pr_to_info(pr) for pr in snapshot.related_prs) if p],
         linear_status_type=status_type,
         linear_status_name=ticket.status,
+        summary=summary,
     )
+
+
+def _load_gate_summary(request: Request, ticket_key: str) -> str | None:
+    """Pull the skill-emitted GATE_SUMMARY sentence from the ticket context.
+
+    Best-effort: a missing store or a not-yet-persisted context returns
+    ``None`` rather than 500-ing the gate endpoint.
+    """
+    store = getattr(request.app.state, "store", None)
+    if store is None:
+        return None
+    try:
+        ctx = store.load(ticket_key)
+    except Exception as e:  # noqa: BLE001 — best-effort read
+        log.warning("Gate summary lookup failed", ticket=ticket_key, error=str(e))
+        return None
+    if ctx is None:
+        return None
+    summary = ctx.get_meta("gate_summary")
+    return summary or None
 
 
 @router.post("/{ticket_key}/approve", response_model=GateActionResponse)
