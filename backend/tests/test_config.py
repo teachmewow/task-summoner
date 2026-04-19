@@ -178,6 +178,30 @@ class TestResolveRepo:
         with pytest.raises(ValueError, match="Unknown repo"):
             config.resolve_repo(["repo:nope"])
 
+
+class TestDotenvOverride:
+    """Project `.env` must win over shell-exported env vars.
+
+    A stale shell export (e.g. `LINEAR_API_KEY` from another workspace) is a
+    silent footgun — without override the orchestrator calls the wrong tenant.
+    """
+
+    def test_project_env_overrides_shell_export(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        from dotenv import load_dotenv
+
+        monkeypatch.setenv("TS_TEST_DOTENV_KEY", "shell-value")
+
+        env_file = tmp_path / ".env"
+        env_file.write_text("TS_TEST_DOTENV_KEY=project-value\n")
+
+        load_dotenv(env_file, override=True)
+
+        import os
+
+        assert os.environ["TS_TEST_DOTENV_KEY"] == "project-value"
+
     def test_no_default_raises(self):
         config = TaskSummonerConfig(
             providers=_base_provider_config(),
