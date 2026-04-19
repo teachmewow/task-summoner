@@ -10,6 +10,7 @@ import structlog
 from task_summoner.config import AgentConfig
 from task_summoner.constants import APPROVAL_INSTRUCTIONS
 from task_summoner.models import Ticket, TicketContext, TicketState
+from task_summoner.observability import state_trace_metadata, traceable
 
 from .base import BaseState, StateServices
 
@@ -31,6 +32,7 @@ class CheckingDocState(BaseState):
     def agent_config(self) -> AgentConfig:
         return self._config.doc_checker
 
+    @traceable(run_type="prompt", name="prompt.checking_doc")
     def build_prompt(self, ticket: Ticket) -> str:
         return (
             "You are a headless agent. Invoke the skill and follow its instructions.\n"
@@ -39,6 +41,11 @@ class CheckingDocState(BaseState):
             f'args="{ticket.key} --headless")\n'
         )
 
+    @traceable(
+        run_type="chain",
+        name="state.checking_doc",
+        metadata_fn=state_trace_metadata,
+    )
     async def handle(self, ctx: TicketContext, ticket: Ticket, svc: StateServices) -> str:
         workspace = await self._ensure_workspace(ctx, ticket, svc)
         prompt = self.build_prompt(ticket)
