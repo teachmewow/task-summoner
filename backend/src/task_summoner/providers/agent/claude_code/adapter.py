@@ -65,6 +65,7 @@ from task_summoner.providers.agent.protocol import (
     AgentResult,
 )
 from task_summoner.providers.config import ClaudeCodeConfig
+from task_summoner.user_config import get_docs_repo
 
 log = structlog.get_logger()
 
@@ -81,11 +82,11 @@ _FORWARDED_ENV_KEYS = [
     "SLACK_USER_ID",
     "LINEAR_API_KEY",
     "LINEAR_WORKSPACE_ID",
-    # Forward the docs-repo override when the user sets it explicitly. The
-    # `create-design-doc` skill resolves docs_repo through `task-summoner
-    # config get docs_repo`, which already honours this env var — forwarding
-    # it keeps the subprocess aligned with the orchestrator's view when the
-    # user opted out of the user-config file.
+    # Forward the docs-repo override when the user sets it explicitly at shell
+    # level. The adapter also injects this key from user-config inside
+    # ``_build_env`` as a sane default; because that injection happens before
+    # the forwarding pass here, a shell-level value wins — matching the
+    # precedence documented in ``user_config.resolve_user_config_value``.
     "TASK_SUMMONER_DOCS_REPO",
 ]
 
@@ -392,11 +393,28 @@ class ClaudeCodeAdapter:
         For `auth_method=personal_session`, we deliberately do NOT forward
         ANTHROPIC_API_KEY so the agent inherits the user's logged-in Claude
         Code session (stored in ~/.claude/) instead of a bespoke key.
+
+        Injects ``TASK_SUMMONER_DOCS_REPO`` resolved from user-config when
+        available, so skills in the subprocess can read it directly from env
+        instead of shelling out to the ``task-summoner`` CLI (whose PATH
+        resolution inside the subprocess is non-deterministic and sometimes
+        finds a broken sibling shim). Injection happens before the
+        ``_FORWARDED_ENV_KEYS`` pass so that a user-set env var at shell level
+        still takes precedence — the adapter's value is only a sane default.
         """
+        env: dict[str, str] = {}
+
+        resolved_docs_repo = get_docs_repo()
+        if resolved_docs_repo:
+            env["TASK_SUMMONER_DOCS_REPO"] = resolved_docs_repo
+            log.debug("Injected docs_repo into agent env", path=resolved_docs_repo)
+
         keys = list(_FORWARDED_ENV_KEYS)
         if self._config.auth_method == "personal_session":
             keys = [k for k in keys if k != "ANTHROPIC_API_KEY"]
-        env = {k: os.environ[k] for k in keys if os.environ.get(k)}
+        for k in keys:
+            if os.environ.get(k):
+                env[k] = os.environ[k]
         if self._config.auth_method == "api_key" and self._config.api_key:
             env["ANTHROPIC_API_KEY"] = self._config.api_key
         return env

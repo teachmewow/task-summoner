@@ -319,6 +319,41 @@ class TestClaudeCodeAdapterMcpIsolation:
         assert "LINEAR_API_KEY" not in env
 
 
+class TestClaudeCodeAdapterDocsRepoInjection:
+    """Adapter injects docs_repo via env so skills don't shell out to the CLI."""
+
+    def test_build_env_injects_docs_repo_when_resolved(self, monkeypatch):
+        monkeypatch.delenv("TASK_SUMMONER_DOCS_REPO", raising=False)
+        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(auth_method="personal_session"))
+        with patch(
+            "task_summoner.providers.agent.claude_code.adapter.get_docs_repo",
+            return_value="/some/path",
+        ):
+            env = adapter._build_env()
+        assert env["TASK_SUMMONER_DOCS_REPO"] == "/some/path"
+
+    def test_build_env_omits_docs_repo_when_unresolved(self, monkeypatch):
+        monkeypatch.delenv("TASK_SUMMONER_DOCS_REPO", raising=False)
+        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(auth_method="personal_session"))
+        with patch(
+            "task_summoner.providers.agent.claude_code.adapter.get_docs_repo",
+            return_value=None,
+        ):
+            env = adapter._build_env()
+        assert "TASK_SUMMONER_DOCS_REPO" not in env
+
+    def test_build_env_respects_user_override(self, monkeypatch):
+        """Shell-level env var wins over the adapter's injected default."""
+        monkeypatch.setenv("TASK_SUMMONER_DOCS_REPO", "/user/override")
+        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(auth_method="personal_session"))
+        with patch(
+            "task_summoner.providers.agent.claude_code.adapter.get_docs_repo",
+            return_value="/orchestrator/path",
+        ):
+            env = adapter._build_env()
+        assert env["TASK_SUMMONER_DOCS_REPO"] == "/user/override"
+
+
 class TestClaudeCodeAdapterSystemPrompt:
     """Team-scoping prompt is a LOCAL-mode concern — INSTALLED users own their own scope."""
 
