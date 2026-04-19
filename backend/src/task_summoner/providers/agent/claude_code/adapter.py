@@ -4,14 +4,20 @@ Translates between the provider-agnostic AgentProvider contract and the
 Claude-specific SDK: maps AgentProfile to ClaudeAgentOptions, emits
 generic AgentEvent instances (never raw SDK types) through event_callback.
 
-MCP isolation is explicit — we never inherit the global MCP context.
-`ClaudeAgentOptions.mcp_servers` is always populated from task-summoner's
-own configuration so the spawned Claude Code subprocess cannot pick up the
-user's global `claude mcp add` servers (which may be authenticated against
-a different workspace). The Linear MCP server is scoped with the API key
-carried in `.env` as `LINEAR_API_KEY`, and the system prompt reiterates the
-configured `team_id` so the agent never touches tickets from other
-workspaces even if the key happens to have multi-workspace visibility.
+MCP wiring is mode-aware:
+
+- **LOCAL mode** = strict isolation. The adapter builds an explicit
+  ``mcp_servers`` map and the spawned subprocess cannot pick up the user's
+  global ``claude mcp add`` servers (which may be authenticated against a
+  different workspace). The Linear MCP server is scoped with the API key
+  carried in ``.env`` as ``LINEAR_API_KEY``, and the system prompt
+  reiterates the configured ``team_id`` so the agent never touches tickets
+  from other workspaces even if the key happens to have multi-workspace
+  visibility.
+- **INSTALLED mode** = trust the user's local Claude Code setup. The
+  adapter returns ``None`` for ``mcp_servers`` so the SDK falls back to
+  whatever ``setting_sources=["user"]`` loaded. INSTALLED trusts your
+  local setup; cross-workspace pollution is your responsibility.
 
 Cancellation contract: `_consume_stream` wraps the SDK async-iterator in a
 `try/finally` so that on orchestrator shutdown (`asyncio.CancelledError`)
@@ -395,51 +401,85 @@ class ClaudeCodeAdapter:
             env["ANTHROPIC_API_KEY"] = self._config.api_key
         return env
 
-    def _build_mcp_servers(self) -> dict[str, Any]:
-        """Build the explicit `mcp_servers` map for ClaudeAgentOptions.
+    def _build_mcp_servers(self) -> dict[str, Any] | None:
+        """Build the ``mcp_servers`` value for ``ClaudeAgentOptions``.
 
-        This replaces — not extends — whatever the user's global Claude Code
-        config might have registered (Simbie's Linear workspace, random
-        hosted MCPs, etc.). When `LINEAR_API_KEY` is set in our `.env`, we
-        register a Linear MCP entry authenticated with it; otherwise we
-        register nothing (the agent simply won't have Linear MCP available,
-        which is the correct fail-safe).
+        Behaviour is mode-aware:
 
-        Shape returned to claude-agent-sdk:
-            {
-                "linear-server": {
-                    "type": "http",
-                    "url": "https://mcp.linear.app/mcp",
-                    "headers": {"Authorization": "Bearer <key>"},
-                },
-            }
+        - **LOCAL** returns an explicit dict. This replaces — not extends —
+          whatever the user's global Claude Code config might have
+          registered (another workspace's Linear, random hosted MCPs, etc.).
+          When ``LINEAR_API_KEY`` is set in our ``.env`` we add a Linear
+          MCP entry; otherwise we emit an empty dict (still non-``None``,
+          so global MCP inheritance stays blocked).
 
-        Linear's hosted MCP accepts both OAuth and PAT bearer tokens; by
-        passing our own key explicitly we bypass the global OAuth session.
+          The Linear entry uses the ``@tacticlaunch/mcp-linear`` npm
+          package over stdio. It is the only widely-distributed package
+          that authenticates with a raw Personal Access Token — Linear's
+          hosted HTTP MCP at ``mcp.linear.app`` requires OAuth, which has
+          no way to complete a browser flow from a headless subprocess
+          (smoke tests showed ``No such tool available:
+          mcp__linear-server__get_issue`` because the SDK silently marked
+          the server as unavailable after auth failed). The package's own
+          env var is ``LINEAR_API_TOKEN``; we read our canonical
+          ``LINEAR_API_KEY`` and forward it under that name inside the MCP
+          entry.
+
+          Shape returned to claude-agent-sdk::
+
+              {
+                  "linear-server": {
+                      "type": "stdio",
+                      "command": "npx",
+                      "args": ["-y", "@tacticlaunch/mcp-linear@latest"],
+                      "env": {"LINEAR_API_TOKEN": "<key>"},
+                  },
+              }
+
+        - **INSTALLED** returns ``None``. With
+          ``setting_sources=["user"]`` the SDK loads the user's global
+          Claude Code settings and picks up whatever MCPs they already
+          registered (``claude mcp add``). Overriding ``mcp_servers`` here
+          would silently strip that — INSTALLED mode is explicitly opt-in
+          to "trust my local setup", so we stay out of the way.
         """
-        servers: dict[str, Any] = {}
+        mode = PluginMode(self._config.plugin_mode)
+        if mode == PluginMode.INSTALLED:
+            return None
 
+        servers: dict[str, Any] = {}
         linear_key = os.environ.get("LINEAR_API_KEY")
         if linear_key:
             servers["linear-server"] = {
-                "type": "http",
-                "url": "https://mcp.linear.app/mcp",
-                "headers": {"Authorization": f"Bearer {linear_key}"},
+                "type": "stdio",
+                "command": "npx",
+                "args": ["-y", "@tacticlaunch/mcp-linear@latest"],
+                "env": {"LINEAR_API_TOKEN": linear_key},
             }
 
         return servers
 
     def _build_system_prompt(self) -> str | None:
-        """Compose the isolation-reinforcing system prompt.
+        """Compose the isolation-reinforcing system prompt (LOCAL mode only).
 
-        Belt-and-suspenders on top of the explicit `mcp_servers` config:
-        even if the configured key had visibility into multiple workspaces,
-        the prompt tells the agent to always scope Linear MCP calls to the
-        configured team_id.
+        In LOCAL mode the adapter owns the Linear MCP wiring, so it is also
+        the right place to tell the agent which team_id to scope every call
+        by. This is belt-and-suspenders on top of the explicit
+        ``mcp_servers`` config: even if the configured key had visibility
+        into multiple workspaces, the prompt tells the agent to always scope
+        Linear MCP calls to the configured team_id.
 
-        Returns None when there is nothing to add, so the SDK falls back to
-        its default system prompt.
+        In INSTALLED mode the user owns MCP configuration (including any
+        team scoping they baked into their own setup), so we do not inject
+        a team-scoping prompt line — doing so could contradict their
+        intent.
+
+        Returns ``None`` when there is nothing to add so the SDK falls back
+        to its default system prompt.
         """
+        mode = PluginMode(self._config.plugin_mode)
+        if mode != PluginMode.LOCAL:
+            return None
         if not self._board_team_id:
             return None
 

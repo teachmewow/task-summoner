@@ -258,12 +258,12 @@ class TestClaudeCodeAdapterRun:
 
 
 class TestClaudeCodeAdapterMcpIsolation:
-    """ENG-111: MCP servers must be passed explicitly, not inherited from global."""
+    """MCP wiring is mode-aware: LOCAL isolates explicitly, INSTALLED defers to the user."""
 
-    def test_build_options_includes_linear_mcp_when_key_set(self, profile, tmp_path, monkeypatch):
+    def test_local_mode_with_linear_key_emits_stdio_config(self, profile, tmp_path, monkeypatch):
         monkeypatch.setenv("LINEAR_API_KEY", "lin_api_secret")
         adapter = ClaudeCodeAdapter(
-            ClaudeCodeConfig(api_key="k"),
+            ClaudeCodeConfig(api_key="k", plugin_mode="local", plugin_path=str(tmp_path)),
             board_team_id="team-abc",
         )
         options = adapter._build_options(profile, tmp_path)
@@ -271,25 +271,40 @@ class TestClaudeCodeAdapterMcpIsolation:
         assert isinstance(options.mcp_servers, dict)
         assert "linear-server" in options.mcp_servers
         linear = options.mcp_servers["linear-server"]
-        assert linear["type"] == "http"
-        assert linear["url"] == "https://mcp.linear.app/mcp"
-        assert linear["headers"]["Authorization"] == "Bearer lin_api_secret"
+        assert linear["type"] == "stdio"
+        assert linear["command"] == "npx"
+        assert linear["args"] == ["-y", "@tacticlaunch/mcp-linear@latest"]
+        assert linear["env"] == {"LINEAR_API_TOKEN": "lin_api_secret"}
 
-    def test_build_options_omits_linear_mcp_when_key_absent(self, profile, tmp_path, monkeypatch):
+    def test_local_mode_without_linear_key_emits_empty_dict(self, profile, tmp_path, monkeypatch):
+        """Empty dict (not None) still blocks global MCP inheritance in LOCAL mode."""
         monkeypatch.delenv("LINEAR_API_KEY", raising=False)
-        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(api_key="k"))
+        adapter = ClaudeCodeAdapter(
+            ClaudeCodeConfig(api_key="k", plugin_mode="local", plugin_path=str(tmp_path))
+        )
         options = adapter._build_options(profile, tmp_path)
 
         assert isinstance(options.mcp_servers, dict)
-        assert "linear-server" not in options.mcp_servers
+        assert options.mcp_servers == {}
 
-    def test_mcp_servers_is_dict_never_none(self, profile, tmp_path, monkeypatch):
-        """Passing an empty dict still blocks global MCP inheritance."""
-        monkeypatch.delenv("LINEAR_API_KEY", raising=False)
-        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(api_key="k"))
-        options = adapter._build_options(profile, tmp_path)
-        assert options.mcp_servers is not None
-        assert isinstance(options.mcp_servers, dict)
+    def test_installed_mode_returns_none_regardless_of_linear_key(
+        self, profile, tmp_path, monkeypatch
+    ):
+        """INSTALLED mode defers to the user's global MCP config — never override."""
+        for value in ("lin_api_installed", None):
+            if value is None:
+                monkeypatch.delenv("LINEAR_API_KEY", raising=False)
+            else:
+                monkeypatch.setenv("LINEAR_API_KEY", value)
+
+            adapter = ClaudeCodeAdapter(
+                ClaudeCodeConfig(api_key="k", plugin_mode="installed"),
+                board_team_id="team-abc",
+            )
+            options = adapter._build_options(profile, tmp_path)
+            assert options.mcp_servers is None, (
+                f"INSTALLED mode must return None for mcp_servers (LINEAR_API_KEY={value!r})"
+            )
 
     def test_forwarded_env_includes_linear_api_key(self, monkeypatch):
         monkeypatch.setenv("LINEAR_API_KEY", "lin_api_forwarded")
@@ -303,9 +318,13 @@ class TestClaudeCodeAdapterMcpIsolation:
         env = adapter._build_env()
         assert "LINEAR_API_KEY" not in env
 
-    def test_system_prompt_contains_team_id_scoping(self, profile, tmp_path):
+
+class TestClaudeCodeAdapterSystemPrompt:
+    """Team-scoping prompt is a LOCAL-mode concern — INSTALLED users own their own scope."""
+
+    def test_local_mode_includes_team_scoping_when_team_id_set(self, profile, tmp_path):
         adapter = ClaudeCodeAdapter(
-            ClaudeCodeConfig(api_key="k"),
+            ClaudeCodeConfig(api_key="k", plugin_mode="local", plugin_path=str(tmp_path)),
             board_team_id="team-uuid-42",
         )
         options = adapter._build_options(profile, tmp_path)
@@ -314,8 +333,19 @@ class TestClaudeCodeAdapterMcpIsolation:
         assert "ALWAYS" in options.system_prompt
         assert "team_id" in options.system_prompt
 
-    def test_system_prompt_none_when_no_team_id(self, profile, tmp_path):
-        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(api_key="k"))
+    def test_local_mode_without_team_id_returns_none(self, profile, tmp_path):
+        adapter = ClaudeCodeAdapter(
+            ClaudeCodeConfig(api_key="k", plugin_mode="local", plugin_path=str(tmp_path))
+        )
+        options = adapter._build_options(profile, tmp_path)
+        assert options.system_prompt is None
+
+    def test_installed_mode_no_team_scoping_prompt(self, profile, tmp_path):
+        """Even with a board_team_id configured, INSTALLED mode injects no prompt line."""
+        adapter = ClaudeCodeAdapter(
+            ClaudeCodeConfig(api_key="k", plugin_mode="installed"),
+            board_team_id="team-uuid-42",
+        )
         options = adapter._build_options(profile, tmp_path)
         assert options.system_prompt is None
 
