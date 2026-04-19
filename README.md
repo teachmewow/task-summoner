@@ -164,9 +164,10 @@ fork — see ENG-93).
 ## Observability
 
 Task Summoner ships with opt-in [LangSmith](https://smith.langchain.com/)
-tracing so you can inspect the full prompt, response, and FSM path of every
-agent dispatch. Tracing is **off by default** — the `@traceable` decorator is a
-no-op until you set two environment variables.
+tracing so you can inspect the full prompt, response, tool-use trail, and FSM
+path of every agent dispatch. Tracing is **off by default** — both the
+auto-instrumentation hook and the `@traceable` decorators short-circuit until
+you set two environment variables.
 
 ### Enable tracing
 
@@ -184,12 +185,30 @@ https://smith.langchain.com/o/<your-org-slug>/projects/p/task-summoner
 
 ### What's traced
 
-| Run type | Name | Where |
-|----------|------|-------|
-| `chain`  | `state.<phase>` | Each FSM state handler (`planning`, `implementing`, `checking_doc`, `creating_doc`, `improving_doc`, `fixing_mr`) |
-| `prompt` | `prompt.<phase>` | The `build_prompt` helper for each state (system prompt + skill + ticket context) |
-| `llm`    | `claude_code.dispatch` | `ClaudeCodeAdapter.run` — the top-level agent invocation |
-| `chain`  | `claude_code.stream` | Nested: streamed tool-use / text deltas from the Claude SDK |
+Two complementary layers contribute to every trace tree:
+
+**1. Claude Agent SDK auto-instrumentation** (the heavy lifting).
+
+At FastAPI startup, Task Summoner calls
+[`langsmith.integrations.claude_agent_sdk.configure_claude_agent_sdk()`](https://docs.smith.langchain.com/observability/how_to_guides/integrations/claude_agent_sdk).
+This hooks the Claude Agent SDK once, and every subsequent agent query,
+assistant message, tool invocation, tool result, and final result becomes a
+LangSmith span automatically — no decorators required on the adapter itself.
+You get the full tool trail (file reads, edits, shell commands, PR creation)
+with inputs, outputs, and timings visible in the UI.
+
+**2. FSM framing via `@traceable`** (context).
+
+State handlers and prompt builders keep their manual `@traceable` decorators
+so each agent run is wrapped in a span with the FSM phase, ticket, and repo
+tags. These sit *above* the SDK integration's auto-generated spans,
+reproducing the dev-lifecycle context you care about.
+
+| Run type | Name | Where | Source |
+|----------|------|-------|--------|
+| `chain`  | `state.<phase>` | Each FSM state handler (`planning`, `implementing`, `checking_doc`, `creating_doc`, `improving_doc`, `fixing_mr`) | `@traceable` (manual) |
+| `prompt` | `prompt.<phase>` | The `build_prompt` helper for each state (system prompt + skill + ticket context) | `@traceable` (manual) |
+| (SDK)    | Agent query / tool use / tool result / result | Every call the agent makes inside the Claude SDK | `configure_claude_agent_sdk()` (auto) |
 
 Every state trace is tagged with `issue_id`, `skill`, `repo`, `phase`, and
 `retry_count` so you can slice runs by ticket, target repo, or phase in the
@@ -197,19 +216,19 @@ LangSmith UI.
 
 ### Off-by-default guarantees
 
-- If `LANGCHAIN_TRACING_V2` or `LANGCHAIN_API_KEY` is unset, the decorator
+- If `LANGCHAIN_TRACING_V2` or `LANGCHAIN_API_KEY` is unset, startup skips
+  `configure_claude_agent_sdk()` entirely and every `@traceable` decorator
   short-circuits before touching the `langsmith` SDK — zero behavior change,
   zero overhead.
-- If `langsmith` is not installed, the decorator is still a safe no-op.
+- If the `langsmith[claude-agent-sdk]` extra is not installed, the startup
+  hook silently no-ops and the decorators stay passthroughs.
 - Exceptions in traced functions are never swallowed; they propagate with the
   trace closed in error state.
 
-### Follow-ups (out of scope for ENG-107)
+### Follow-ups
 
 - Sampling / rate limiting / cost controls for high-volume runs.
 - Dashboards and alerts in LangSmith.
-- Tracing the OpenAI / Anthropic providers directly (today we trace the
-  subprocess dispatch, not the underlying API calls).
 
 ## Testing
 

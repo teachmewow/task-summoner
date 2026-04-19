@@ -7,6 +7,7 @@ for env var setup.
 """
 
 from .tracing import (
+    configure_claude_agent_sdk_tracing,
     is_tracing_enabled,
     repo_from_labels,
     state_trace_metadata,
@@ -14,6 +15,7 @@ from .tracing import (
 )
 
 __all__ = [
+    "configure_claude_agent_sdk_tracing",
     "is_tracing_enabled",
     "repo_from_labels",
     "state_trace_metadata",
