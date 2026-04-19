@@ -7,6 +7,7 @@ workspace manager. Both need timeout, stderr capture, and consistent error shape
 from __future__ import annotations
 
 import asyncio
+import os
 
 import structlog
 
@@ -23,14 +24,22 @@ async def run_cli(
 
     Stdout is returned as-is (not stripped). Callers that need a trimmed string
     should call `.strip()` themselves.
+
+    `env` semantics — **merge**, not replace: when non-None, `env` is layered
+    on top of the current process environment (`os.environ`). Callers pass
+    overrides / additions; `PATH` and the rest of the parent env are
+    preserved so shebangs and looked-up binaries (like `gh`) keep working.
+    Pass `env=None` (default) to inherit the parent env unchanged.
     """
     log.debug("Running subprocess", cmd=" ".join(cmd))
+
+    proc_env = {**os.environ, **env} if env is not None else None
 
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env=env,
+        env=proc_env,
     )
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_sec)
