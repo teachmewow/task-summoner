@@ -14,6 +14,7 @@ class AgentEventType(str, Enum):
 
     MESSAGE = "message"
     TOOL_USE = "tool_use"
+    TOOL_RESULT = "tool_result"
     ERROR = "error"
     COMPLETED = "completed"
 

@@ -126,7 +126,7 @@ export function DecisionsSidebar({ limit = 10 }: Props) {
             </div>
           ) : null}
 
-          <ul className="flex max-h-[520px] flex-col gap-2 overflow-y-auto pr-1">
+          <ul className="scroll-arise flex max-h-[520px] flex-col gap-2 overflow-y-auto pr-1">
             {filtered.map((d) => (
               <li
                 key={d.path}
