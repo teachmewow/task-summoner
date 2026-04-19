@@ -31,7 +31,7 @@ class ImprovingDocState(BaseState):
         page_id = ctx.get_meta("confluence_page_id", "")
         prompt = (
             "You are a headless agent. Invoke the skill and follow its instructions.\n\n"
-            f'Use the Skill tool: Skill(skill="task-summoner-workflows:improve-design-doc", '
+            f'Use the Skill tool: Skill(skill="task-summoner-workflows:address-doc-feedback", '
             f'args="{page_id} --headless")\n'
         )
         feedback = ctx.get_meta("reviewer_feedback", "")

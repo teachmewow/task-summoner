@@ -73,6 +73,12 @@ _FORWARDED_ENV_KEYS = [
     "SLACK_USER_ID",
     "LINEAR_API_KEY",
     "LINEAR_WORKSPACE_ID",
+    # Forward the docs-repo override when the user sets it explicitly. The
+    # `create-design-doc` skill resolves docs_repo through `task-summoner
+    # config get docs_repo`, which already honours this env var — forwarding
+    # it keeps the subprocess aligned with the orchestrator's view when the
+    # user opted out of the user-config file.
+    "TASK_SUMMONER_DOCS_REPO",
 ]
 
 
