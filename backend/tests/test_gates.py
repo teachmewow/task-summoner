@@ -13,7 +13,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from task_summoner.api.routers.gates import _load_gate_summary, _status_type_for
+from task_summoner.api.routers.gates import _load_context, _orchestrator_pr_url, _status_type_for
 from task_summoner.gates import (
     GateSignals,
     GateState,
@@ -252,54 +252,72 @@ class TestMergePr:
             await merge_pr("")
 
 
-class TestLoadGateSummary:
-    """``_load_gate_summary`` surfaces the skill-emitted sentence to the UI.
-
-    Contract: the pre-gate state handlers stash ``gate_summary`` in
-    ``TicketContext.metadata`` right after posting their tagged comment, and
-    the gate endpoint reads it back out. A missing store, missing context, or
-    missing metadata key degrades to ``None`` so the endpoint never 500s.
-    """
+class TestLoadContext:
+    """``_load_context`` is the shared ctx reader for gate enrichment fields."""
 
     def _request_with_store(self, store):
         app_state = SimpleNamespace(store=store)
         app = SimpleNamespace(state=app_state)
         return SimpleNamespace(app=app)
 
-    def test_reads_summary_from_persisted_context(self):
+    def test_returns_ctx_when_present(self):
         ctx = TicketContext(
             ticket_key="ENG-95",
             state=TicketState.PLANNING,
-            metadata={"gate_summary": "Plan committed; 3 files, ~50 LOC."},
+            metadata={"gate_summary": "Plan committed."},
         )
         store = Mock()
         store.load.return_value = ctx
 
-        assert (
-            _load_gate_summary(self._request_with_store(store), "ENG-95")
-            == "Plan committed; 3 files, ~50 LOC."
-        )
+        loaded = _load_context(self._request_with_store(store), "ENG-95")
+        assert loaded is ctx
+        assert loaded.get_meta("gate_summary") == "Plan committed."
 
     def test_returns_none_when_context_missing(self):
         store = Mock()
         store.load.return_value = None
-        assert _load_gate_summary(self._request_with_store(store), "ENG-95") is None
-
-    def test_returns_none_when_summary_metadata_absent(self):
-        ctx = TicketContext(
-            ticket_key="ENG-95",
-            state=TicketState.PLANNING,
-            metadata={},
-        )
-        store = Mock()
-        store.load.return_value = ctx
-        assert _load_gate_summary(self._request_with_store(store), "ENG-95") is None
+        assert _load_context(self._request_with_store(store), "ENG-95") is None
 
     def test_returns_none_when_store_missing(self):
-        # Lifespan hasn't attached a store yet (e.g. config is invalid).
-        assert _load_gate_summary(self._request_with_store(None), "ENG-95") is None
+        assert _load_context(self._request_with_store(None), "ENG-95") is None
 
     def test_store_exception_degrades_to_none(self):
         store = Mock()
         store.load.side_effect = RuntimeError("disk full")
-        assert _load_gate_summary(self._request_with_store(store), "ENG-95") is None
+        assert _load_context(self._request_with_store(store), "ENG-95") is None
+
+
+class TestOrchestratorPrUrl:
+    """``_orchestrator_pr_url`` picks the metadata key for the current state."""
+
+    def test_returns_rfc_pr_for_doc_review(self):
+        ctx = TicketContext(
+            ticket_key="ENG-1",
+            state=TicketState.WAITING_DOC_REVIEW,
+            metadata={"rfc_pr_url": "https://github.com/x/y/pull/1"},
+        )
+        assert _orchestrator_pr_url(ctx) == "https://github.com/x/y/pull/1"
+
+    def test_returns_plan_pr_for_plan_review(self):
+        ctx = TicketContext(
+            ticket_key="ENG-1",
+            state=TicketState.WAITING_PLAN_REVIEW,
+            metadata={"plan_pr_url": "https://github.com/x/y/pull/2"},
+        )
+        assert _orchestrator_pr_url(ctx) == "https://github.com/x/y/pull/2"
+
+    def test_returns_mr_url_for_mr_review(self):
+        ctx = TicketContext(
+            ticket_key="ENG-1",
+            state=TicketState.WAITING_MR_REVIEW,
+            mr_url="https://github.com/x/y/pull/3",
+        )
+        assert _orchestrator_pr_url(ctx) == "https://github.com/x/y/pull/3"
+
+    def test_returns_none_for_non_gate_state(self):
+        ctx = TicketContext(ticket_key="ENG-1", state=TicketState.PLANNING)
+        assert _orchestrator_pr_url(ctx) is None
+
+    def test_returns_none_when_metadata_missing(self):
+        ctx = TicketContext(ticket_key="ENG-1", state=TicketState.WAITING_PLAN_REVIEW)
+        assert _orchestrator_pr_url(ctx) is None

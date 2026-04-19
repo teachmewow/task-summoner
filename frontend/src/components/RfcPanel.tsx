@@ -1,4 +1,4 @@
-import { ExternalLink, FileText, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, FileText, Sparkles, X } from "lucide-react";
 import { marked } from "marked";
 import { useEffect, useMemo, useState } from "react";
 import { rfcImageUrl, useOpenRfc, useRfc } from "~/lib/rfcs";
@@ -53,6 +53,11 @@ export function RfcPanel({ issueKey, orchestratorState, onSummonCreateDesignDoc 
   const { data, isLoading, isError, error } = useRfc(issueKey);
   const open = useOpenRfc(issueKey);
   const [zoomed, setZoomed] = useState<string | null>(null);
+  // Collapsed by default once the RFC exists — most users glance at the title,
+  // click the gate buttons, and don't want the entire doc expanded every time
+  // they open the issue page. Empty / drafting / error states stay inline so
+  // the user isn't guessing why the panel is blank.
+  const [expanded, setExpanded] = useState(false);
 
   const html = useMemo(() => {
     if (!data?.content) return "";
@@ -60,9 +65,11 @@ export function RfcPanel({ issueKey, orchestratorState, onSummonCreateDesignDoc 
     return marked.parse(data.content, { gfm: true, breaks: false }) as string;
   }, [data?.content]);
 
-  // Rewrite <img src="impact.png"> to the API route after render.
+  // Rewrite <img src="impact.png"> to the API route after render. Re-runs on
+  // expand so the hook finds the `[data-rfc-body]` container that only mounts
+  // after the user clicks to expand the collapsed RFC.
   useEffect(() => {
-    if (!html || !data?.exists) return;
+    if (!html || !data?.exists || !expanded) return;
     const container = document.querySelector<HTMLDivElement>("[data-rfc-body]");
     if (!container) return;
     const imgs = container.querySelectorAll("img");
@@ -74,7 +81,7 @@ export function RfcPanel({ issueKey, orchestratorState, onSummonCreateDesignDoc 
       img.classList.add("cursor-zoom-in", "rounded-md", "border", "border-shadow-purple/50");
       img.addEventListener("click", () => setZoomed(img.getAttribute("src")));
     }
-  }, [html, data?.exists, issueKey]);
+  }, [html, data?.exists, issueKey, expanded]);
 
   return (
     <section
@@ -82,13 +89,27 @@ export function RfcPanel({ issueKey, orchestratorState, onSummonCreateDesignDoc 
       className="flex flex-col gap-4 rounded-lg border border-shadow-purple/60 bg-void-800/70 p-5"
     >
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <FileText size={14} strokeWidth={2} className="text-arise-violet" />
+        <button
+          type="button"
+          onClick={() => (data?.exists ? setExpanded((v) => !v) : undefined)}
+          disabled={!data?.exists}
+          data-rfc-toggle={data?.exists ? (expanded ? "expanded" : "collapsed") : "disabled"}
+          className="flex items-center gap-2 text-left disabled:cursor-default"
+        >
+          {data?.exists ? (
+            expanded ? (
+              <ChevronDown size={14} strokeWidth={2} className="text-arise-violet" />
+            ) : (
+              <ChevronRight size={14} strokeWidth={2} className="text-arise-violet" />
+            )
+          ) : (
+            <FileText size={14} strokeWidth={2} className="text-arise-violet" />
+          )}
           <h2 className="text-sm font-semibold uppercase tracking-wider text-arise-violet-bright">
             RFC
           </h2>
           {data?.exists ? <span className="text-xs text-soul-cyan/70">{data.title}</span> : null}
-        </div>
+        </button>
         {data?.exists ? (
           <div className="flex items-center gap-2 text-xs">
             <button
@@ -118,13 +139,21 @@ export function RfcPanel({ issueKey, orchestratorState, onSummonCreateDesignDoc 
           {...(onSummonCreateDesignDoc ? { onSummon: onSummonCreateDesignDoc } : {})}
           reason={data.reason}
         />
-      ) : (
+      ) : expanded ? (
         <div
           // biome-ignore lint/security/noDangerouslySetInnerHtml: owned docs repo
           dangerouslySetInnerHTML={{ __html: html }}
           data-rfc-body
           className="prose-rfc max-w-none text-sm text-soul-cyan/90"
         />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="text-left text-xs text-soul-cyan/60 hover:text-ghost-white"
+        >
+          Click to expand the full doc (or use "Open in editor").
+        </button>
       )}
 
       {zoomed ? <ImageModal src={zoomed} onClose={() => setZoomed(null)} /> : null}

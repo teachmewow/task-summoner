@@ -93,19 +93,33 @@ def _pr_to_info(pr: PrSignal | None) -> PrInfo | None:
     )
 
 
-async def _resolve_target_repo_slug(config: TaskSummonerConfig) -> str | None:
-    """Best-effort ``owner/name`` for the default code repo.
+async def _resolve_target_repo_slug(
+    config: TaskSummonerConfig,
+    labels: list[str] | None = None,
+) -> str | None:
+    """Best-effort ``owner/name`` for the PR scope.
 
-    We can't always know it — users may work across multiple repos per issue.
-    Returning ``None`` falls back to ``gh search prs`` which scans everything
-    the authenticated user can see.
+    When ``labels`` is provided we resolve per-ticket via ``repo:*`` label —
+    essential because one issue's code PR may live on a different repo than
+    ``default_repo``. Without a label we fall back to the configured default,
+    and finally to ``None`` which makes ``gh search prs`` scan everything the
+    authenticated user can see.
     """
-    default_repo = config.default_repo
-    if not default_repo:
-        return None
-    repo_path = (config.repos or {}).get(default_repo)
-    if not repo_path:
-        return None
+    repo_path: str | None = None
+    if labels:
+        try:
+            _repo_name, repo_path = config.resolve_repo(labels)
+        except ValueError:
+            repo_path = None
+
+    if repo_path is None:
+        default_repo = config.default_repo
+        if not default_repo:
+            return None
+        repo_path = (config.repos or {}).get(default_repo)
+        if not repo_path:
+            return None
+
     try:
         from task_summoner.gates import _resolve_origin_slug  # local helper reuse
 
@@ -152,7 +166,7 @@ async def get_gate(
         all_children_done=True,
     )
 
-    target_slug = await _resolve_target_repo_slug(config)
+    target_slug = await _resolve_target_repo_slug(config, ticket.labels)
     doc_pr, code_pr = await fetch_pr_signals(
         ticket_key,
         docs_repo_path=get_docs_repo(),
@@ -160,7 +174,10 @@ async def get_gate(
     )
 
     snapshot = infer_gate_state(GateSignals(linear=linear, doc_pr=doc_pr, code_pr=code_pr))
-    summary = _load_gate_summary(request, ticket_key)
+    ctx = _load_context(request, ticket_key)
+    summary = ctx.get_meta("gate_summary") if ctx else None
+    orchestrator_state = ctx.state.value if ctx else None
+    orchestrator_pr_url = _orchestrator_pr_url(ctx) if ctx else None
 
     return GateResponse(
         issue_key=ticket_key,
@@ -171,28 +188,53 @@ async def get_gate(
         related_prs=[p for p in (_pr_to_info(pr) for pr in snapshot.related_prs) if p],
         linear_status_type=status_type,
         linear_status_name=ticket.status,
-        summary=summary,
+        summary=summary or None,
+        orchestrator_state=orchestrator_state,
+        orchestrator_pr_url=orchestrator_pr_url,
     )
 
 
-def _load_gate_summary(request: Request, ticket_key: str) -> str | None:
-    """Pull the skill-emitted GATE_SUMMARY sentence from the ticket context.
+def _load_context(request: Request, ticket_key: str):
+    """Best-effort read of the orchestrator's TicketContext.
 
-    Best-effort: a missing store or a not-yet-persisted context returns
-    ``None`` rather than 500-ing the gate endpoint.
+    Returns ``None`` for any failure (missing store, unknown ticket, corrupt
+    state.json). Callers degrade gracefully — this is a read-only enrichment
+    of the gate response, never the source of 500s.
     """
     store = getattr(request.app.state, "store", None)
     if store is None:
         return None
     try:
-        ctx = store.load(ticket_key)
+        return store.load(ticket_key)
     except Exception as e:  # noqa: BLE001 — best-effort read
-        log.warning("Gate summary lookup failed", ticket=ticket_key, error=str(e))
+        log.warning("Ticket context lookup failed", ticket=ticket_key, error=str(e))
         return None
-    if ctx is None:
+
+
+# Which ``ctx.metadata`` key carries the PR URL for each FSM gate state.
+# Kept here (not on the state classes) because the gate endpoint is the only
+# consumer; colocating with the state handler would force a cyclic import.
+_ORCHESTRATOR_PR_META_KEY: dict[str, str] = {
+    "WAITING_DOC_REVIEW": "rfc_pr_url",
+    "WAITING_PLAN_REVIEW": "plan_pr_url",
+    "WAITING_MR_REVIEW": "mr_url",
+}
+
+
+def _orchestrator_pr_url(ctx) -> str | None:
+    """Look up the PR URL the orchestrator stashed for the current state.
+
+    Falls back to ``ctx.mr_url`` for ``WAITING_MR_REVIEW`` because the
+    ImplementingState stores it on the context directly, not in metadata.
+    """
+    state_name = ctx.state.value if ctx.state else None
+    if not state_name:
         return None
-    summary = ctx.get_meta("gate_summary")
-    return summary or None
+    key = _ORCHESTRATOR_PR_META_KEY.get(state_name)
+    if not key:
+        return None
+    value = ctx.get_meta(key) if key != "mr_url" else (ctx.mr_url or ctx.get_meta(key))
+    return value or None
 
 
 @router.post("/{ticket_key}/approve", response_model=GateActionResponse)

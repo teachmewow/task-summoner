@@ -4,6 +4,7 @@ import {
   GATE_CHIP_CLASSES,
   GATE_LABELS,
   type GateResponse,
+  isReviewableOrchestratorState,
   isReviewableState,
   useApproveGate,
   useRequestChangesGate,
@@ -34,18 +35,26 @@ export function GateCard({
   const approve = useApproveGate(issueKey);
   const requestChanges = useRequestChangesGate(issueKey);
 
-  const reviewable = isReviewableState(gate.state);
+  // Prefer the FSM state — every ``WAITING_*_REVIEW`` is a gate. Fall back
+  // to the inferred state for old ctx files (pre-orchestrator_state schema)
+  // or when the orchestrator hasn't dispatched this ticket yet.
+  const reviewable =
+    isReviewableOrchestratorState(gate.orchestrator_state) || isReviewableState(gate.state);
+  // PR URL the buttons act on — inference first (has metadata like draft /
+  // headBranch), orchestrator fallback second (the URL the skill opened when
+  // inference can't find it due to repo scope).
+  const actionPrUrl = gate.active_pr?.url ?? gate.orchestrator_pr_url ?? null;
   const chipClasses = GATE_CHIP_CLASSES[gate.state] ?? GATE_CHIP_CLASSES.manual_check;
 
   const onApprove = () => {
-    if (!gate.active_pr) return;
-    approve.mutate(gate.active_pr.url);
+    if (!actionPrUrl) return;
+    approve.mutate(actionPrUrl);
   };
 
   const onSubmitFeedback = (feedback: string) => {
-    if (!gate.active_pr) return;
+    if (!actionPrUrl) return;
     requestChanges.mutate(
-      { pr_url: gate.active_pr.url, feedback },
+      { pr_url: actionPrUrl, feedback },
       {
         onSuccess: () => setModalOpen(false),
       },
@@ -139,6 +148,21 @@ export function GateCard({
             <ExternalLink size={12} strokeWidth={2} />
           </a>
         </div>
+      ) : actionPrUrl ? (
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="text-xs uppercase tracking-wider text-soul-cyan/60">
+            Active PR (gate)
+          </span>
+          <a
+            href={actionPrUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-arise-violet-bright hover:text-ghost-white"
+          >
+            <span className="truncate">{actionPrUrl}</span>
+            <ExternalLink size={12} strokeWidth={2} />
+          </a>
+        </div>
       ) : null}
 
       {gate.related_prs.length > 0 ? (
@@ -163,7 +187,7 @@ export function GateCard({
         </div>
       ) : null}
 
-      {reviewable && gate.active_pr ? (
+      {reviewable && actionPrUrl ? (
         <div className="flex flex-wrap items-center gap-2 pt-2">
           <button
             type="button"

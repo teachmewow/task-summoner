@@ -35,6 +35,15 @@ export interface GateResponse {
   // ``GATE_SUMMARY:`` contract. The ``GateCard`` renders a dimmed fallback
   // when absent so the layout doesn't shift.
   summary: string | null;
+  // FSM state read directly from the orchestrator. This is the authoritative
+  // "is this a gate?" signal — every ``WAITING_*_REVIEW`` should surface the
+  // lgtm/retry buttons, independent of whether PR inference found the
+  // underlying PR (which can fail when the PR lives on a non-default repo).
+  orchestrator_state: string | null;
+  // PR URL the orchestrator stashed for the current state — used as the
+  // fallback when ``active_pr`` is null (e.g. plan PR on a repo outside
+  // ``default_repo``). ``null`` when the state doesn't expect a PR.
+  orchestrator_pr_url: string | null;
 }
 
 export interface GateActionResponse {
@@ -62,11 +71,12 @@ export function useGate(issueKey: string | null) {
 function invalidateIssueQueries(qc: ReturnType<typeof useQueryClient>, issueKey: string) {
   // After a gate action the FSM advances server-side and Linear flips its
   // status — invalidate every query that feeds the issue-detail page so the
-  // user never has to hit a Refresh button. Gate, ticket context, and the
-  // monitor listing all matter here.
+  // user never has to hit a Refresh button. Gate, ticket context, RFC, and
+  // the monitor listing all matter here.
   qc.invalidateQueries({ queryKey: gateKey(issueKey) });
   qc.invalidateQueries({ queryKey: ["tickets", issueKey] });
   qc.invalidateQueries({ queryKey: ["tickets"] });
+  qc.invalidateQueries({ queryKey: ["rfc", issueKey] });
 }
 
 export function useApproveGate(issueKey: string) {
@@ -126,4 +136,20 @@ export const GATE_CHIP_CLASSES: Record<GateStateValue, string> = {
 /** States that expose the lgtm / retry buttons. */
 export function isReviewableState(state: GateStateValue): boolean {
   return state === "in_doc_review" || state === "in_plan_review" || state === "in_code_review";
+}
+
+/**
+ * FSM states that definitively require a human review decision. The
+ * orchestrator is the source of truth — every ``WAITING_*_REVIEW`` maps to
+ * a gate, regardless of whether the PR inference layer (``gh search``) was
+ * able to locate the underlying PR. Previously the UI gated its own buttons
+ * on ``isReviewableState`` which only considered inferred state, producing
+ * silent "no buttons" outcomes when the PR was on a non-default repo.
+ */
+export function isReviewableOrchestratorState(state: string | null): boolean {
+  return (
+    state === "WAITING_DOC_REVIEW" ||
+    state === "WAITING_PLAN_REVIEW" ||
+    state === "WAITING_MR_REVIEW"
+  );
 }
