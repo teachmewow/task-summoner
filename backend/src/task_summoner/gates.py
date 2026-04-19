@@ -260,14 +260,19 @@ def infer_gate_state(signals: GateSignals) -> GateSnapshot:
             )
 
     # --- Doc PR merged, no code PR yet -> between phases -------------------
+    # Doc merged is an unambiguous "move to planning" signal. We used to gate
+    # this on ``is_in_progress``, but Linear's own workflow automation flips
+    # the issue to Done the moment the linked PR merges — leaving the UI
+    # stuck on "Unclassified combination" until the orchestrator's
+    # restore-in-progress kicks in. Trust the PR signal; the Linear state
+    # gets corrected asynchronously.
     if doc_pr and doc_pr.state == "MERGED" and code_pr is None:
-        if is_in_progress:
-            return GateSnapshot(
-                state=GateState.PLANNING,
-                active_pr=None,
-                retry_skill=None,
-                related_prs=related,
-            )
+        return GateSnapshot(
+            state=GateState.PLANNING,
+            active_pr=None,
+            retry_skill=None,
+            related_prs=related,
+        )
 
     # --- Doc PR merged + code PR closed (not merged) is stuck --------------
     if code_pr and code_pr.state == "CLOSED":

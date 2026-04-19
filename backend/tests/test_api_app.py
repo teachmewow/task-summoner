@@ -597,6 +597,117 @@ class TestHealth:
         assert store.load("LIVE-1") is not None
 
 
+class TestGateApproveFsmAdvance:
+    """Clicking lgtm must advance the FSM and restore Linear to In Progress.
+
+    Before this fix, ``/approve`` just ran ``gh pr merge`` and returned — the
+    ticket sat in ``WAITING_DOC_REVIEW`` forever because the orchestrator's
+    BaseApprovalState polling couldn't see a "lgtm" reply below the tagged
+    comment (the UI button bypasses comment-based approval entirely).
+    Additionally Linear's own workflow moves the issue to Done on PR merge,
+    which is wrong for intermediate gates — we flip it back to In Progress.
+    """
+
+    def _write_config(self, client, tmp_path: Path) -> Path:
+        repo = tmp_path / "r"
+        repo.mkdir()
+        r = client.post(
+            "/api/config",
+            json={
+                "board_type": "linear",
+                "board_config": {
+                    "api_key": "k",
+                    "team_id": "team-uuid",
+                    "watch_label": "task-summoner",
+                },
+                "agent_type": "claude_code",
+                "agent_config": {
+                    "auth_method": "api_key",
+                    "api_key": "ak",
+                    "plugin_mode": "installed",
+                },
+                "repos": {"demo": str(repo)},
+                "default_repo": "demo",
+                "polling_interval_sec": 10,
+                "workspace_root": str(tmp_path / "ws"),
+            },
+        )
+        assert r.status_code == 200, r.text
+        return repo
+
+    def test_approve_advances_fsm_and_restores_in_progress(
+        self, app_and_store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        from task_summoner.api.routers import gates as gates_router
+
+        client, _ = app_and_store
+        self._write_config(client, tmp_path)
+
+        store = client.app.state.store  # type: ignore[attr-defined]
+        store.save(TicketContext(ticket_key="ENG-146", state=TicketState.WAITING_DOC_REVIEW))
+
+        async def fake_merge_pr(url):
+            return f"merged {url}"
+
+        transitions: list[tuple[str, str]] = []
+
+        class StubBoard:
+            async def transition(self, key: str, name: str):
+                transitions.append((key, name))
+
+        monkeypatch.setattr(gates_router, "merge_pr", fake_merge_pr)
+        monkeypatch.setattr(
+            gates_router.BoardProviderFactory, "create", lambda _cfg: StubBoard()
+        )
+
+        r = client.post(
+            "/api/gates/ENG-146/approve",
+            json={"pr_url": "https://github.com/tmw/docs/pull/13"},
+        )
+        assert r.status_code == 200, r.text
+
+        # FSM moved forward so the orchestrator won't keep polling the gate.
+        assert store.load("ENG-146").state is TicketState.PLANNING
+        # Linear auto-flips to Done on PR merge; we overrode that here.
+        assert transitions == [("ENG-146", "In Progress")]
+
+    def test_approve_skips_restore_on_terminal_state(
+        self, app_and_store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Final gate (code PR merge) transitions to DONE — Linear stays Done."""
+        from task_summoner.api.routers import gates as gates_router
+
+        client, _ = app_and_store
+        self._write_config(client, tmp_path)
+
+        store = client.app.state.store  # type: ignore[attr-defined]
+        store.save(TicketContext(ticket_key="ENG-200", state=TicketState.WAITING_MR_REVIEW))
+
+        async def fake_merge_pr(url):
+            return "merged"
+
+        transitions: list[tuple[str, str]] = []
+
+        class StubBoard:
+            async def transition(self, key: str, name: str):
+                transitions.append((key, name))
+
+        monkeypatch.setattr(gates_router, "merge_pr", fake_merge_pr)
+        monkeypatch.setattr(
+            gates_router.BoardProviderFactory, "create", lambda _cfg: StubBoard()
+        )
+
+        r = client.post(
+            "/api/gates/ENG-200/approve",
+            json={"pr_url": "https://github.com/tmw/x/pull/42"},
+        )
+        assert r.status_code == 200, r.text
+
+        assert store.load("ENG-200").state is TicketState.DONE
+        # Real "done" — don't drag Linear back to In Progress.
+        assert transitions == []
+
+
 class TestLinearTeamsLookup:
     def test_empty_key_is_rejected(self, app_and_store):
         client, _ = app_and_store

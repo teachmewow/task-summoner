@@ -28,6 +28,7 @@ from task_summoner.api.schemas import (
     PrInfo,
 )
 from task_summoner.config import TaskSummonerConfig
+from task_summoner.core.state_machine import TERMINAL_STATES, InvalidTransitionError
 from task_summoner.gates import (
     GateSignals,
     GateState,
@@ -38,6 +39,7 @@ from task_summoner.gates import (
     merge_pr,
     request_changes,
 )
+from task_summoner.models import TicketState
 from task_summoner.providers.board import BoardNotFoundError, BoardProviderFactory
 from task_summoner.user_config import get_docs_repo
 
@@ -197,6 +199,7 @@ def _load_gate_summary(request: Request, ticket_key: str) -> str | None:
 async def post_approve(
     ticket_key: str,
     payload: GateApprovePayload,
+    request: Request,
     config_path: Path = Depends(get_config_path),
 ) -> GateActionResponse:
     # ``lgtm`` in task-summoner means *merge*. Task-summoner (and the Linear
@@ -204,19 +207,71 @@ async def post_approve(
     # entirely because the PR author and the runner share ``gh`` credentials,
     # and GitHub rejects self-approval. The endpoint name stays ``/approve``
     # for UI compatibility; the action is ``gh pr merge --squash``.
-    _load_config(config_path)  # config must exist; we don't read more from it
+    config = _load_config(config_path)
     if not payload.pr_url:
         raise HTTPException(status_code=400, detail="pr_url is required")
     try:
         out = await merge_pr(payload.pr_url)
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=f"gh pr merge failed: {e}") from e
-    log.info("Gate merged", ticket=ticket_key, pr=payload.pr_url)
+
+    # The merge went through — advance the FSM so the next poll doesn't find
+    # the ticket still WAITING_*_REVIEW, and pull Linear off the "Done" bucket
+    # that its own workflow automation just put it in. The ticket is only
+    # *actually* done after the final (code) PR merges.
+    new_state = _advance_fsm_after_approve(request, ticket_key)
+    if new_state is not None and new_state not in TERMINAL_STATES:
+        await _restore_in_progress(config, ticket_key)
+
+    log.info(
+        "Gate merged",
+        ticket=ticket_key,
+        pr=payload.pr_url,
+        new_state=new_state.value if new_state else None,
+    )
     return GateActionResponse(
         ok=True,
         message=f"Merged {payload.pr_url}",
         gh_output=out,
     )
+
+
+def _advance_fsm_after_approve(request: Request, ticket_key: str) -> TicketState | None:
+    """Fire the ``approved`` trigger on the store. Returns the new state, or ``None``.
+
+    We go via the orchestrator's store (installed on ``app.state.store``)
+    rather than fabricating a new one so the ctx and the orchestrator poll
+    loop agree on what state the ticket is in. A missing store, missing ctx,
+    or invalid trigger degrades to ``None`` — the merge already happened, the
+    orchestrator's own BaseApprovalState polling will catch up next tick.
+    """
+    store = getattr(request.app.state, "store", None)
+    if store is None:
+        return None
+    try:
+        updated = store.do_transition(ticket_key, "approved")
+    except (ValueError, InvalidTransitionError) as e:
+        log.warning("FSM advance skipped", ticket=ticket_key, error=str(e))
+        return None
+    except Exception as e:  # noqa: BLE001 — best-effort
+        log.warning("FSM advance failed", ticket=ticket_key, error=str(e))
+        return None
+    return updated.state
+
+
+async def _restore_in_progress(config: TaskSummonerConfig, ticket_key: str) -> None:
+    """Flip Linear back to ``In Progress`` after a gate merge.
+
+    Linear's own automation moves the issue to ``Done`` when its linked PR
+    merges. For non-terminal gates (doc review, plan review) the ticket still
+    has work ahead, so we revert. Best-effort — a transition failure logs and
+    continues because the orchestrator will re-attempt from its own loop.
+    """
+    try:
+        board = BoardProviderFactory.create(config.build_provider_config())
+        await board.transition(ticket_key, "In Progress")
+    except Exception as e:  # noqa: BLE001 — best-effort
+        log.warning("Linear restore-in-progress failed", ticket=ticket_key, error=str(e))
 
 
 @router.post("/{ticket_key}/request-changes", response_model=GateActionResponse)

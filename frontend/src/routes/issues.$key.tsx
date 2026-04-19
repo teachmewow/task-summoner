@@ -7,14 +7,17 @@ import { useGate } from "~/lib/gates";
 import { useTicket } from "~/lib/issues";
 
 /**
- * Per-issue detail view (ENG-121).
+ * Per-issue detail view.
  *
- * Primary content is the activity timeline — we want to surface what the
- * agent is actually doing while it works, rather than hiding the subprocess
- * output behind a log file. Gate state stays at the top (approval actions
- * are the user's main tool on this page), RFC panel is kept but demoted
- * below the timeline. The Recent Decisions sidebar moved to the Monitor
- * page where it isn't competing for context with the live dispatch.
+ * Order is deliberately "decision → artifact → agent trace":
+ *
+ *  1. GateCard — what action the human needs to take right now.
+ *  2. RfcPanel — the artifact the gate is about (the doc being reviewed).
+ *  3. IssueActivityTimeline — the agent's step-by-step log, below because it
+ *     only matters when debugging or watching a live dispatch.
+ *
+ * Previous layout put the RFC at the very bottom, forcing users to scroll
+ * past the full timeline to read the doc they just approved.
  */
 export const Route = createFileRoute("/issues/$key")({
   component: IssueDetail,
@@ -78,9 +81,9 @@ function IssueDetail() {
         </p>
       ) : null}
 
-      <IssueActivityTimeline issueKey={key} />
-
       <RfcPanel issueKey={key} orchestratorState={ticket.data?.state ?? null} />
+
+      <IssueActivityTimeline issueKey={key} />
     </section>
   );
 }

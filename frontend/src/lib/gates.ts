@@ -59,6 +59,16 @@ export function useGate(issueKey: string | null) {
   });
 }
 
+function invalidateIssueQueries(qc: ReturnType<typeof useQueryClient>, issueKey: string) {
+  // After a gate action the FSM advances server-side and Linear flips its
+  // status — invalidate every query that feeds the issue-detail page so the
+  // user never has to hit a Refresh button. Gate, ticket context, and the
+  // monitor listing all matter here.
+  qc.invalidateQueries({ queryKey: gateKey(issueKey) });
+  qc.invalidateQueries({ queryKey: ["tickets", issueKey] });
+  qc.invalidateQueries({ queryKey: ["tickets"] });
+}
+
 export function useApproveGate(issueKey: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -67,7 +77,7 @@ export function useApproveGate(issueKey: string) {
         method: "POST",
         body: JSON.stringify({ pr_url }),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: gateKey(issueKey) }),
+    onSuccess: () => invalidateIssueQueries(qc, issueKey),
   });
 }
 
@@ -83,7 +93,7 @@ export function useRequestChangesGate(issueKey: string) {
           resummon_skill: args.resummon_skill ?? true,
         }),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: gateKey(issueKey) }),
+    onSuccess: () => invalidateIssueQueries(qc, issueKey),
   });
 }
 

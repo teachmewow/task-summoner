@@ -203,7 +203,7 @@ export function GateCard({
         </p>
       ) : null}
       {approve.isSuccess ? (
-        <p className="text-xs text-mana-green">Approved. Refresh to see the new state.</p>
+        <p className="text-xs text-mana-green">Merged. State advancing…</p>
       ) : null}
 
       <RequestChangesModal
