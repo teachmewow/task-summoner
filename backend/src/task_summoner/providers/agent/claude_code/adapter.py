@@ -255,7 +255,7 @@ class ClaudeCodeAdapter:
             max_budget_usd=profile.max_cost_usd,
             allowed_tools=profile.tools,
             permission_mode="bypassPermissions",
-            setting_sources=["user"],
+            setting_sources=self._resolve_setting_sources(),
             plugins=self._resolve_plugins(profile),
             env=self._build_env(),
             mcp_servers=self._build_mcp_servers(),
@@ -273,6 +273,29 @@ class ClaudeCodeAdapter:
         if errors:
             raise ValueError("; ".join(errors))
         return resolver.resolve()
+
+    def _resolve_setting_sources(self) -> list[str]:
+        """Pick `setting_sources` from the user's plugin_mode config.
+
+        LOCAL mode injects the plugin explicitly via `plugin_path` and the
+        adapter injects `mcp_servers` explicitly too. The user-scope Claude
+        Code settings must NOT be inherited, or globally-registered MCPs
+        (e.g. a different workspace's Linear) leak in and pollute dispatch
+        data. Return an empty list — no inheritance.
+
+        INSTALLED mode relies on the user's global Claude Code settings to
+        provide the plugin enablement, so `setting_sources=["user"]` is
+        required. Downstream MCP isolation is the user's responsibility in
+        that case (don't register conflicting MCPs globally).
+        """
+        try:
+            mode = PluginMode(self._config.plugin_mode)
+        except ValueError as e:
+            raise ValueError(f"Unknown plugin_mode: {self._config.plugin_mode}") from e
+
+        if mode == PluginMode.LOCAL:
+            return []
+        return ["user"]
 
     def _build_env(self) -> dict[str, str]:
         """Forward credentials to the spawned agent subprocess.
