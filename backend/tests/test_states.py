@@ -14,7 +14,7 @@ from task_summoner.providers.agent import AgentResult
 from task_summoner.providers.board import ApprovalDecision, ApprovalResult
 from task_summoner.states import build_state_registry
 from task_summoner.states import creating_doc as creating_doc_module
-from task_summoner.states.base import GATE_SUMMARY_FALLBACK, _extract_gate_summary
+from task_summoner.states.base import _extract_gate_summary
 
 
 class TestExtractGateSummary:
@@ -62,9 +62,15 @@ class TestExtractGateSummary:
 
 
 class TestStateRegistry:
-    def test_all_states_registered(self, config: TaskSummonerConfig):
+    def test_all_non_legacy_states_registered(self, config: TaskSummonerConfig):
         registry = build_state_registry(config)
+        # CHECKING_DOC is a legacy enum value kept for state.json compat;
+        # the handler is intentionally gone (QueuedState now routes by label).
+        legacy_states = {TicketState.CHECKING_DOC}
         for state in TicketState:
+            if state in legacy_states:
+                assert state not in registry
+                continue
             assert state in registry, f"Missing handler for {state}"
 
     def test_agent_states_have_config(self, config: TaskSummonerConfig):
@@ -81,7 +87,8 @@ class TestStateRegistry:
 
 
 class TestQueuedState:
-    async def test_handle_creates_workspace_and_claims(self, config, sample_ticket, mock_services):
+    async def test_no_doc_needed_by_default(self, config, sample_ticket, mock_services):
+        """Default route — no `Doc` label means skip doc creation entirely."""
         registry = build_state_registry(config)
         handler = registry[TicketState.QUEUED]
         ctx = TicketContext(ticket_key="LLMOPS-42", state=TicketState.QUEUED)
@@ -89,128 +96,27 @@ class TestQueuedState:
 
         trigger = await handler.handle(ctx, sample_ticket, mock_services)
 
-        assert trigger == "start"
+        assert trigger == "no_doc_needed"
         assert ctx.workspace_path == "/tmp/ws/LLMOPS-42"
         mock_services.board.assign.assert_called_once()
         mock_services.board.transition.assert_called_once()
 
-
-class TestCheckingDocState:
-    async def test_doc_exists(self, config, sample_ticket, mock_services):
-        registry = build_state_registry(config)
-        handler = registry[TicketState.CHECKING_DOC]
-        ctx = TicketContext(
-            ticket_key="LLMOPS-42",
-            state=TicketState.CHECKING_DOC,
-            workspace_path="/tmp/ws",
-            branch_name="LLMOPS-42-test",
-        )
-        mock_services.agent.run = AsyncMock(
-            return_value=AgentResult(success=True, output="DOC_EXISTS", cost_usd=0.1)
-        )
-        mock_services.board.post_tagged_comment = AsyncMock(return_value="tag-x")
-
-        trigger = await handler.handle(ctx, sample_ticket, mock_services)
-        assert trigger == "doc_exists"
-
-    async def test_doc_not_needed(self, config, sample_ticket, mock_services):
-        registry = build_state_registry(config)
-        handler = registry[TicketState.CHECKING_DOC]
-        ctx = TicketContext(
-            ticket_key="LLMOPS-42",
-            state=TicketState.CHECKING_DOC,
-            workspace_path="/tmp/ws",
-            branch_name="LLMOPS-42-test",
-        )
-        mock_services.agent.run = AsyncMock(
-            return_value=AgentResult(success=True, output="DOC_NOT_NEEDED", cost_usd=0.1)
-        )
-        mock_services.board.post_tagged_comment = AsyncMock(return_value="tag-x")
-
-        trigger = await handler.handle(ctx, sample_ticket, mock_services)
-        assert trigger == "doc_not_needed"
-
-    async def test_doc_needed(self, config, sample_ticket, mock_services):
-        registry = build_state_registry(config)
-        handler = registry[TicketState.CHECKING_DOC]
-        ctx = TicketContext(
-            ticket_key="LLMOPS-42",
-            state=TicketState.CHECKING_DOC,
-            workspace_path="/tmp/ws",
-            branch_name="LLMOPS-42-test",
-        )
-        mock_services.agent.run = AsyncMock(
-            return_value=AgentResult(success=True, output="DOC_NEEDED", cost_usd=0.1)
-        )
-        mock_services.board.post_tagged_comment = AsyncMock(return_value="tag-x")
-
-        trigger = await handler.handle(ctx, sample_ticket, mock_services)
-        assert trigger == "doc_needed"
-        mock_services.board.post_tagged_comment.assert_called_once()
-        call_args = mock_services.board.post_tagged_comment.call_args
-        body = call_args.args[2] if len(call_args.args) >= 3 else call_args.kwargs["body"]
-        assert "Design doc required" in body
-        assert ctx.metadata.get("doc_comment_id") == "tag-x"
-
-    async def test_summary_extracted_and_narrative_dropped(
+    async def test_doc_required_when_doc_label_present(
         self, config, sample_ticket, mock_services
     ):
-        """The comment body shows only verdict + summary + CTA, not the prose."""
+        """`Doc` label (set upstream by create-work-plan) routes to CREATING_DOC."""
         registry = build_state_registry(config)
-        handler = registry[TicketState.CHECKING_DOC]
-        ctx = TicketContext(
-            ticket_key="LLMOPS-42",
-            state=TicketState.CHECKING_DOC,
-            workspace_path="/tmp/ws",
-            branch_name="LLMOPS-42-test",
-        )
-        narrative = (
-            "I'll execute the workflow in headless mode, fetching Linear context...\n"
-            "Phase 1 complete; classifier ran.\n"
-        )
-        agent_output = (
-            f"{narrative}"
-            "DOC_NOT_NEEDED\n"
-            "GATE_SUMMARY: README-only docs change; classifier says no design doc needed.\n"
-        )
-        mock_services.agent.run = AsyncMock(
-            return_value=AgentResult(success=True, output=agent_output, cost_usd=0.1)
-        )
-        mock_services.board.post_tagged_comment = AsyncMock(return_value="tag-x")
+        handler = registry[TicketState.QUEUED]
+        ctx = TicketContext(ticket_key="LLMOPS-42", state=TicketState.QUEUED)
+        mock_services.workspace.create = AsyncMock(return_value="/tmp/ws/LLMOPS-42")
 
-        trigger = await handler.handle(ctx, sample_ticket, mock_services)
-
-        assert trigger == "doc_not_needed"
-        body = mock_services.board.post_tagged_comment.call_args.args[2]
-        assert "README-only docs change" in body
-        assert "I'll execute" not in body
-        assert "Phase 1" not in body
-        assert (
-            ctx.metadata["gate_summary"]
-            == "README-only docs change; classifier says no design doc needed."
+        ticket_with_doc = sample_ticket.model_copy(
+            update={"labels": [*sample_ticket.labels, "Doc"]}
         )
 
-    async def test_missing_summary_falls_back(self, config, sample_ticket, mock_services):
-        """When the skill skips the contract, the gate still fires with fallback."""
-        registry = build_state_registry(config)
-        handler = registry[TicketState.CHECKING_DOC]
-        ctx = TicketContext(
-            ticket_key="LLMOPS-42",
-            state=TicketState.CHECKING_DOC,
-            workspace_path="/tmp/ws",
-            branch_name="LLMOPS-42-test",
-        )
-        mock_services.agent.run = AsyncMock(
-            return_value=AgentResult(success=True, output="DOC_NOT_NEEDED", cost_usd=0.1)
-        )
-        mock_services.board.post_tagged_comment = AsyncMock(return_value="tag-x")
+        trigger = await handler.handle(ctx, ticket_with_doc, mock_services)
 
-        trigger = await handler.handle(ctx, sample_ticket, mock_services)
-
-        assert trigger == "doc_not_needed"
-        assert ctx.metadata["gate_summary"] == GATE_SUMMARY_FALLBACK
-        body = mock_services.board.post_tagged_comment.call_args.args[2]
-        assert GATE_SUMMARY_FALLBACK in body
+        assert trigger == "doc_required"
 
 
 class TestCreatingDocState:
@@ -251,6 +157,7 @@ class TestCreatingDocState:
             )
         )
         mock_services.board.post_comment = AsyncMock(return_value="cid")
+        mock_services.board.post_tagged_comment = AsyncMock(return_value="tag-x")
 
         with self._patch_verify(branch_present=True):
             trigger = await handler.handle(ctx, sample_ticket, mock_services)
@@ -259,7 +166,15 @@ class TestCreatingDocState:
         assert ctx.error is None
         assert ctx.get_meta("rfc_branch") == "rfc/llmops-42"
         assert ctx.get_meta("rfc_pr_url") == "https://github.com/teachmewow/tmw-docs/pull/99"
+        # Failure notification is a separate channel; it must stay silent on
+        # the happy path so the Linear comment stream doesn't double-post.
         mock_services.board.post_comment.assert_not_called()
+        # Gate polling needs the tagged comment — one is posted with the
+        # ``creating_doc`` state tag and stored in ``doc_comment_id``.
+        mock_services.board.post_tagged_comment.assert_called_once()
+        assert ctx.get_meta("doc_comment_id") == "tag-x"
+        posted_tag = mock_services.board.post_tagged_comment.call_args.args[1]
+        assert ":creating_doc:" in posted_tag
 
     async def test_missing_branch_marks_failure_and_notifies(
         self, config, sample_ticket, mock_services

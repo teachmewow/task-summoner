@@ -204,6 +204,42 @@ class TestBranchHelper:
         assert format_doc_branch("eng-95") == "rfc/eng-95"
 
 
+class TestMergePr:
+    """``merge_pr`` is what `lgtm` triggers — a squash-merge, not an approval.
+
+    GitHub blocks self-approval (author == runner), so task-summoner skips the
+    review step entirely; the UI / Linear trail is the source of truth.
+    """
+
+    async def test_issues_squash_merge_with_delete_branch(self, monkeypatch):
+        from task_summoner import gates as gates_mod
+
+        captured: dict[str, list[str]] = {}
+
+        async def fake_run(cmd, *, timeout_sec):
+            captured["cmd"] = cmd
+            return "merged"
+
+        monkeypatch.setattr(gates_mod, "run_cli", fake_run)
+        out = await gates_mod.merge_pr("https://github.com/tmw/x/pull/1")
+
+        assert out == "merged"
+        assert captured["cmd"] == [
+            "gh",
+            "pr",
+            "merge",
+            "--squash",
+            "--delete-branch",
+            "https://github.com/tmw/x/pull/1",
+        ]
+
+    async def test_empty_url_raises(self):
+        from task_summoner.gates import merge_pr
+
+        with pytest.raises(ValueError, match="pr_url"):
+            await merge_pr("")
+
+
 class TestLoadGateSummary:
     """``_load_gate_summary`` surfaces the skill-emitted sentence to the UI.
 

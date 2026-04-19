@@ -515,12 +515,19 @@ def _pick_best_pr(rows: list[dict]) -> PrSignal | None:
 # ---------------------------------------------------------------------------
 
 
-async def approve_pr(pr_url: str) -> str:
-    """Run ``gh pr review --approve <url>``. Returns gh's stdout/stderr text."""
+async def merge_pr(pr_url: str) -> str:
+    """Run ``gh pr merge --squash --delete-branch <url>``.
+
+    ``lgtm`` in task-summoner is a *merge* action, not a GitHub review. We
+    don't call ``gh pr review --approve`` because GitHub blocks self-approval
+    (the PR author and the runner share ``gh`` credentials). The UI / Linear
+    trail is the source of truth for approvals; GitHub only receives the
+    merge.
+    """
     if not pr_url:
         raise ValueError("pr_url is required")
     return await run_cli(
-        ["gh", "pr", "review", "--approve", pr_url],
+        ["gh", "pr", "merge", "--squash", "--delete-branch", pr_url],
         timeout_sec=_GH_TIMEOUT_SEC,
     )
 
@@ -553,10 +560,10 @@ __all__ = [
     "GateState",
     "LinearSignal",
     "PrSignal",
-    "approve_pr",
     "fetch_pr_signals",
     "format_doc_branch",
     "infer_gate_state",
+    "merge_pr",
     "request_changes",
     "shell_quote",
 ]

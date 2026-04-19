@@ -1,4 +1,10 @@
-"""QUEUED → create workspace, claim ticket, move to CHECKING_DOC."""
+"""QUEUED → create workspace, claim ticket, route by label.
+
+Doc vs no-doc routing is decided here, not by an LLM. The `Doc` label is
+applied upstream by the `create-work-plan` skill (run by the human before
+dispatch). Default is no doc — cheaper, faster, and the user can always
+add the label to opt in.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +16,8 @@ from task_summoner.workspace import derive_branch_name
 from .base import BaseState, StateServices
 
 log = structlog.get_logger()
+
+DOC_LABEL = "Doc"
 
 
 class QueuedState(BaseState):
@@ -29,5 +37,12 @@ class QueuedState(BaseState):
         await svc.board.transition(ticket.key, "In Progress")
         await svc.board.add_label(ticket.key, f"branch:{branch}")
 
-        log.info("Ticket claimed", ticket=ticket.key, branch=branch, repo=repo_name)
-        return "start"
+        doc_required = DOC_LABEL in (ticket.labels or [])
+        log.info(
+            "Ticket claimed",
+            ticket=ticket.key,
+            branch=branch,
+            repo=repo_name,
+            doc_required=doc_required,
+        )
+        return "doc_required" if doc_required else "no_doc_needed"

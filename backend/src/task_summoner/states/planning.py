@@ -11,7 +11,12 @@ from task_summoner.constants import APPROVAL_INSTRUCTIONS
 from task_summoner.models import Ticket, TicketContext, TicketState
 from task_summoner.observability import state_trace_metadata, traceable
 
-from .base import GATE_SUMMARY_FALLBACK, BaseState, StateServices, _extract_gate_summary
+from .base import (
+    GATE_SUMMARY_ECHO_INSTRUCTION,
+    BaseState,
+    StateServices,
+    _extract_gate_summary,
+)
 
 log = structlog.get_logger()
 
@@ -36,11 +41,12 @@ class PlanningState(BaseState):
             "You are a headless agent. Invoke the skill and follow its instructions.\n"
             f"Save the plan to: {artifact_dir}/plan.md\n\n"
             f'Use the Skill tool: Skill(skill="task-summoner-workflows:ticket-plan", '
-            f'args="{ticket.key} --headless")\n'
+            f'args="{ticket.key} --headless")\n\n'
+            f"{GATE_SUMMARY_ECHO_INSTRUCTION}\n"
         )
         feedback = ctx.get_meta("reviewer_feedback", "")
         if feedback:
-            prompt += f"\nReviewer feedback: {feedback}\n"
+            prompt += f'\nUsuário disse: "{feedback}"\n'
         return prompt
 
     @traceable(
@@ -84,16 +90,16 @@ def _build_tag(ticket_key: str, state: str) -> str:
 
 
 def _resolve_summary(output: str, ticket_key: str) -> str:
-    """Return the skill's GATE_SUMMARY sentence or the fallback, logging misses."""
+    """Return the skill's GATE_SUMMARY sentence, with a contextual fallback."""
     summary = _extract_gate_summary(output)
-    if summary is None:
-        log.warning(
-            "GATE_SUMMARY missing from agent output",
-            ticket=ticket_key,
-            state=TicketState.PLANNING.value,
-        )
-        return GATE_SUMMARY_FALLBACK
-    return summary
+    if summary is not None:
+        return summary
+    log.warning(
+        "GATE_SUMMARY missing from agent output",
+        ticket=ticket_key,
+        state=TicketState.PLANNING.value,
+    )
+    return f"Implementation plan drafted for {ticket_key}; plan.md ready for review."
 
 
 def _compose_plan_body(summary: str, plan_text: str) -> str:

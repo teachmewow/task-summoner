@@ -44,22 +44,22 @@ class TestStateStore:
         ctx = TicketContext(ticket_key="TEST-1", state=TicketState.QUEUED)
         store.save(ctx)
 
-        result = store.do_transition("TEST-1", "start")
-        assert result.state == TicketState.CHECKING_DOC
+        result = store.do_transition("TEST-1", "no_doc_needed")
+        assert result.state == TicketState.PLANNING
 
         loaded = store.load("TEST-1")
-        assert loaded.state == TicketState.CHECKING_DOC
+        assert loaded.state == TicketState.PLANNING
 
     def test_do_transition_invalid_raises(self, store: StateStore):
         ctx = TicketContext(ticket_key="TEST-1", state=TicketState.DONE)
         store.save(ctx)
 
         with pytest.raises(InvalidTransitionError):
-            store.do_transition("TEST-1", "start")
+            store.do_transition("TEST-1", "no_doc_needed")
 
     def test_do_transition_missing_ticket_raises(self, store: StateStore):
         with pytest.raises(ValueError, match="No state found"):
-            store.do_transition("MISSING-1", "start")
+            store.do_transition("MISSING-1", "no_doc_needed")
 
     def test_list_active(self, store: StateStore):
         store.save(TicketContext(ticket_key="A-1", state=TicketState.QUEUED))

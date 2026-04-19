@@ -13,10 +13,11 @@ class InvalidTransitionError(Exception):
 
 
 TRANSITIONS: dict[tuple[TicketState, str], TicketState] = {
-    (TicketState.QUEUED, "start"): TicketState.CHECKING_DOC,
-    (TicketState.CHECKING_DOC, "doc_exists"): TicketState.WAITING_DOC_REVIEW,
-    (TicketState.CHECKING_DOC, "doc_needed"): TicketState.CREATING_DOC,
-    (TicketState.CHECKING_DOC, "doc_not_needed"): TicketState.WAITING_DOC_REVIEW,
+    # Doc-path routing happens in QUEUED by reading the ticket's labels —
+    # create-work-plan (run by the human before dispatch) is the single source
+    # of truth for "does this ticket need a design doc". Default is no doc.
+    (TicketState.QUEUED, "doc_required"): TicketState.CREATING_DOC,
+    (TicketState.QUEUED, "no_doc_needed"): TicketState.PLANNING,
     (TicketState.CREATING_DOC, "doc_created"): TicketState.WAITING_DOC_REVIEW,
     (TicketState.CREATING_DOC, "doc_failed"): TicketState.FAILED,
     (TicketState.WAITING_DOC_REVIEW, "approved"): TicketState.PLANNING,
@@ -40,7 +41,6 @@ TERMINAL_STATES = frozenset({TicketState.DONE, TicketState.FAILED})
 
 AGENT_STATES = frozenset(
     {
-        TicketState.CHECKING_DOC,
         TicketState.CREATING_DOC,
         TicketState.IMPROVING_DOC,
         TicketState.PLANNING,
