@@ -1,0 +1,131 @@
+name: render-diagrams
+
+# Renders Structurizr DSL → C4-PlantUML → PNG and fails the PR if any
+# committed PNG does not match the freshly rendered output.
+#
+# Why no auto-commit:
+#   The committed PNG is authoritative. Bot commits pollute history and
+#   race with human pushes. Instead, we fail the check and let the author
+#   either (a) run `render-architecture-dsl` locally or (b) download the
+#   rendered PNG from the Action artifacts and commit it themselves.
+
+on:
+  pull_request:
+    paths:
+      - "**/*.dsl"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  render:
+    name: Render & compare DSL diagrams
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          # Need at least 2 commits to diff against the base.
+          fetch-depth: 0
+
+      - name: Detect changed .dsl files
+        id: changed
+        run: |
+          set -euo pipefail
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          mapfile -t files < <(
+            git diff --name-only --diff-filter=ACMR "$base_sha" "$head_sha" \
+              | grep -E '\.dsl$' || true
+          )
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No .dsl files changed; nothing to render."
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf 'Changed .dsl files:\n'
+          printf '  %s\n' "${files[@]}"
+          {
+            echo "count=${#files[@]}"
+            echo "files<<EOF"
+            printf '%s\n' "${files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Prepare render output dir
+        if: steps.changed.outputs.count != '0'
+        run: mkdir -p .render-output
+
+      - name: Export DSL → C4-PlantUML
+        if: steps.changed.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          while IFS= read -r dsl; do
+            [ -z "$dsl" ] && continue
+            out_dir=".render-output/$(dirname "$dsl")"
+            mkdir -p "$out_dir"
+            echo "::group::structurizr export $dsl"
+            docker run --rm \
+              -v "$PWD":/work -w /work \
+              structurizr/structurizr:latest \
+              export -w "$dsl" -f plantuml/c4plantuml -o "$out_dir"
+            echo "::endgroup::"
+          done <<< "${{ steps.changed.outputs.files }}"
+
+      - name: Render PlantUML → PNG
+        if: steps.changed.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          # Render every .puml produced by the export step.
+          find .render-output -name '*.puml' -print0 | while IFS= read -r -d '' puml; do
+            dir="$(dirname "$puml")"
+            name="$(basename "$puml")"
+            echo "::group::plantuml $puml"
+            docker run --rm \
+              -v "$PWD/$dir":/work -w /work \
+              plantuml/plantuml:latest \
+              -tpng "$name"
+            echo "::endgroup::"
+          done
+
+      - name: Upload rendered PNGs as artifact
+        if: steps.changed.outputs.count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-diagrams
+          path: .render-output/**/*.png
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Compare rendered PNGs against committed PNGs
+        if: steps.changed.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          mismatches=0
+          missing=0
+          while IFS= read -r png; do
+            [ -z "$png" ] && continue
+            # png looks like: .render-output/<dir>/structurizr-<View>.png
+            rel="${png#.render-output/}"
+            committed="$rel"
+            if [ ! -f "$committed" ]; then
+              echo "::error file=$committed::No committed PNG found for rendered $png"
+              missing=$((missing + 1))
+              continue
+            fi
+            if ! cmp -s "$png" "$committed"; then
+              echo "::error file=$committed::Rendered output differs from committed PNG."
+              mismatches=$((mismatches + 1))
+            else
+              echo "ok: $committed matches rendered output"
+            fi
+          done < <(find .render-output -name '*.png')
+
+          if [ "$mismatches" -ne 0 ] || [ "$missing" -ne 0 ]; then
+            echo ""
+            echo "Rendered output differs from committed PNG. Run \`render-architecture-dsl\` locally (or download the Action artifacts and commit the updated PNG)."
+            exit 1
+          fi
+
+          echo "All rendered PNGs match committed PNGs."

@@ -1,0 +1,43 @@
+# Gitleaks configuration for this template repo.
+#
+# Extends the upstream default ruleset (which catches AWS keys, OpenAI
+# keys, GitHub tokens, private keys, etc.) and adds a small, curated
+# allowlist for files that are known-noisy but safe.
+#
+# To suppress a specific false positive, add either:
+#   - a path to `allowlist.paths` (scoped narrowly), or
+#   - a regex to `allowlist.regexes` matching the literal value, or
+#   - the 40-char SHA of the leaked-looking line to `allowlist.commits`.
+#
+# Do NOT widen these rules to suppress real findings. When in doubt,
+# rotate the credential and let the rule fire.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Template-repo allowlist (generated files + example configs)"
+
+# File paths that are safe to ignore. Regexes match anywhere in the path.
+paths = [
+  '''(^|/)poetry\.lock$''',
+  '''(^|/)pnpm-lock\.yaml$''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)yarn\.lock$''',
+  '''(^|/)Pipfile\.lock$''',
+  '''(^|/)\.env\.example$''',
+  '''(^|/)\.env\.sample$''',
+  '''(^|/)\.env\.template$''',
+  # Example/sample credentials in docs
+  '''(^|/)docs/.*\.example\.(yml|yaml|json|toml)$''',
+  # The gitleaks config itself can contain patterns that look like secrets
+  '''(^|/)\.gitleaks\.toml$''',
+]
+
+# Regexes for values that are obviously placeholders, not real secrets.
+regexes = [
+  # Common placeholder patterns
+  '''(?i)(xxx+|yyy+|zzz+|placeholder|example|sample|dummy|fake|test[-_]?key)''',
+  # All-zero / all-x token bodies
+  '''(?i)(["'=:\s])(0{8,}|x{8,}|\*{8,})(["'\s]|$)''',
+]

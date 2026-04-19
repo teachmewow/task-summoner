@@ -1,0 +1,164 @@
+name: dep-audit
+
+# Blocks merging a PR that introduces HIGH or CRITICAL dependency
+# advisories.
+#
+# - `pip-audit` runs only if pyproject.toml or requirements.txt exists.
+# - `npm audit` runs only if package.json exists.
+#
+# To suppress a specific advisory (with rationale), add an entry to
+# `.github/audit-ignores.yml`. See that file for the format.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect applicable ecosystems
+    runs-on: ubuntu-latest
+    outputs:
+      has_python: ${{ steps.check.outputs.has_python }}
+      has_node: ${{ steps.check.outputs.has_node }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          set -euo pipefail
+          has_python=false
+          has_node=false
+          if [ -f pyproject.toml ] || [ -f requirements.txt ]; then
+            has_python=true
+          fi
+          if [ -f package.json ]; then
+            has_node=true
+          fi
+          echo "has_python=$has_python" >> "$GITHUB_OUTPUT"
+          echo "has_node=$has_node" >> "$GITHUB_OUTPUT"
+
+  python-audit:
+    name: pip-audit (HIGH+)
+    needs: detect
+    if: needs.detect.outputs.has_python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit + pyyaml
+        run: pip install --upgrade pip pip-audit pyyaml
+
+      - name: Collect audit-ignore flags
+        id: ignores
+        run: |
+          set -euo pipefail
+          if [ -f .github/audit-ignores.yml ]; then
+            flags=$(python - <<'PY'
+          import yaml
+          with open(".github/audit-ignores.yml") as f:
+              data = yaml.safe_load(f) or {}
+          ids = [entry["id"] for entry in (data.get("python") or []) if entry.get("id")]
+          print(" ".join(f"--ignore-vuln {i}" for i in ids))
+          PY
+          )
+          else
+            flags=""
+          fi
+          echo "flags=$flags" >> "$GITHUB_OUTPUT"
+
+      - name: Run pip-audit and filter to HIGH/CRITICAL
+        run: |
+          set -euo pipefail
+          pip-audit --format=json ${{ steps.ignores.outputs.flags }} --output pip-audit.json || true
+          python - <<'PY'
+          import json, sys
+          data = json.load(open("pip-audit.json"))
+          bad = []
+          for dep in data.get("dependencies", []):
+              for vuln in dep.get("vulns", []):
+                  severity = (vuln.get("severity") or "").upper()
+                  # Treat unknown severity as HIGH to avoid silent misses.
+                  if severity in ("HIGH", "CRITICAL", ""):
+                      bad.append((dep.get("name"), dep.get("version"), vuln.get("id"), severity or "UNKNOWN"))
+          if bad:
+              print("HIGH/CRITICAL python advisories:")
+              for name, version, vid, sev in bad:
+                  print(f"  {name} {version} — {vid} ({sev})")
+              sys.exit(1)
+          print("No HIGH/CRITICAL python advisories.")
+          PY
+
+  node-audit:
+    name: npm audit (HIGH+)
+    needs: detect
+    if: needs.detect.outputs.has_node == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install production deps (lockfile-aware)
+        run: |
+          set -euo pipefail
+          if [ -f pnpm-lock.yaml ]; then
+            corepack enable
+            pnpm install --prod --frozen-lockfile
+          elif [ -f yarn.lock ]; then
+            corepack enable
+            yarn install --production --frozen-lockfile
+          elif [ -f package-lock.json ]; then
+            npm ci --omit=dev
+          else
+            npm install --omit=dev --no-audit --no-fund
+          fi
+
+      - name: Install audit-filter helper deps
+        run: npm install --no-save --no-audit --no-fund yaml@2
+
+      - name: Run npm audit and filter to HIGH/CRITICAL
+        run: |
+          set -euo pipefail
+          npm audit --production --audit-level=high --json > npm-audit.json || true
+          node - <<'JS'
+          const fs = require("fs");
+          const yaml = require("yaml");
+          const ignores = new Set();
+          if (fs.existsSync(".github/audit-ignores.yml")) {
+            const doc = yaml.parse(fs.readFileSync(".github/audit-ignores.yml", "utf8")) || {};
+            for (const entry of doc.npm || []) {
+              if (entry.id) ignores.add(String(entry.id));
+            }
+          }
+          const report = JSON.parse(fs.readFileSync("npm-audit.json", "utf8"));
+          const advisories = report.vulnerabilities || {};
+          const bad = [];
+          for (const [name, info] of Object.entries(advisories)) {
+            const sev = (info.severity || "").toLowerCase();
+            if (sev !== "high" && sev !== "critical") continue;
+            const via = Array.isArray(info.via) ? info.via.filter((v) => typeof v === "object") : [];
+            if (via.length === 0) {
+              bad.push({ name, sev, id: "unknown", title: info.severity });
+              continue;
+            }
+            for (const v of via) {
+              const id = String(v.source || v.url || v.title || "");
+              if (ignores.has(id)) continue;
+              bad.push({ name, sev, id, title: v.title });
+            }
+          }
+          if (bad.length) {
+            console.log("HIGH/CRITICAL npm advisories:");
+            for (const b of bad) console.log(`  ${b.name} — ${b.id} (${b.sev}) ${b.title || ""}`);
+            process.exit(1);
+          }
+          console.log("No HIGH/CRITICAL npm advisories.");
+          JS
