@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 
 import structlog
 
@@ -134,8 +135,49 @@ class TaskDispatcher:
                     ctx.retry_count += 1
                     self._store.save(ctx)
 
+    def _emit_retry_boundary(self, ctx: TicketContext) -> None:
+        """Write a ``retry_boundary`` record to the ticket's stream before re-dispatch.
+
+        The state handler that returned ``_retry`` has already bumped
+        ``ctx.retry_count`` and (usually) populated ``ctx.error``. The boundary
+        event piggybacks on those: the ``attempt`` field is the 1-based number
+        of the next run (``retry_count + 1``) and ``reason`` surfaces the last
+        failure message if the handler stored one.
+
+        Failures to write are logged and swallowed — a stream-writer hiccup
+        must never block the FSM from retrying.
+        """
+        factory = getattr(self._services, "stream_writer_factory", None)
+        if factory is None:
+            return
+        try:
+            writer = factory(ctx.ticket_key)
+        except Exception:
+            log.exception("retry_boundary.factory_failed", ticket=ctx.ticket_key)
+            return
+        record = {
+            "ts": datetime.now(UTC).isoformat(),
+            "type": "retry_boundary",
+            "state": ctx.state.value,
+            "attempt": (ctx.retry_count or 0) + 1,
+            "reason": ctx.error or "",
+            "content": "",
+            "agent": "",
+            "tool_name": None,
+            "tool_input": None,
+            "tool_result": None,
+            "is_error": None,
+            "metadata": {},
+        }
+        try:
+            writer.record_dict(record)
+        except Exception:
+            log.exception("retry_boundary.record_failed", ticket=ctx.ticket_key)
+
     async def _apply_trigger(self, ctx: TicketContext, trigger: str) -> None:
         if trigger in ("_wait", "_noop", "_retry"):
+            if trigger == "_retry":
+                self._emit_retry_boundary(ctx)
             self._store.save(ctx)
             return
         try:

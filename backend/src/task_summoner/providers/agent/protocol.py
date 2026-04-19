@@ -17,6 +17,11 @@ class AgentEventType(str, Enum):
     TOOL_RESULT = "tool_result"
     ERROR = "error"
     COMPLETED = "completed"
+    # Orchestrator-level synthetic event — written just before a state handler
+    # is re-dispatched because its previous run returned ``_retry``. Gives the
+    # UI a first-class divider so the user sees "attempt N starts here" rather
+    # than a silent re-run appended to the prior attempt's timeline.
+    RETRY_BOUNDARY = "retry_boundary"
 
 
 @dataclass
