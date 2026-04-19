@@ -68,6 +68,7 @@ function IssueDetail() {
           gate={gate.data}
           onRefresh={() => gate.refetch()}
           isRefreshing={gate.isFetching}
+          retryCount={ticket.data?.retry_count ?? 0}
         />
       ) : gate.isLoading ? (
         <p className="text-sm text-soul-cyan/70">Inferring gate state…</p>

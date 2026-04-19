@@ -8,7 +8,13 @@ import { apiFetch } from "./api";
  * tailing live. The UI renders markdown cards for ``message`` events and
  * collapsible boxes for ``tool_use`` / ``tool_result`` pairs.
  */
-export type ActivityEventType = "message" | "tool_use" | "tool_result" | "error" | "completed";
+export type ActivityEventType =
+  | "message"
+  | "tool_use"
+  | "tool_result"
+  | "error"
+  | "completed"
+  | "retry_boundary";
 
 export interface ActivityEvent {
   ts: string;
@@ -22,6 +28,11 @@ export interface ActivityEvent {
   tool_use_id?: string;
   is_error?: boolean | null;
   metadata?: Record<string, unknown>;
+  // Only on retry_boundary events — the 1-based attempt number of the run
+  // that is about to start, and the short reason surfaced from the prior
+  // failure (state handler's ``ctx.error`` at the time of the ``_retry``).
+  attempt?: number;
+  reason?: string;
 }
 
 export async function fetchActivityHistory(issueKey: string): Promise<ActivityEvent[]> {

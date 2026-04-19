@@ -1,0 +1,82 @@
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { marked } from "marked";
+import type { ReactNode } from "react";
+import { AttemptGroupBox } from "./AttemptGroupBox";
+import { RetryBoundary } from "./RetryBoundary";
+import { ToolBox } from "./ToolBox";
+import { ToolsGroupBox } from "./ToolsGroupBox";
+import type { GroupedItem } from "./types";
+
+/**
+ * Dispatch a grouped timeline entry to the right React component.
+ *
+ * Kept as a plain function (not a component) so both the top-level timeline
+ * and the ``AttemptGroupBox`` expander share the same rendering pipeline —
+ * expanding a prior attempt should reconstruct the exact same UI the live
+ * feed showed at the time, minus the auto-scroll.
+ */
+export function renderGroupedItem(entry: GroupedItem, idx: number): ReactNode {
+  const key = `${entry.ts}-${idx}-${entry.kind}`;
+  switch (entry.kind) {
+    case "message":
+      return <MessageCard key={key} agent={entry.agent} content={entry.content} />;
+    case "tool":
+      return <ToolBox key={key} item={entry} />;
+    case "tool_group":
+      return <ToolsGroupBox key={key} tools={entry.tools} />;
+    case "error":
+      return (
+        <li
+          key={key}
+          data-timeline-error
+          className="rounded-md border border-ember-red/50 bg-ember-red/10 p-3 text-xs text-ember-red"
+        >
+          <span className="mr-1 inline-flex items-center gap-1 font-semibold">
+            <AlertTriangle size={12} strokeWidth={2} />
+            Error
+          </span>
+          {entry.message}
+        </li>
+      );
+    case "completed":
+      return (
+        <li
+          key={key}
+          data-timeline-completed
+          className="flex items-center gap-2 rounded-md border border-mana-green/30 bg-mana-green/5 p-2 text-xs text-mana-green"
+        >
+          <CheckCircle2 size={12} strokeWidth={2} />
+          {entry.success ? "Dispatch completed" : "Dispatch ended with failure"}
+        </li>
+      );
+    case "retry_boundary":
+      return <RetryBoundary key={key} item={entry} />;
+    case "attempt_group":
+      return <AttemptGroupBox key={key} group={entry} />;
+  }
+}
+
+function MessageCard({ agent, content }: { agent: string; content: string }) {
+  const html = content ? (marked.parse(content, { gfm: true, breaks: false }) as string) : "";
+  return (
+    <li
+      data-timeline-message
+      className="rounded-md border border-shadow-purple/50 bg-void-900/40 p-3"
+    >
+      {agent ? (
+        <p className="mb-1 text-[10px] uppercase tracking-wider text-arise-violet-bright/80">
+          {agent}
+        </p>
+      ) : null}
+      {html ? (
+        <div
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: rendering trusted agent output
+          dangerouslySetInnerHTML={{ __html: html }}
+          className="prose-rfc max-w-none text-sm text-soul-cyan/90"
+        />
+      ) : (
+        <p className="text-xs text-soul-cyan/60">(empty message)</p>
+      )}
+    </li>
+  );
+}

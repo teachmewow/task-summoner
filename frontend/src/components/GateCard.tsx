@@ -15,9 +15,21 @@ interface Props {
   gate: GateResponse;
   onRefresh: () => void;
   isRefreshing: boolean;
+  // When the orchestrator is actively retrying a state, ``retryCount`` is
+  // positive and the card surfaces an "Attempt N of M" counter next to the
+  // gate chip. Passed from the enclosing route via ``TicketContext``.
+  retryCount?: number;
+  maxRetries?: number;
 }
 
-export function GateCard({ issueKey, gate, onRefresh, isRefreshing }: Props) {
+export function GateCard({
+  issueKey,
+  gate,
+  onRefresh,
+  isRefreshing,
+  retryCount = 0,
+  maxRetries = 3,
+}: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const approve = useApproveGate(issueKey);
   const requestChanges = useRequestChangesGate(issueKey);
@@ -64,6 +76,17 @@ export function GateCard({ issueKey, gate, onRefresh, isRefreshing }: Props) {
           <span className="text-xs text-soul-cyan/70">
             Linear: <code className="text-ghost-white/90">{gate.linear_status_name || "—"}</code>
           </span>
+          {retryCount > 0 ? (
+            <span
+              data-gate-attempt
+              data-attempt-current={retryCount + 1}
+              data-attempt-max={maxRetries}
+              className="inline-flex items-center gap-1 rounded-full border border-amber-flame/50 bg-amber-flame/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-flame"
+            >
+              <RefreshCw size={10} strokeWidth={2} />
+              Attempt {Math.min(retryCount + 1, maxRetries)} of {maxRetries}
+            </span>
+          ) : null}
         </div>
         <button
           type="button"
