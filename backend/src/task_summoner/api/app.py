@@ -138,7 +138,14 @@ async def reload_orchestrator(app: FastAPI) -> None:
     app.state.config = config
     app.state.configured = True
     app.state.config_errors = []
-    app.state.orchestrator_task = asyncio.create_task(orchestrator.run())
+    # ENG-116: uvicorn installs SIGINT via signal.signal() before our lifespan
+    # runs. If the orchestrator called loop.add_signal_handler(), it would
+    # silently clobber uvicorn's handler and Ctrl+C would hang forever because
+    # uvicorn's main_loop would never see should_exit=True. Let uvicorn own
+    # signals; it calls the lifespan finalizer which calls stop() for us.
+    app.state.orchestrator_task = asyncio.create_task(
+        orchestrator.run(install_signal_handlers=False)
+    )
     log.info("Orchestrator started")
 
 
