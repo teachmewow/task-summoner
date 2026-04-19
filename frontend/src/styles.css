@@ -46,6 +46,29 @@
   box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.35), 0 0 24px var(--arise-glow);
 }
 
+/* Themed scrollbar. Without this the browser default overlays a white track
+ * on top of the dark palette — jarring next to the rest of the app. Used by
+ * the Monitor decisions sidebar and the issue-detail activity timeline. */
+.scroll-arise {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(168, 85, 247, 0.5) rgba(15, 10, 31, 0.6);
+}
+.scroll-arise::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-arise::-webkit-scrollbar-track {
+  background: rgba(15, 10, 31, 0.6);
+  border-radius: 4px;
+}
+.scroll-arise::-webkit-scrollbar-thumb {
+  background: rgba(168, 85, 247, 0.45);
+  border-radius: 4px;
+}
+.scroll-arise::-webkit-scrollbar-thumb:hover {
+  background: rgba(192, 132, 252, 0.7);
+}
+
 /* RFC / decisions markdown rendering. Scoped so it doesn't leak into other
  * routes; tailored to the void palette. */
 .prose-rfc h1 {

@@ -42,7 +42,9 @@ from claude_agent_sdk import (
     ClaudeAgentOptions,
     ResultMessage,
     TextBlock,
+    ToolResultBlock,
     ToolUseBlock,
+    UserMessage,
     query,
 )
 
@@ -212,6 +214,10 @@ class ClaudeCodeAdapter:
         cost = 0.0
         turns = 0
         error: str | None = None
+        # Maps tool_use_id -> tool name so tool results can be joined with the
+        # originating call in the stream (the UI needs this for the collapsible
+        # tool-call boxes).
+        tool_name_by_id: dict[str, str] = {}
 
         stream = query(prompt=prompt, options=options)
         try:
@@ -229,6 +235,7 @@ class ClaudeCodeAdapter:
                                 ),
                             )
                         elif isinstance(block, ToolUseBlock):
+                            tool_name_by_id[block.id] = block.name
                             self._emit(
                                 event_callback,
                                 AgentEvent(
@@ -236,7 +243,27 @@ class ClaudeCodeAdapter:
                                     content=block.name,
                                     metadata={
                                         "agent": profile.name,
+                                        "tool_use_id": block.id,
                                         "tool_input": _safe_tool_input(block.input),
+                                    },
+                                ),
+                            )
+                elif isinstance(message, UserMessage):
+                    blocks = message.content if isinstance(message.content, list) else []
+                    for block in blocks:
+                        if isinstance(block, ToolResultBlock):
+                            tool_name = tool_name_by_id.get(block.tool_use_id, "")
+                            self._emit(
+                                event_callback,
+                                AgentEvent(
+                                    type=AgentEventType.TOOL_RESULT,
+                                    content=tool_name,
+                                    metadata={
+                                        "agent": profile.name,
+                                        "tool_use_id": block.tool_use_id,
+                                        "tool_name": tool_name,
+                                        "tool_result": _safe_tool_result(block.content),
+                                        "is_error": bool(block.is_error),
                                     },
                                 ),
                             )
@@ -437,7 +464,61 @@ class ClaudeCodeAdapter:
             callback(event)
 
 
-def _safe_tool_input(inp: Any) -> dict[str, str]:
+_TOOL_INPUT_MAX_CHARS = 20_000
+_TOOL_RESULT_MAX_CHARS = 20_000
+
+
+def _safe_tool_input(inp: Any) -> dict[str, Any]:
+    """Normalize a tool-use input dict for the event stream.
+
+    The UI inspects tool input inside a collapsible box so the cap is generous,
+    not the 200-char preview we used when the callback only drove log lines.
+    We still cap to bound memory for pathological calls (e.g. massive Edits).
+    """
     if isinstance(inp, dict):
-        return {k: (s[:200] + "..." if len(s := str(v)) > 200 else s) for k, v in inp.items()}
-    return {"raw": str(inp)[:500]}
+        out: dict[str, Any] = {}
+        for k, v in inp.items():
+            if isinstance(v, str):
+                out[k] = v if len(v) <= _TOOL_INPUT_MAX_CHARS else v[:_TOOL_INPUT_MAX_CHARS] + "..."
+            else:
+                out[k] = v
+        return out
+    raw = str(inp)
+    if len(raw) > _TOOL_INPUT_MAX_CHARS:
+        raw = raw[:_TOOL_INPUT_MAX_CHARS] + "..."
+    return {"raw": raw}
+
+
+def _safe_tool_result(content: Any) -> str:
+    """Coerce a ToolResultBlock payload into a string for the stream.
+
+    The SDK emits either a plain string or a list of ``{type, text}`` chunks
+    (the content-block shape used by Anthropic's API). Collapse to a single
+    string so the UI can render it verbatim inside a ``<pre>``. Long outputs
+    are truncated to keep the JSONL file bounded.
+    """
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return (
+            content
+            if len(content) <= _TOOL_RESULT_MAX_CHARS
+            else content[:_TOOL_RESULT_MAX_CHARS] + "..."
+        )
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+                    continue
+            parts.append(str(item))
+        joined = "\n".join(parts)
+        return (
+            joined
+            if len(joined) <= _TOOL_RESULT_MAX_CHARS
+            else joined[:_TOOL_RESULT_MAX_CHARS] + "..."
+        )
+    raw = str(content)
+    return raw if len(raw) <= _TOOL_RESULT_MAX_CHARS else raw[:_TOOL_RESULT_MAX_CHARS] + "..."

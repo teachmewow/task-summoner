@@ -5,7 +5,8 @@ from __future__ import annotations
 import re
 import uuid
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
@@ -32,6 +33,17 @@ class _StateStoreProtocol(Protocol):
     def load(self, ticket_key: str) -> TicketContext | None: ...
 
 
+class _StreamWriterProtocol(Protocol):
+    """Minimal shape the agent-event stream writer exposes to state handlers.
+
+    Kept as a protocol (not the concrete class) so tests can mock with
+    ``AsyncMock`` / plain callables without dragging the filesystem in.
+    """
+
+    def record(self, event, *, agent_name: str | None = ..., state: str | None = ...) -> None: ...
+    def close(self) -> None: ...
+
+
 @dataclass
 class StateServices:
     """Dependency container passed to state handlers.
@@ -44,6 +56,12 @@ class StateServices:
     workspace: WorkspaceService
     agent: AgentProvider
     store: _StateStoreProtocol
+    # Optional factory for the per-ticket stream writer. When set, each
+    # ``_run_agent`` call installs an event_callback that persists the
+    # adapter's AgentEvents to ``artifacts/{KEY}/stream.jsonl`` and fans
+    # them out to live SSE subscribers. Left optional so tests that mock
+    # StateServices keep working unchanged.
+    stream_writer_factory: Callable[[str], _StreamWriterProtocol] | None = field(default=None)
 
 
 def agent_profile_from_config(name: str, config: AgentConfig) -> AgentProfile:
@@ -125,13 +143,49 @@ class BaseState(ABC):
         workspace: str,
         ctx: TicketContext | None = None,
     ) -> AgentResult:
-        """Invoke the agent provider. If `ctx` is given, also records cost_history."""
+        """Invoke the agent provider. If `ctx` is given, also records cost_history.
+
+        When `svc.stream_writer_factory` is configured, install an event
+        callback that persists every AgentEvent emitted by the adapter to
+        ``artifacts/{KEY}/stream.jsonl`` — that is the transcript the
+        dashboard timeline replays + tails. The writer is scoped to the
+        ticket, not the state handler, so multi-state dispatches append to
+        a single file (planning → implementing → fixing_mr all in one log).
+        """
         profile = agent_profile_from_config(agent_name, self.agent_config or AgentConfig())
-        result = await svc.agent.run(
-            prompt=prompt,
-            profile=profile,
-            working_dir=Path(workspace),
-        )
+
+        writer = None
+        event_callback = None
+        factory = svc.stream_writer_factory
+        if factory is not None and ctx is not None:
+            try:
+                writer = factory(ctx.ticket_key)
+            except Exception:  # defensive: streaming must never block dispatch
+                log.exception("stream_writer.factory_failed", ticket=ctx.ticket_key)
+                writer = None
+            if writer is not None:
+                state_value = self.state.value
+
+                def event_callback(event, _writer=writer, _agent=agent_name, _state=state_value):
+                    try:
+                        _writer.record(event, agent_name=_agent, state=_state)
+                    except Exception:
+                        log.exception("stream_writer.record_failed", ticket=ctx.ticket_key)
+
+        try:
+            result = await svc.agent.run(
+                prompt=prompt,
+                profile=profile,
+                working_dir=Path(workspace),
+                event_callback=event_callback,
+            )
+        finally:
+            if writer is not None:
+                try:
+                    writer.close()
+                except Exception:
+                    log.exception("stream_writer.close_failed", ticket=ctx.ticket_key)
+
         if ctx is not None:
             ctx.total_cost_usd += result.cost_usd
             ctx.cost_history.append(

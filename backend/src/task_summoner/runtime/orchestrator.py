@@ -19,6 +19,7 @@ from task_summoner.events.bus import EventBus
 from task_summoner.providers.agent import AgentProviderFactory
 from task_summoner.providers.board import BoardProviderFactory
 from task_summoner.runtime.dispatcher import TaskDispatcher
+from task_summoner.runtime.stream_writer import StreamWriter
 from task_summoner.runtime.sync import BoardSyncService
 from task_summoner.states import StateServices, build_state_registry
 from task_summoner.workspace import GitWorkspaceManager
@@ -42,11 +43,18 @@ class Orchestrator:
         store = StateStore(config.artifacts_dir)
         workspace = GitWorkspaceManager(config)
 
+        artifacts_dir = config.artifacts_dir
+
+        def _make_stream_writer(ticket_key: str) -> StreamWriter:
+            """Per-dispatch factory — resolves the writer lazily so tests stay light."""
+            return StreamWriter(artifacts_dir, ticket_key)
+
         services = StateServices(
             board=board,
             workspace=workspace,
             agent=agent,
             store=store,
+            stream_writer_factory=_make_stream_writer,
         )
 
         self._sync = BoardSyncService(board=board, store=store, bus=self._bus)

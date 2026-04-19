@@ -81,4 +81,37 @@ describe("RfcPanel", () => {
     wrap(<RfcPanel issueKey="ENG-98" />);
     await screen.findByText(/docs_repo is not configured/i);
   });
+
+  it("shows the drafting message while the orchestrator is in CREATING_DOC", async () => {
+    mockFetch({
+      ok: true,
+      exists: false,
+      issue_key: "ENG-121",
+      title: "",
+      content: "",
+      readme_path: "",
+      images: [],
+      reason: null,
+    });
+    wrap(<RfcPanel issueKey="ENG-121" orchestratorState="CREATING_DOC" />);
+    await screen.findByText(/agent is drafting the rfc/i);
+    // The misleading "Run /create-design-doc" CTA must not render.
+    expect(document.body.textContent).not.toMatch(/\/create-design-doc/);
+  });
+
+  it("does not tell the user to run /create-design-doc when no orchestrator state is known", async () => {
+    mockFetch({
+      ok: true,
+      exists: false,
+      issue_key: "ENG-200",
+      title: "",
+      content: "",
+      readme_path: "",
+      images: [],
+      reason: null,
+    });
+    wrap(<RfcPanel issueKey="ENG-200" />);
+    await screen.findByText(/no rfc found/i);
+    expect(document.body.textContent).not.toMatch(/\/create-design-doc/);
+  });
 });

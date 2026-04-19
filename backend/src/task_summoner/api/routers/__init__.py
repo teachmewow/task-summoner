@@ -11,6 +11,7 @@ from task_summoner.api.routers.health import router as health_router
 from task_summoner.api.routers.rfcs import router as rfcs_router
 from task_summoner.api.routers.setup import router as setup_router
 from task_summoner.api.routers.skills import router as skills_router
+from task_summoner.api.routers.streams import router as streams_router
 from task_summoner.api.routers.tickets import router as tickets_router
 from task_summoner.api.routers.workflow import router as workflow_router
 
@@ -26,6 +27,7 @@ __all__ = [
     "rfcs_router",
     "setup_router",
     "skills_router",
+    "streams_router",
     "tickets_router",
     "workflow_router",
 ]

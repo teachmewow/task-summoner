@@ -1,16 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { DecisionsSidebar } from "~/components/DecisionsSidebar";
 import { GateCard } from "~/components/GateCard";
+import { IssueActivityTimeline } from "~/components/IssueActivityTimeline";
 import { RfcPanel } from "~/components/RfcPanel";
 import { useGate } from "~/lib/gates";
 import { useTicket } from "~/lib/issues";
 
 /**
- * Per-issue detail view. One route, three panels:
- *   1. Gate state + lgtm / retry buttons   (ENG-95)
- *   2. Decisions sidebar                    (ENG-96)
- *   3. RFC render                           (ENG-98)
+ * Per-issue detail view (ENG-121).
+ *
+ * Primary content is the activity timeline — we want to surface what the
+ * agent is actually doing while it works, rather than hiding the subprocess
+ * output behind a log file. Gate state stays at the top (approval actions
+ * are the user's main tool on this page), RFC panel is kept but demoted
+ * below the timeline. The Recent Decisions sidebar moved to the Monitor
+ * page where it isn't competing for context with the live dispatch.
  */
 export const Route = createFileRoute("/issues/$key")({
   component: IssueDetail,
@@ -58,28 +62,24 @@ function IssueDetail() {
         ) : null}
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]" data-layout="issue-detail-grid">
-        <div className="flex flex-col gap-6">
-          {gate.data ? (
-            <GateCard
-              issueKey={key}
-              gate={gate.data}
-              onRefresh={() => gate.refetch()}
-              isRefreshing={gate.isFetching}
-            />
-          ) : gate.isLoading ? (
-            <p className="text-sm text-soul-cyan/70">Inferring gate state…</p>
-          ) : gate.isError ? (
-            <p className="text-sm text-ember-red">
-              {gate.error instanceof Error ? gate.error.message : "Gate fetch failed"}
-            </p>
-          ) : null}
+      {gate.data ? (
+        <GateCard
+          issueKey={key}
+          gate={gate.data}
+          onRefresh={() => gate.refetch()}
+          isRefreshing={gate.isFetching}
+        />
+      ) : gate.isLoading ? (
+        <p className="text-sm text-soul-cyan/70">Inferring gate state…</p>
+      ) : gate.isError ? (
+        <p className="text-sm text-ember-red">
+          {gate.error instanceof Error ? gate.error.message : "Gate fetch failed"}
+        </p>
+      ) : null}
 
-          <RfcPanel issueKey={key} />
-        </div>
+      <IssueActivityTimeline issueKey={key} />
 
-        <DecisionsSidebar limit={10} />
-      </div>
+      <RfcPanel issueKey={key} orchestratorState={ticket.data?.state ?? null} />
     </section>
   );
 }

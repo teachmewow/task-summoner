@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { rfcImageUrl, useOpenRfc, useRfc } from "~/lib/rfcs";
 
 /**
- * Read-only RFC render panel (ENG-98).
+ * Read-only RFC render panel (ENG-98 + ENG-121).
  *
  * We render markdown client-side via ``marked``. The raw HTML ends up in a
  * scoped container — it's the same docs repo the user owns, not arbitrary
@@ -13,14 +13,43 @@ import { rfcImageUrl, useOpenRfc, useRfc } from "~/lib/rfcs";
  *
  * Images whose ``src`` is a bare filename are rewritten to the API image
  * endpoint so they render offline; external URLs (``http://``) pass through.
+ *
+ * Empty state messaging (ENG-121): when the panel lives under the issue
+ * detail page's activity timeline, the "Run /create-design-doc" CTA is
+ * misleading — the agent is the one drafting the doc. Accepting the
+ * orchestrator state as a prop lets us tailor the copy: "agent is drafting"
+ * during CREATING_DOC, "no doc required" post-classifier, plain "no RFC"
+ * otherwise.
  */
 interface Props {
   issueKey: string;
+  /**
+   * Orchestrator state — used to pick a context-aware empty-state message.
+   * Undefined/null is treated as "no context": we render the generic empty
+   * state that suggests opening the docs repo.
+   */
+  orchestratorState?: string | null;
   /** Optional callback fired when the user clicks the CTA on the empty state. */
   onSummonCreateDesignDoc?: () => void;
 }
 
-export function RfcPanel({ issueKey, onSummonCreateDesignDoc }: Props) {
+/** States during or after which the RFC should exist or be in the works. */
+const RFC_ACTIVE_STATES = new Set([
+  "CREATING_DOC",
+  "WAITING_DOC_REVIEW",
+  "IMPROVING_DOC",
+  "PLANNING",
+  "WAITING_PLAN_REVIEW",
+  "IMPLEMENTING",
+  "WAITING_MR_REVIEW",
+  "FIXING_MR",
+  "DONE",
+]);
+
+/** Pre-doc states where the user shouldn't be surprised there's no RFC yet. */
+const RFC_PENDING_STATES = new Set(["QUEUED", "CHECKING_DOC"]);
+
+export function RfcPanel({ issueKey, orchestratorState, onSummonCreateDesignDoc }: Props) {
   const { data, isLoading, isError, error } = useRfc(issueKey);
   const open = useOpenRfc(issueKey);
   const [zoomed, setZoomed] = useState<string | null>(null);
@@ -85,6 +114,7 @@ export function RfcPanel({ issueKey, onSummonCreateDesignDoc }: Props) {
       ) : !data.exists ? (
         <EmptyState
           issueKey={issueKey}
+          orchestratorState={orchestratorState ?? null}
           {...(onSummonCreateDesignDoc ? { onSummon: onSummonCreateDesignDoc } : {})}
           reason={data.reason}
         />
@@ -104,15 +134,52 @@ export function RfcPanel({ issueKey, onSummonCreateDesignDoc }: Props) {
 
 function EmptyState({
   issueKey,
+  orchestratorState,
   onSummon,
   reason,
 }: {
   issueKey: string;
+  orchestratorState: string | null;
   onSummon?: () => void;
   reason: string | null;
 }) {
+  // When we know what the orchestrator is doing, tell the user — nagging them
+  // to "run /create-design-doc" while the agent is already drafting the doc
+  // is strictly worse than saying nothing.
+  if (orchestratorState && RFC_ACTIVE_STATES.has(orchestratorState)) {
+    return (
+      <div
+        data-rfc-empty="drafting"
+        className="flex flex-col items-start gap-1 rounded-md border border-shadow-purple/60 bg-void-900/40 p-4 text-sm text-soul-cyan/80"
+      >
+        <p className="font-medium text-ghost-white">Agent is drafting the RFC.</p>
+        <p className="text-xs text-soul-cyan/70">
+          It will appear here when ready — watch live progress in the Agent activity timeline above.
+        </p>
+      </div>
+    );
+  }
+
+  if (orchestratorState && RFC_PENDING_STATES.has(orchestratorState)) {
+    return (
+      <div
+        data-rfc-empty="pending"
+        className="flex flex-col items-start gap-1 rounded-md border border-shadow-purple/60 bg-void-900/40 p-4 text-sm text-soul-cyan/80"
+      >
+        <p>The orchestrator is still deciding whether this ticket needs a design doc.</p>
+        <p className="text-xs text-soul-cyan/70">
+          Once the classifier has run, this panel will either show the RFC or confirm none was
+          required.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col items-start gap-2 rounded-md border border-shadow-purple/60 bg-void-900/40 p-4 text-sm text-soul-cyan/80">
+    <div
+      data-rfc-empty="generic"
+      className="flex flex-col items-start gap-2 rounded-md border border-shadow-purple/60 bg-void-900/40 p-4 text-sm text-soul-cyan/80"
+    >
       <p>
         No RFC found for <code className="text-ghost-white/90">{issueKey}</code>.
       </p>
@@ -128,8 +195,8 @@ function EmptyState({
         </button>
       ) : (
         <p className="text-xs text-soul-cyan/60">
-          Run <code className="text-ghost-white/90">/create-design-doc {issueKey}</code> in your
-          editor to author one.
+          If this ticket needs a design doc, the orchestrator will author it the next time it picks
+          up the issue.
         </p>
       )}
     </div>
