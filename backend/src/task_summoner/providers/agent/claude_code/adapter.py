@@ -22,7 +22,6 @@ from claude_agent_sdk import (
     query,
 )
 
-from task_summoner.observability import traceable
 from task_summoner.providers.agent.claude_code.plugin_resolver import (
     PluginMode,
     PluginResolver,
@@ -58,17 +57,6 @@ class ClaudeCodeAdapter:
     def supports_tool_use(self) -> bool:
         return True
 
-    @traceable(
-        run_type="llm",
-        name="claude_code.dispatch",
-        metadata_fn=lambda self, prompt, profile, working_dir, event_callback=None: {
-            "agent": profile.name,
-            "model": profile.model,
-            "max_turns": profile.max_turns,
-            "max_cost_usd": profile.max_cost_usd,
-            "tools_available": list(profile.tools or []),
-        },
-    )
     async def run(
         self,
         prompt: str,
@@ -142,14 +130,6 @@ class ClaudeCodeAdapter:
             error=error,
         )
 
-    @traceable(
-        run_type="chain",
-        name="claude_code.stream",
-        metadata_fn=lambda self, *, prompt, options, profile, event_callback=None: {
-            "agent": profile.name,
-            "model": profile.model,
-        },
-    )
     async def _consume_stream(
         self,
         *,
@@ -160,8 +140,10 @@ class ClaudeCodeAdapter:
     ) -> tuple[list[str], float, int, str | None]:
         """Consume the streaming response from the Claude SDK.
 
-        Extracted from `run` so LangSmith traces the streamed tool-use /
-        text deltas as a nested chain under `claude_code.dispatch`.
+        When LangSmith tracing is enabled at startup,
+        `langsmith.integrations.claude_agent_sdk.configure_claude_agent_sdk()`
+        auto-instruments this loop: each tool use, message, and result becomes
+        a span. No manual decorators needed here.
         """
         output_parts: list[str] = []
         cost = 0.0

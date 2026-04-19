@@ -1,23 +1,25 @@
-"""Integration-ish tests: decorators on real state handlers + adapter.
+"""Integration-ish tests: decorators on real state handlers.
 
 Verify that when tracing is enabled, the metadata dicts produced by each
 instrumented function actually contain the expected fields pulled from
-runtime objects (TicketContext / Ticket / AgentProfile). We mock the
-langsmith traceable shim so no network calls happen.
+runtime objects (TicketContext / Ticket). We mock the langsmith traceable
+shim so no network calls happen.
+
+Adapter-level instrumentation is now owned by the purpose-built
+`langsmith.integrations.claude_agent_sdk` integration (wired at startup in
+`api/app.py`), so we no longer assert manual `@traceable` spans around the
+dispatch path — see `test_api_app_tracing.py` for the startup wiring test.
 """
 
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
 
 from task_summoner.models import Ticket, TicketContext, TicketState
 from task_summoner.observability import tracing as tracing_mod
-from task_summoner.providers.agent import AgentProfile, ClaudeCodeAdapter
-from task_summoner.providers.config import ClaudeCodeConfig
 
 
 class _CapturingTraceable:
@@ -120,54 +122,6 @@ class TestPlanningStateTracing:
         assert meta["phase"] == "planning"
 
 
-class TestClaudeCodeAdapterTracing:
-    async def test_run_emits_dispatch_trace_with_agent_metadata(
-        self, enable_tracing: _CapturingTraceable, tmp_path
-    ) -> None:
-        # Reload the adapter module so decorators pick up the mocked traceable.
-        import importlib
-
-        import task_summoner.providers.agent.claude_code.adapter as adapter_mod
-
-        importlib.reload(adapter_mod)
-
-        adapter = adapter_mod.ClaudeCodeAdapter(ClaudeCodeConfig(api_key="k"))
-        profile = AgentProfile(
-            name="planner",
-            model="sonnet",
-            max_turns=5,
-            max_cost_usd=1.0,
-            tools=["Read", "Bash"],
-        )
-
-        async def fake_query(prompt, options):
-            yield AssistantMessage(content=[TextBlock(text="hi")], model="sonnet")
-            yield ResultMessage(
-                subtype="",
-                duration_ms=0,
-                duration_api_ms=0,
-                is_error=False,
-                num_turns=1,
-                session_id="s",
-                total_cost_usd=0.05,
-            )
-
-        with patch.object(adapter_mod, "query", fake_query):
-            await adapter.run("prompt body", profile, tmp_path)
-
-        dispatch = next(
-            inv for inv in enable_tracing.invocations if inv["name"] == "claude_code.dispatch"
-        )
-        meta = dispatch["extra"]["metadata"]
-        assert meta["agent"] == "planner"
-        assert meta["model"] == "sonnet"
-        assert meta["max_turns"] == 5
-        assert meta["tools_available"] == ["Read", "Bash"]
-
-        # Streamed response wrapper should also fire.
-        assert any(inv["name"] == "claude_code.stream" for inv in enable_tracing.invocations)
-
-
 class TestTracingOffByDefault:
     """Sanity-check: with env vars unset, NONE of our @traceable decorators
     reach into langsmith. We spy on the module's `_load_langsmith_traceable`
@@ -197,13 +151,11 @@ class TestTracingOffByDefault:
         # cleared env.
         import importlib
 
-        import task_summoner.providers.agent.claude_code.adapter as adapter_mod
         import task_summoner.states as states_mod
         import task_summoner.states.planning as planning_mod
 
         importlib.reload(planning_mod)
         importlib.reload(states_mod)
-        importlib.reload(adapter_mod)
 
         # The decorator short-circuits BEFORE calling _load_langsmith_traceable.
         assert call_count["n"] == 0
@@ -230,8 +182,3 @@ class TestTracingOffByDefault:
 
         # Because tracing is off, the module should never import langsmith.
         assert call_count["n"] == 0
-
-
-# Unused import guard so linting doesn't drop the import (Adapter is used via
-# dynamic reload but we keep the explicit import so the tests still pass lint).
-_ = ClaudeCodeAdapter

@@ -5,6 +5,13 @@ Tracing is enabled only when both `LANGCHAIN_TRACING_V2=true` and
 dependency: when not installed (or env vars unset), `traceable` is a passthrough
 decorator with zero overhead and zero behavior change.
 
+When enabled, the purpose-built `langsmith.integrations.claude_agent_sdk`
+integration (`configure_claude_agent_sdk()`) auto-instruments the Claude Agent
+SDK — every tool use, message, and result becomes a span. The `@traceable`
+decorators on state handlers and prompt builders still frame each run with
+FSM-specific context (`state.<phase>`, `prompt.<phase>`), wrapping the SDK
+integration's auto-generated spans.
+
 Usage:
 
     from task_summoner.observability import traceable
@@ -47,6 +54,30 @@ def is_tracing_enabled() -> bool:
     if flag not in ("true", "1", "yes"):
         return False
     return bool(os.environ.get(_API_KEY_ENV_VAR, "").strip())
+
+
+def configure_claude_agent_sdk_tracing() -> bool:
+    """Install LangSmith's purpose-built Claude Agent SDK integration.
+
+    When tracing is enabled (env vars set) AND the integration module is
+    importable, calls `configure_claude_agent_sdk()` to auto-instrument every
+    agent query, tool use, and result as LangSmith spans.
+
+    Returns True if the integration was configured, False otherwise. Safe to
+    call at application startup regardless of env state — it short-circuits
+    when tracing is off and swallows ImportError if the optional extra wasn't
+    installed (`langsmith[claude-agent-sdk]`).
+    """
+    if not is_tracing_enabled():
+        return False
+
+    try:
+        from langsmith.integrations.claude_agent_sdk import configure_claude_agent_sdk
+    except ImportError:
+        return False
+
+    configure_claude_agent_sdk()
+    return True
 
 
 def _load_langsmith_traceable() -> Callable[..., Any] | None:

@@ -37,6 +37,7 @@ from task_summoner.api.routers import (
 from task_summoner.config import TaskSummonerConfig
 from task_summoner.core import StateStore
 from task_summoner.events.bus import EventBus
+from task_summoner.observability import configure_claude_agent_sdk_tracing
 from task_summoner.runtime import Orchestrator
 
 log = structlog.get_logger()
@@ -56,6 +57,11 @@ def create_app(config_path: Path | None = None) -> FastAPI:
         app.state.configured = False
         app.state.config_errors = []
         app.state.store = StateStore("./artifacts")
+
+        # Opt-in LangSmith tracing: auto-instruments the Claude Agent SDK when
+        # LANGCHAIN_TRACING_V2 + LANGCHAIN_API_KEY are set. No-op otherwise.
+        if configure_claude_agent_sdk_tracing():
+            log.info("LangSmith Claude Agent SDK tracing enabled")
 
         await reload_orchestrator(app)
 
