@@ -18,7 +18,11 @@ class WaitingDocReviewState(BaseApprovalState):
 
     @property
     def ts_tag_state(self) -> str:
-        return "checking_doc"
+        # The tag is posted by CreatingDocState (and ImprovingDocState on retry).
+        # Legacy tags with the old ``checking_doc`` state name are still read
+        # directly from ``doc_comment_id`` when the metadata survives; only new
+        # recoveries need to find this name.
+        return "creating_doc"
 
     @property
     def trigger_on_approve(self) -> str:

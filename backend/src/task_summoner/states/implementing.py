@@ -12,7 +12,12 @@ from task_summoner.constants import APPROVAL_INSTRUCTIONS
 from task_summoner.models import Ticket, TicketContext, TicketState
 from task_summoner.observability import state_trace_metadata, traceable
 
-from .base import GATE_SUMMARY_FALLBACK, BaseState, StateServices, _extract_gate_summary
+from .base import (
+    GATE_SUMMARY_ECHO_INSTRUCTION,
+    BaseState,
+    StateServices,
+    _extract_gate_summary,
+)
 
 log = structlog.get_logger()
 
@@ -41,11 +46,12 @@ class ImplementingState(BaseState):
             "You are a headless agent. Invoke the skill and follow its instructions.\n"
             f"Save implementation report to: {artifact_dir}/implementation_report.md\n\n"
             f'Use the Skill tool: Skill(skill="task-summoner-workflows:ticket-implement", '
-            f'args="{ticket.key} --headless")\n'
+            f'args="{ticket.key} --headless")\n\n'
+            f"{GATE_SUMMARY_ECHO_INSTRUCTION}\n"
         )
         feedback = ctx.get_meta("reviewer_feedback", "")
         if feedback:
-            prompt += f"\nReviewer feedback: {feedback}\n"
+            prompt += f'\nUsuário disse: "{feedback}"\n'
         return prompt
 
     @traceable(
@@ -69,7 +75,9 @@ class ImplementingState(BaseState):
 
         if result.success and ctx.mr_url:
             tag = _build_tag(ticket.key, "implementing")
-            summary = _resolve_summary(_combine_sources(result.output, report_text), ticket.key)
+            summary = _resolve_summary(
+                _combine_sources(result.output, report_text), ticket.key, ctx.mr_url
+            )
             ctx.set_meta("gate_summary", summary)
             body = _compose_impl_body(ctx.mr_url, summary)
             posted = await svc.board.post_tagged_comment(ticket.key, tag, body)
@@ -97,17 +105,19 @@ def _combine_sources(*parts: str | None) -> str:
     return "\n".join(p for p in parts if p)
 
 
-def _resolve_summary(output: str, ticket_key: str) -> str:
-    """Return the skill's GATE_SUMMARY sentence or the fallback, logging misses."""
+def _resolve_summary(output: str, ticket_key: str, pr_url: str | None = None) -> str:
+    """Return the skill's GATE_SUMMARY sentence, with a contextual fallback."""
     summary = _extract_gate_summary(output)
-    if summary is None:
-        log.warning(
-            "GATE_SUMMARY missing from agent output",
-            ticket=ticket_key,
-            state=TicketState.IMPLEMENTING.value,
-        )
-        return GATE_SUMMARY_FALLBACK
-    return summary
+    if summary is not None:
+        return summary
+    log.warning(
+        "GATE_SUMMARY missing from agent output",
+        ticket=ticket_key,
+        state=TicketState.IMPLEMENTING.value,
+    )
+    if pr_url:
+        return f"Implementation PR opened for {ticket_key}; review at {pr_url}."
+    return f"Implementation complete for {ticket_key}; PR pending."
 
 
 def _compose_impl_body(mr_url: str, summary: str) -> str:

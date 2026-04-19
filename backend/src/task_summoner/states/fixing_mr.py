@@ -11,7 +11,12 @@ from task_summoner.constants import APPROVAL_INSTRUCTIONS
 from task_summoner.models import Ticket, TicketContext, TicketState
 from task_summoner.observability import state_trace_metadata, traceable
 
-from .base import GATE_SUMMARY_FALLBACK, BaseState, StateServices, _extract_gate_summary
+from .base import (
+    GATE_SUMMARY_ECHO_INSTRUCTION,
+    BaseState,
+    StateServices,
+    _extract_gate_summary,
+)
 
 log = structlog.get_logger()
 
@@ -31,14 +36,19 @@ class FixingMrState(BaseState):
 
     @traceable(run_type="prompt", name="prompt.fixing_mr")
     def build_prompt(self, ctx: TicketContext, ticket: Ticket) -> str:
+        # address-code-feedback reads open PR review comments itself, so the
+        # human can either click "retry" with no text (skill just reads the PR)
+        # or provide an optional one-liner in the UI that is forwarded as a
+        # "user said" note.
         prompt = (
             "You are a headless agent. Invoke the skill and follow its instructions.\n\n"
-            f'Use the Skill tool: Skill(skill="task-summoner-workflows:review-pr", '
-            f'args="{ticket.key} --headless")\n'
+            f'Use the Skill tool: Skill(skill="task-summoner-workflows:address-code-feedback", '
+            f'args="{ticket.key} --headless")\n\n'
+            f"{GATE_SUMMARY_ECHO_INSTRUCTION}\n"
         )
         feedback = ctx.get_meta("reviewer_feedback", "")
         if feedback:
-            prompt += f"\nReviewer feedback: {feedback}\n"
+            prompt += f'\nUsuário disse: "{feedback}"\n'
         return prompt
 
     @traceable(
@@ -73,16 +83,16 @@ def _build_tag(ticket_key: str, state: str) -> str:
 
 
 def _resolve_summary(output: str, ticket_key: str) -> str:
-    """Return the skill's GATE_SUMMARY sentence or the fallback, logging misses."""
+    """Return the skill's GATE_SUMMARY sentence, with a contextual fallback."""
     summary = _extract_gate_summary(output)
-    if summary is None:
-        log.warning(
-            "GATE_SUMMARY missing from agent output",
-            ticket=ticket_key,
-            state=TicketState.FIXING_MR.value,
-        )
-        return GATE_SUMMARY_FALLBACK
-    return summary
+    if summary is not None:
+        return summary
+    log.warning(
+        "GATE_SUMMARY missing from agent output",
+        ticket=ticket_key,
+        state=TicketState.FIXING_MR.value,
+    )
+    return f"Review feedback addressed for {ticket_key}; re-review PR."
 
 
 def _compose_fix_body(summary: str) -> str:

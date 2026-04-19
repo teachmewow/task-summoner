@@ -18,10 +18,8 @@ class TestTransition:
     @pytest.mark.parametrize(
         "current, trigger, expected",
         [
-            (TicketState.QUEUED, "start", TicketState.CHECKING_DOC),
-            (TicketState.CHECKING_DOC, "doc_exists", TicketState.WAITING_DOC_REVIEW),
-            (TicketState.CHECKING_DOC, "doc_needed", TicketState.CREATING_DOC),
-            (TicketState.CHECKING_DOC, "doc_not_needed", TicketState.WAITING_DOC_REVIEW),
+            (TicketState.QUEUED, "doc_required", TicketState.CREATING_DOC),
+            (TicketState.QUEUED, "no_doc_needed", TicketState.PLANNING),
             (TicketState.CREATING_DOC, "doc_created", TicketState.WAITING_DOC_REVIEW),
             (TicketState.CREATING_DOC, "doc_failed", TicketState.FAILED),
             (TicketState.WAITING_DOC_REVIEW, "approved", TicketState.PLANNING),
@@ -61,7 +59,6 @@ class TestStatePredicates:
 
     def test_agent_states(self):
         for s in [
-            TicketState.CHECKING_DOC,
             TicketState.CREATING_DOC,
             TicketState.IMPROVING_DOC,
             TicketState.PLANNING,
@@ -73,6 +70,7 @@ class TestStatePredicates:
     def test_non_agent_states(self):
         for s in [
             TicketState.QUEUED,
+            TicketState.CHECKING_DOC,  # legacy enum value, no longer dispatched
             TicketState.WAITING_DOC_REVIEW,
             TicketState.WAITING_PLAN_REVIEW,
             TicketState.WAITING_MR_REVIEW,

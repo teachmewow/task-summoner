@@ -4,7 +4,6 @@ from task_summoner.config import TaskSummonerConfig
 from task_summoner.models import TicketState
 
 from .base import BaseApprovalState, BaseState, StateServices
-from .checking_doc import CheckingDocState
 from .creating_doc import CreatingDocState
 from .fixing_mr import FixingMrState
 from .implementing import ImplementingState
@@ -21,7 +20,6 @@ def build_state_registry(config: TaskSummonerConfig) -> dict[TicketState, BaseSt
     """Create one handler instance per state."""
     states: list[BaseState] = [
         QueuedState(config),
-        CheckingDocState(config),
         CreatingDocState(config),
         WaitingDocReviewState(config),
         ImprovingDocState(config),

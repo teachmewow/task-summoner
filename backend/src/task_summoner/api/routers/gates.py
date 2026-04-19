@@ -33,9 +33,9 @@ from task_summoner.gates import (
     GateState,
     LinearSignal,
     PrSignal,
-    approve_pr,
     fetch_pr_signals,
     infer_gate_state,
+    merge_pr,
     request_changes,
 )
 from task_summoner.providers.board import BoardNotFoundError, BoardProviderFactory
@@ -199,20 +199,22 @@ async def post_approve(
     payload: GateApprovePayload,
     config_path: Path = Depends(get_config_path),
 ) -> GateActionResponse:
-    # The ``ticket_key`` is currently informational — ``gh pr review`` acts on
-    # the URL directly. Keeping it in the path means the UI can audit which
-    # issue the approval belonged to via the request log.
+    # ``lgtm`` in task-summoner means *merge*. Task-summoner (and the Linear
+    # trail) is the source of truth for approval — GitHub reviews are skipped
+    # entirely because the PR author and the runner share ``gh`` credentials,
+    # and GitHub rejects self-approval. The endpoint name stays ``/approve``
+    # for UI compatibility; the action is ``gh pr merge --squash``.
     _load_config(config_path)  # config must exist; we don't read more from it
     if not payload.pr_url:
         raise HTTPException(status_code=400, detail="pr_url is required")
     try:
-        out = await approve_pr(payload.pr_url)
+        out = await merge_pr(payload.pr_url)
     except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=f"gh pr review failed: {e}") from e
-    log.info("Gate approved", ticket=ticket_key, pr=payload.pr_url)
+        raise HTTPException(status_code=502, detail=f"gh pr merge failed: {e}") from e
+    log.info("Gate merged", ticket=ticket_key, pr=payload.pr_url)
     return GateActionResponse(
         ok=True,
-        message=f"Approved {payload.pr_url}",
+        message=f"Merged {payload.pr_url}",
         gh_output=out,
     )
 

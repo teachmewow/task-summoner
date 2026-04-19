@@ -13,16 +13,23 @@ rewritten to eliminate.
 from __future__ import annotations
 
 import re
+import uuid
 
 import structlog
 
 from task_summoner.config import AgentConfig
+from task_summoner.constants import APPROVAL_INSTRUCTIONS
 from task_summoner.docs_repo import DocsRepoError, require_docs_repo
 from task_summoner.models import Ticket, TicketContext, TicketState
 from task_summoner.observability import state_trace_metadata, traceable
 from task_summoner.utils import run_cli
 
-from .base import GATE_SUMMARY_FALLBACK, BaseState, StateServices, _extract_gate_summary
+from .base import (
+    GATE_SUMMARY_ECHO_INSTRUCTION,
+    BaseState,
+    StateServices,
+    _extract_gate_summary,
+)
 
 log = structlog.get_logger()
 
@@ -53,7 +60,8 @@ class CreatingDocState(BaseState):
         return (
             "You are a headless agent. Invoke the skill and follow its instructions.\n\n"
             f'Use the Skill tool: Skill(skill="task-summoner-workflows:create-design-doc", '
-            f'args="{ticket.key} --headless")\n'
+            f'args="{ticket.key} --headless")\n\n'
+            f"{GATE_SUMMARY_ECHO_INSTRUCTION}\n"
         )
 
     @traceable(
@@ -111,10 +119,29 @@ class CreatingDocState(BaseState):
             return await self._fail(ctx, ticket, svc, reason)
 
         pr_url_match = _PR_URL_PATTERN.search(result.output or "")
-        if pr_url_match:
-            ctx.set_meta("rfc_pr_url", pr_url_match.group(1))
+        pr_url = pr_url_match.group(1) if pr_url_match else None
+        if pr_url:
+            ctx.set_meta("rfc_pr_url", pr_url)
         ctx.set_meta("rfc_branch", branch)
-        ctx.set_meta("gate_summary", _resolve_summary(result.output or "", ticket.key))
+        summary = _resolve_summary(result.output or "", ticket.key, pr_url)
+        ctx.set_meta("gate_summary", summary)
+
+        # Post a tagged Linear comment so WaitingDocReviewState can poll for
+        # lgtm/retry replies. Previously this comment was posted by
+        # CheckingDocState; now that routing happens in QueuedState, creating
+        # doc must own its own gate comment.
+        tag = _build_tag(ticket.key, "creating_doc")
+        body = _compose_doc_body(summary, pr_url)
+        try:
+            posted = await svc.board.post_tagged_comment(ticket.key, tag, body)
+            ctx.set_meta("doc_comment_id", posted)
+        except Exception as e:  # noqa: BLE001 — best-effort gate comment
+            log.warning(
+                "Failed to post doc gate comment",
+                ticket=ticket.key,
+                error=str(e),
+            )
+
         ctx.retry_count = 0
         ctx.error = None
         log.info(
@@ -167,17 +194,35 @@ def _rfc_branch_for(ticket_key: str) -> str:
     return f"rfc/{ticket_key.lower()}"
 
 
-def _resolve_summary(output: str, ticket_key: str) -> str:
-    """Return the skill's GATE_SUMMARY sentence, falling back + logging on miss."""
+def _build_tag(ticket_key: str, state: str) -> str:
+    return f"[ts:{ticket_key}:{state}:{uuid.uuid4().hex[:8]}]"
+
+
+def _compose_doc_body(summary: str, pr_url: str | None) -> str:
+    """Doc-gate comment: one-line summary, PR link, approval CTA."""
+    pr_line = f"PR: [{pr_url}]({pr_url})" if pr_url else "PR pending."
+    return f"{summary}\n\n{pr_line}\n\n{APPROVAL_INSTRUCTIONS}"
+
+
+def _resolve_summary(output: str, ticket_key: str, pr_url: str | None = None) -> str:
+    """Return the skill's GATE_SUMMARY sentence, with a contextual fallback.
+
+    When the skill forgets the contract, the fallback no longer says "see
+    activity timeline" — we derive a best-effort sentence from whatever we
+    just verified (PR URL, ticket key). That is more honest and more useful
+    to the reviewer than a generic failure string.
+    """
     summary = _extract_gate_summary(output)
-    if summary is None:
-        log.warning(
-            "GATE_SUMMARY missing from agent output",
-            ticket=ticket_key,
-            state=TicketState.CREATING_DOC.value,
-        )
-        return GATE_SUMMARY_FALLBACK
-    return summary
+    if summary is not None:
+        return summary
+    log.warning(
+        "GATE_SUMMARY missing from agent output",
+        ticket=ticket_key,
+        state=TicketState.CREATING_DOC.value,
+    )
+    if pr_url:
+        return f"Design doc drafted for {ticket_key}; review PR at {pr_url}."
+    return f"Design doc drafted for {ticket_key}; PR pending."
 
 
 class _BranchCheck:

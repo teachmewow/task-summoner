@@ -138,9 +138,9 @@ class TestTaskDispatcher:
         ctx = TicketContext(ticket_key="LLMOPS-42", state=TicketState.QUEUED)
         store.save(ctx)
 
-        await dispatcher._apply_trigger(ctx, "start")
+        await dispatcher._apply_trigger(ctx, "no_doc_needed")
         loaded = store.load("LLMOPS-42")
-        assert loaded.state == TicketState.CHECKING_DOC
+        assert loaded.state == TicketState.PLANNING
 
     async def test_apply_trigger_wait_no_transition(self, dispatcher, store):
         ctx = TicketContext(ticket_key="LLMOPS-42", state=TicketState.WAITING_PLAN_REVIEW)

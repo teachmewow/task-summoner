@@ -32,6 +32,19 @@ _GATE_SUMMARY_PATTERN = re.compile(r"^GATE_SUMMARY:\s*(.+?)\s*$", re.MULTILINE)
 
 GATE_SUMMARY_FALLBACK = "Summary unavailable; see activity timeline"
 
+# Injected into every pre-gate prompt. The Skill tool's output arrives as a
+# ToolResultBlock which does NOT populate the adapter's ``output`` string —
+# so if the skill alone emits ``GATE_SUMMARY: ...`` the extractor never sees
+# it. Telling the agent to echo the line verbatim produces a regular
+# AssistantMessage TextBlock that DOES land in ``output``.
+GATE_SUMMARY_ECHO_INSTRUCTION = (
+    "After the Skill tool returns, your FINAL output line MUST be "
+    "`GATE_SUMMARY: <value>`, where <value> is copied verbatim from the "
+    "skill's own GATE_SUMMARY line. Do not paraphrase. If the skill did not "
+    "emit one, write `GATE_SUMMARY: ` followed by one short sentence "
+    "(≤120 chars) describing what the skill just did."
+)
+
 
 def _extract_gate_summary(output: str) -> str | None:
     """Return the last ``GATE_SUMMARY:`` sentence in ``output`` (prefix stripped).
