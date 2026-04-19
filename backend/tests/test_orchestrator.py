@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import signal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,7 +13,7 @@ from task_summoner.config import TaskSummonerConfig
 from task_summoner.core import StateStore
 from task_summoner.events.bus import EventBus
 from task_summoner.models import Ticket, TicketContext, TicketState
-from task_summoner.runtime import BoardSyncService, TaskDispatcher
+from task_summoner.runtime import BoardSyncService, Orchestrator, TaskDispatcher
 from task_summoner.states import StateServices, build_state_registry
 
 
@@ -184,3 +186,84 @@ class TestTaskDispatcher:
         loaded = store.load("LLMOPS-42")
         assert loaded.retry_count == 1
         assert loaded.error is not None
+
+
+class TestOrchestratorShutdown:
+    """ENG-112: SIGINT must unblock the run loop within a bounded timeout."""
+
+    @pytest.fixture
+    def orchestrator(self, config: TaskSummonerConfig, monkeypatch) -> Orchestrator:
+        # Avoid spinning up real provider adapters inside Orchestrator.__init__.
+        # The polling loop does not exercise them in this test.
+        from task_summoner.providers.agent import AgentProviderFactory
+        from task_summoner.providers.board import BoardProviderFactory
+
+        monkeypatch.setattr(BoardProviderFactory, "create", staticmethod(lambda _cfg: AsyncMock()))
+        monkeypatch.setattr(AgentProviderFactory, "create", staticmethod(lambda _cfg: AsyncMock()))
+        orch = Orchestrator(config)
+        # Short poll so the loop wakes quickly on shutdown_event.
+        orch._config = config.model_copy(update={"polling_interval_sec": 1})
+        # Make sync.discover a no-op so tests don't depend on real board I/O.
+        orch._sync.discover = AsyncMock(return_value=[])  # type: ignore[assignment]
+        orch._dispatcher.dispatch_all = AsyncMock()  # type: ignore[assignment]
+        return orch
+
+    @pytest.mark.asyncio
+    async def test_sigint_unblocks_run_within_budget(self, orchestrator):
+        """Send SIGINT to the current process; run() must exit within 10s."""
+        # Start the orchestrator's polling loop.
+        task = asyncio.create_task(orchestrator.run())
+        # Let it install signal handlers and enter the loop.
+        await asyncio.sleep(0.1)
+
+        # Trigger first Ctrl+C.
+        os.kill(os.getpid(), signal.SIGINT)
+
+        # run() must complete (graceful shutdown) well within 10s.
+        await asyncio.wait_for(task, timeout=10)
+        assert task.done()
+        assert not task.cancelled()
+
+    @pytest.mark.asyncio
+    async def test_stop_cancels_hanging_agents_within_timeout(self, orchestrator):
+        """If a running agent task hangs, stop() must force-cancel before timing out."""
+
+        async def _hang():
+            await asyncio.Event().wait()  # forever
+
+        orchestrator._dispatcher._running["STUCK-1"] = asyncio.create_task(_hang())
+
+        start = asyncio.get_event_loop().time()
+        await orchestrator.stop(timeout=0.5)
+        elapsed = asyncio.get_event_loop().time() - start
+
+        # Stop must return promptly (budget 0.5s + a bit of overhead).
+        assert elapsed < 3.0
+        # The hung task must have been cancelled.
+        stuck = orchestrator._dispatcher._running.get("STUCK-1")
+        assert stuck is None or stuck.cancelled() or stuck.done()
+
+    @pytest.mark.asyncio
+    async def test_second_signal_force_cancels(self, orchestrator):
+        """Second signal delivery calls dispatcher.cancel_all."""
+
+        async def _hang():
+            await asyncio.Event().wait()
+
+        orchestrator._dispatcher._running["STUCK-2"] = asyncio.create_task(_hang())
+
+        # First invocation sets the shutdown event.
+        orchestrator._handle_signal()
+        assert orchestrator._shutdown_event.is_set()
+
+        # Second invocation force-cancels running agents.
+        orchestrator._handle_signal()
+        await asyncio.sleep(0)  # let cancellation propagate
+
+        stuck = orchestrator._dispatcher._running["STUCK-2"]
+        assert stuck.cancelled() or stuck.done()
+        # Cleanup so pytest doesn't complain about unawaited tasks.
+        try:
+            await stuck
+        except asyncio.CancelledError:
+            pass

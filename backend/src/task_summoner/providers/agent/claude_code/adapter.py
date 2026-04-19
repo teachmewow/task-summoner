@@ -3,10 +3,25 @@
 Translates between the provider-agnostic AgentProvider contract and the
 Claude-specific SDK: maps AgentProfile to ClaudeAgentOptions, emits
 generic AgentEvent instances (never raw SDK types) through event_callback.
+
+MCP isolation is explicit — we never inherit the global MCP context.
+`ClaudeAgentOptions.mcp_servers` is always populated from task-summoner's
+own configuration so the spawned Claude Code subprocess cannot pick up the
+user's global `claude mcp add` servers (which may be authenticated against
+a different workspace). The Linear MCP server is scoped with the API key
+carried in `.env` as `LINEAR_API_KEY`, and the system prompt reiterates the
+configured `team_id` so the agent never touches tickets from other
+workspaces even if the key happens to have multi-workspace visibility.
+
+Cancellation contract: `_consume_stream` wraps the SDK async-iterator in a
+`try/finally` so that on orchestrator shutdown (`asyncio.CancelledError`)
+the underlying `query(...)` generator is closed and any subprocess the SDK
+spawned receives termination. CancelledError is always re-raised.
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -36,20 +51,42 @@ from task_summoner.providers.config import ClaudeCodeConfig
 
 log = structlog.get_logger()
 
+# Environment variables forwarded from the task-summoner process into the
+# Claude Code subprocess. Do not inherit the full parent env — only the keys
+# we explicitly own. `LINEAR_API_KEY` is required for MCP isolation: the
+# spawned agent uses it (via the scoped Linear MCP below) instead of
+# whatever OAuth token the user's global Claude Code session carries.
 _FORWARDED_ENV_KEYS = [
     "ANTHROPIC_API_KEY",
     "ATLASSIAN_EMAIL",
     "ATLASSIAN_TOKEN",
     "SLACK_BOT_TOKEN",
     "SLACK_USER_ID",
+    "LINEAR_API_KEY",
+    "LINEAR_WORKSPACE_ID",
 ]
 
 
 class ClaudeCodeAdapter:
     """AgentProvider implementation backed by the Claude Agent SDK."""
 
-    def __init__(self, config: ClaudeCodeConfig) -> None:
+    def __init__(
+        self,
+        config: ClaudeCodeConfig,
+        *,
+        board_team_id: str | None = None,
+    ) -> None:
+        """Create the adapter.
+
+        Args:
+            config: Claude Code-specific settings (auth, plugin mode).
+            board_team_id: Optional Linear team_id threaded through from the
+                active BoardConfig. When set, the system prompt tells the
+                agent to scope every Linear MCP call by this team_id so it
+                cannot accidentally surface tickets from other workspaces.
+        """
         self._config = config
+        self._board_team_id = board_team_id
 
     def supports_streaming(self) -> bool:
         return True
@@ -87,6 +124,12 @@ class ClaudeCodeAdapter:
                 profile=profile,
                 event_callback=event_callback,
             )
+        except asyncio.CancelledError:
+            # Propagate cancellation so the orchestrator's shutdown path can
+            # observe it. The `_consume_stream` finally block has already
+            # closed the SDK generator and any subprocess it spawned.
+            log.info("Agent cancelled", agent=profile.name)
+            raise
         except Exception as e:
             log.error("Agent SDK error", agent=profile.name, error=str(e))
             error = str(e)
@@ -144,42 +187,63 @@ class ClaudeCodeAdapter:
         `langsmith.integrations.claude_agent_sdk.configure_claude_agent_sdk()`
         auto-instruments this loop: each tool use, message, and result becomes
         a span. No manual decorators needed here.
+
+        Cancellation: on `asyncio.CancelledError` the `finally` closes the
+        underlying async generator — `claude_agent_sdk.query(...)` is
+        documented to terminate the spawned subprocess when its generator is
+        closed. CancelledError propagates to the caller unchanged.
         """
         output_parts: list[str] = []
         cost = 0.0
         turns = 0
         error: str | None = None
 
-        async for message in query(prompt=prompt, options=options):
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        output_parts.append(block.text)
-                        self._emit(
-                            event_callback,
-                            AgentEvent(
-                                type=AgentEventType.MESSAGE,
-                                content=block.text,
-                                metadata={"agent": profile.name},
-                            ),
-                        )
-                    elif isinstance(block, ToolUseBlock):
-                        self._emit(
-                            event_callback,
-                            AgentEvent(
-                                type=AgentEventType.TOOL_USE,
-                                content=block.name,
-                                metadata={
-                                    "agent": profile.name,
-                                    "tool_input": _safe_tool_input(block.input),
-                                },
-                            ),
-                        )
-            elif isinstance(message, ResultMessage):
-                cost = getattr(message, "total_cost_usd", 0.0) or 0.0
-                turns = getattr(message, "num_turns", 0) or 0
-                if getattr(message, "is_error", False):
-                    error = getattr(message, "result", None) or "Agent error"
+        stream = query(prompt=prompt, options=options)
+        try:
+            async for message in stream:
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            output_parts.append(block.text)
+                            self._emit(
+                                event_callback,
+                                AgentEvent(
+                                    type=AgentEventType.MESSAGE,
+                                    content=block.text,
+                                    metadata={"agent": profile.name},
+                                ),
+                            )
+                        elif isinstance(block, ToolUseBlock):
+                            self._emit(
+                                event_callback,
+                                AgentEvent(
+                                    type=AgentEventType.TOOL_USE,
+                                    content=block.name,
+                                    metadata={
+                                        "agent": profile.name,
+                                        "tool_input": _safe_tool_input(block.input),
+                                    },
+                                ),
+                            )
+                elif isinstance(message, ResultMessage):
+                    cost = getattr(message, "total_cost_usd", 0.0) or 0.0
+                    turns = getattr(message, "num_turns", 0) or 0
+                    if getattr(message, "is_error", False):
+                        error = getattr(message, "result", None) or "Agent error"
+        finally:
+            # Close the async generator so the SDK tears down its subprocess.
+            # Some claude-agent-sdk versions return a plain async iterator
+            # without `aclose`; guard accordingly.
+            aclose = getattr(stream, "aclose", None)
+            if aclose is not None:
+                try:
+                    await aclose()
+                except Exception as close_err:
+                    log.warning(
+                        "Failed to close agent stream cleanly",
+                        agent=profile.name,
+                        error=str(close_err),
+                    )
 
         return output_parts, cost, turns, error
 
@@ -194,6 +258,8 @@ class ClaudeCodeAdapter:
             setting_sources=["user"],
             plugins=self._resolve_plugins(profile),
             env=self._build_env(),
+            mcp_servers=self._build_mcp_servers(),
+            system_prompt=self._build_system_prompt(),
         )
 
     def _resolve_plugins(self, profile: AgentProfile) -> list[dict[str, str]]:
@@ -222,6 +288,66 @@ class ClaudeCodeAdapter:
         if self._config.auth_method == "api_key" and self._config.api_key:
             env["ANTHROPIC_API_KEY"] = self._config.api_key
         return env
+
+    def _build_mcp_servers(self) -> dict[str, Any]:
+        """Build the explicit `mcp_servers` map for ClaudeAgentOptions.
+
+        This replaces — not extends — whatever the user's global Claude Code
+        config might have registered (Simbie's Linear workspace, random
+        hosted MCPs, etc.). When `LINEAR_API_KEY` is set in our `.env`, we
+        register a Linear MCP entry authenticated with it; otherwise we
+        register nothing (the agent simply won't have Linear MCP available,
+        which is the correct fail-safe).
+
+        Shape returned to claude-agent-sdk:
+            {
+                "linear-server": {
+                    "type": "http",
+                    "url": "https://mcp.linear.app/mcp",
+                    "headers": {"Authorization": "Bearer <key>"},
+                },
+            }
+
+        Linear's hosted MCP accepts both OAuth and PAT bearer tokens; by
+        passing our own key explicitly we bypass the global OAuth session.
+        """
+        servers: dict[str, Any] = {}
+
+        linear_key = os.environ.get("LINEAR_API_KEY")
+        if linear_key:
+            servers["linear-server"] = {
+                "type": "http",
+                "url": "https://mcp.linear.app/mcp",
+                "headers": {"Authorization": f"Bearer {linear_key}"},
+            }
+
+        return servers
+
+    def _build_system_prompt(self) -> str | None:
+        """Compose the isolation-reinforcing system prompt.
+
+        Belt-and-suspenders on top of the explicit `mcp_servers` config:
+        even if the configured key had visibility into multiple workspaces,
+        the prompt tells the agent to always scope Linear MCP calls to the
+        configured team_id.
+
+        Returns None when there is nothing to add, so the SDK falls back to
+        its default system prompt.
+        """
+        if not self._board_team_id:
+            return None
+
+        team_id = self._board_team_id
+        return (
+            "Task Summoner operational constraints:\n"
+            f"- ALWAYS pass team_id={team_id} when calling Linear MCP tools "
+            "(linear-server__list_issues, linear-server__list_projects, "
+            "linear-server__list_teams, etc.).\n"
+            "- Never act on tickets from other Linear workspaces; ignore any "
+            "ticket whose team_id does not match the configured team_id.\n"
+            "- The Linear MCP is explicitly configured by the orchestrator; "
+            "do not attempt to reconfigure it."
+        )
 
     def _emit(
         self,

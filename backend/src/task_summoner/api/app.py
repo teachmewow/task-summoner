@@ -44,6 +44,11 @@ log = structlog.get_logger()
 
 _WEB_DIST = Path(__file__).resolve().parent.parent / "web_dist"
 
+# Upper bound for the lifespan shutdown hook. Must be strictly less than
+# uvicorn's `timeout_graceful_shutdown` so the lifespan finishes before
+# uvicorn's own deadline fires and force-closes us.
+_SHUTDOWN_TIMEOUT_SEC = 8.0
+
 
 def create_app(config_path: Path | None = None) -> FastAPI:
     """Build the FastAPI app. Orchestrator lifecycle runs inside the lifespan."""
@@ -129,6 +134,7 @@ async def reload_orchestrator(app: FastAPI) -> None:
 
     orchestrator = Orchestrator(config, event_bus=event_bus)
     app.state.store = orchestrator.store
+    app.state.orchestrator = orchestrator
     app.state.config = config
     app.state.configured = True
     app.state.config_errors = []
@@ -137,15 +143,40 @@ async def reload_orchestrator(app: FastAPI) -> None:
 
 
 async def _stop_orchestrator(app: FastAPI) -> None:
+    """Bounded orchestrator shutdown for the lifespan close hook.
+
+    Asks the orchestrator to stop gracefully within `_SHUTDOWN_TIMEOUT_SEC`
+    (which drains in-flight agents through the dispatcher). If it doesn't
+    finish in time, we cancel the underlying task so uvicorn can close the
+    event loop. This prevents the "Ctrl+C hangs forever" bug — see ENG-112.
+    """
     task: asyncio.Task | None = getattr(app.state, "orchestrator_task", None)
     if task is None:
         return
-    task.cancel()
+
+    orchestrator: Orchestrator | None = getattr(app.state, "orchestrator", None)
+    if orchestrator is not None:
+        try:
+            await asyncio.wait_for(
+                orchestrator.stop(timeout=_SHUTDOWN_TIMEOUT_SEC),
+                timeout=_SHUTDOWN_TIMEOUT_SEC + 2.0,
+            )
+        except TimeoutError:
+            log.warning(
+                "Orchestrator.stop() exceeded budget — proceeding to cancel",
+                budget_sec=_SHUTDOWN_TIMEOUT_SEC,
+            )
+        except Exception:
+            log.exception("Orchestrator.stop() raised unexpectedly")
+
+    if not task.done():
+        task.cancel()
     try:
-        await task
-    except (asyncio.CancelledError, Exception):
+        await asyncio.wait_for(task, timeout=2.0)
+    except (asyncio.CancelledError, TimeoutError, Exception):
         pass
     app.state.orchestrator_task = None
+    app.state.orchestrator = None
 
 
 def _mount_frontend(app: FastAPI) -> None:

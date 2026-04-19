@@ -15,6 +15,7 @@ from task_summoner.providers.config import (
     ClaudeCodeConfig,
     CodexConfig,
     JiraConfig,
+    LinearConfig,
     ProviderConfig,
 )
 
@@ -34,6 +35,15 @@ def _codex_config() -> ProviderConfig:
         board_config=JiraConfig(email="e", token="t"),
         agent=AgentProviderType.CODEX,
         agent_config=CodexConfig(api_key="k"),
+    )
+
+
+def _linear_claude_config(team_id: str = "team-xyz") -> ProviderConfig:
+    return ProviderConfig(
+        board=BoardProviderType.LINEAR,
+        board_config=LinearConfig(api_key="lk", team_id=team_id),
+        agent=AgentProviderType.CLAUDE_CODE,
+        agent_config=ClaudeCodeConfig(api_key="k"),
     )
 
 
@@ -57,3 +67,14 @@ class TestAgentProviderFactory:
         config.agent_config = ClaudeCodeConfig(api_key="k")
         with pytest.raises(ValueError, match="codex"):
             AgentProviderFactory.create(config)
+
+    def test_claude_adapter_receives_linear_team_id(self):
+        """ENG-111: team_id from LinearConfig must be threaded into the adapter."""
+        provider = AgentProviderFactory.create(_linear_claude_config(team_id="team-fb14c704"))
+        assert isinstance(provider, ClaudeCodeAdapter)
+        assert provider._board_team_id == "team-fb14c704"
+
+    def test_claude_adapter_has_no_team_id_with_jira_board(self):
+        provider = AgentProviderFactory.create(_claude_config())
+        assert isinstance(provider, ClaudeCodeAdapter)
+        assert provider._board_team_id is None

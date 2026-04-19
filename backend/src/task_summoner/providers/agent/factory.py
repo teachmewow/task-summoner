@@ -9,6 +9,7 @@ from task_summoner.providers.config import (
     AgentProviderType,
     ClaudeCodeConfig,
     CodexConfig,
+    LinearConfig,
     ProviderConfig,
 )
 
@@ -24,7 +25,12 @@ class AgentProviderFactory:
                     raise ValueError(
                         "Agent provider is 'claude_code' but agent_config is not ClaudeCodeConfig"
                     )
-                return ClaudeCodeAdapter(config.agent_config)
+                # Thread the configured Linear team_id through to the adapter
+                # so MCP calls get scoped in the system prompt (ENG-111).
+                team_id: str | None = None
+                if isinstance(config.board_config, LinearConfig):
+                    team_id = config.board_config.team_id or None
+                return ClaudeCodeAdapter(config.agent_config, board_team_id=team_id)
             case AgentProviderType.CODEX:
                 if not isinstance(config.agent_config, CodexConfig):
                     raise ValueError(

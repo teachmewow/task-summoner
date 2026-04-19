@@ -75,9 +75,7 @@ class Orchestrator:
             repos=list(self._config.repos.keys()),
         )
 
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, self._handle_signal)
+        self._install_signal_handlers()
 
         await asyncio.sleep(0.5)
 
@@ -97,8 +95,42 @@ class Orchestrator:
                 pass
 
         log.info("Shutting down, waiting for agents...")
-        await self._dispatcher.wait_all()
+        await self.stop()
         log.info("Shutdown complete")
+
+    async def stop(self, *, timeout: float = 10.0) -> None:
+        """Cleanly stop the orchestrator: set shutdown flag, drain running tasks.
+
+        Idempotent and bounded by `timeout`. If running agents don't finish
+        within the budget, they are force-cancelled so the caller never
+        hangs. Safe to call from the FastAPI lifespan's shutdown hook.
+        """
+        self._shutdown_event.set()
+        try:
+            await asyncio.wait_for(self._dispatcher.wait_all(), timeout=timeout)
+        except TimeoutError:
+            log.warning(
+                "Orchestrator stop exceeded budget, force-cancelling agents",
+                budget_sec=timeout,
+            )
+            self._dispatcher.cancel_all()
+
+    def _install_signal_handlers(self) -> None:
+        """Hook SIGINT/SIGTERM into the running loop.
+
+        The loop may not support `add_signal_handler` (e.g., on Windows or
+        when the orchestrator is driven from a pytest runner that owns the
+        signal dispatch). We degrade to "no handler" rather than crash — the
+        orchestrator is also started from inside a FastAPI lifespan, where
+        uvicorn already traps SIGINT and drives a clean shutdown through
+        `stop()`.
+        """
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            try:
+                loop.add_signal_handler(sig, self._handle_signal)
+            except (NotImplementedError, RuntimeError, ValueError):
+                log.debug("Signal handler not installed", sig=sig.name)
 
     def _handle_signal(self) -> None:
         if self._shutdown_event.is_set():

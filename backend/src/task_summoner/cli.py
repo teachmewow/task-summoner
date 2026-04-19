@@ -47,7 +47,20 @@ async def cmd_run(config_path: str, port: int = 8420, dev: bool = False) -> None
 
     try:
         app = create_app(config_path=path)
-        server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning"))
+        # `timeout_graceful_shutdown` puts a hard upper bound on Ctrl+C
+        # handling: uvicorn closes the listening socket, runs the lifespan
+        # shutdown hook (which in turn awaits Orchestrator.stop with its own
+        # bounded timeout), and force-exits at 10s — never hangs. See
+        # ENG-112.
+        server = uvicorn.Server(
+            uvicorn.Config(
+                app,
+                host="0.0.0.0",
+                port=port,
+                log_level="warning",
+                timeout_graceful_shutdown=10,
+            )
+        )
         if dev:
             log.info(
                 "Task Summoner dev mode", api=f"http://localhost:{port}", ui="http://localhost:5173"
