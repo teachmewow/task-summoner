@@ -220,8 +220,8 @@ def _safe_attr(obj: Any, name: str) -> Any:
 # imports). Update when adding a new state handler that calls a new skill.
 _SKILL_BY_STATE_CLASS: dict[str, str] = {
     "CheckingDocState": "task-summoner-workflows:ticket-plan",
-    "CreatingDocState": "task-summoner-workflows:create-design",
-    "ImprovingDocState": "task-summoner-workflows:improve-design-doc",
+    "CreatingDocState": "task-summoner-workflows:create-design-doc",
+    "ImprovingDocState": "task-summoner-workflows:address-doc-feedback",
     "PlanningState": "task-summoner-workflows:ticket-plan",
     "ImplementingState": "task-summoner-workflows:ticket-implement",
     "FixingMrState": "task-summoner-workflows:review-pr",

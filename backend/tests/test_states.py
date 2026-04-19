@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -13,6 +13,7 @@ from task_summoner.models import TicketContext, TicketState
 from task_summoner.providers.agent import AgentResult
 from task_summoner.providers.board import ApprovalDecision, ApprovalResult
 from task_summoner.states import build_state_registry
+from task_summoner.states import creating_doc as creating_doc_module
 
 
 class TestStateRegistry:
@@ -99,6 +100,203 @@ class TestCheckingDocState:
 
         trigger = await handler.handle(ctx, sample_ticket, mock_services)
         assert trigger == "doc_needed"
+
+
+class TestCreatingDocState:
+    """CreatingDocState advances only when the RFC branch really exists."""
+
+    def _make_ctx(self) -> TicketContext:
+        return TicketContext(
+            ticket_key="LLMOPS-42",
+            state=TicketState.CREATING_DOC,
+            workspace_path="/tmp/ws",
+            branch_name="LLMOPS-42-test",
+        )
+
+    def _patch_verify(self, *, branch_present: bool, detail: str = ""):
+        check = creating_doc_module._BranchCheck(
+            branch_present=branch_present,
+            method="ls-remote",
+            detail=detail or ("present" if branch_present else "missing"),
+        )
+        return patch.object(
+            creating_doc_module,
+            "_verify_rfc_branch",
+            AsyncMock(return_value=check),
+        )
+
+    async def test_doc_created_when_branch_exists(self, config, sample_ticket, mock_services):
+        registry = build_state_registry(config)
+        handler = registry[TicketState.CREATING_DOC]
+        ctx = self._make_ctx()
+        mock_services.agent.run = AsyncMock(
+            return_value=AgentResult(
+                success=True,
+                output=(
+                    "RFC opened: https://github.com/teachmewow/tmw-docs/pull/99\n"
+                    "Branch: rfc/llmops-42"
+                ),
+                cost_usd=0.1,
+            )
+        )
+        mock_services.board.post_comment = AsyncMock(return_value="cid")
+
+        with self._patch_verify(branch_present=True):
+            trigger = await handler.handle(ctx, sample_ticket, mock_services)
+
+        assert trigger == "doc_created"
+        assert ctx.error is None
+        assert ctx.get_meta("rfc_branch") == "rfc/llmops-42"
+        assert ctx.get_meta("rfc_pr_url") == "https://github.com/teachmewow/tmw-docs/pull/99"
+        mock_services.board.post_comment.assert_not_called()
+
+    async def test_missing_branch_marks_failure_and_notifies(
+        self, config, sample_ticket, mock_services
+    ):
+        registry = build_state_registry(config)
+        handler = registry[TicketState.CREATING_DOC]
+        ctx = self._make_ctx()
+        # Retry budget is 2 in the fixture, so max_retries collapses to doc_failed
+        # once we've burned the last retry.
+        ctx.retry_count = config.retry.max_retries - 1
+        mock_services.agent.run = AsyncMock(
+            return_value=AgentResult(
+                success=True,
+                output="Skill finished without producing anything.",
+                cost_usd=0.09,
+            )
+        )
+        mock_services.board.post_comment = AsyncMock(return_value="cid")
+
+        with self._patch_verify(
+            branch_present=False, detail="rfc/llmops-42 not found on origin or locally"
+        ):
+            trigger = await handler.handle(ctx, sample_ticket, mock_services)
+
+        assert trigger == "doc_failed"
+        assert ctx.error is not None
+        assert "no RFC artifact" in ctx.error
+        assert "rfc/llmops-42" in ctx.error
+        mock_services.board.post_comment.assert_awaited_once()
+        comment_body = mock_services.board.post_comment.await_args.args[1]
+        assert "Automated doc creation failed" in comment_body
+
+    async def test_missing_branch_retries_within_budget(self, config, sample_ticket, mock_services):
+        registry = build_state_registry(config)
+        handler = registry[TicketState.CREATING_DOC]
+        ctx = self._make_ctx()
+        mock_services.agent.run = AsyncMock(
+            return_value=AgentResult(success=True, output="", cost_usd=0.01)
+        )
+        mock_services.board.post_comment = AsyncMock(return_value="cid")
+
+        with self._patch_verify(branch_present=False):
+            trigger = await handler.handle(ctx, sample_ticket, mock_services)
+
+        assert trigger == "_retry"
+        assert ctx.retry_count == 1
+        mock_services.board.post_comment.assert_awaited_once()
+
+    async def test_agent_error_short_circuits_verification(
+        self, config, sample_ticket, mock_services
+    ):
+        registry = build_state_registry(config)
+        handler = registry[TicketState.CREATING_DOC]
+        ctx = self._make_ctx()
+        mock_services.agent.run = AsyncMock(
+            return_value=AgentResult(
+                success=False,
+                error="SDK blew up",
+                output="",
+                cost_usd=0.0,
+            )
+        )
+        mock_services.board.post_comment = AsyncMock(return_value="cid")
+
+        verify_mock = AsyncMock()
+        with patch.object(creating_doc_module, "_verify_rfc_branch", verify_mock):
+            trigger = await handler.handle(ctx, sample_ticket, mock_services)
+
+        assert trigger == "_retry"
+        assert ctx.retry_count == 1
+        # Verification should not even run when the agent itself failed.
+        verify_mock.assert_not_awaited()
+
+    def test_prompt_references_renamed_skill(self, config, sample_ticket):
+        registry = build_state_registry(config)
+        handler = registry[TicketState.CREATING_DOC]
+        prompt = handler.build_prompt(sample_ticket)
+        assert "task-summoner-workflows:create-design-doc" in prompt
+        # Guardrail against re-introducing the broken name.
+        assert 'task-summoner-workflows:create-design"' not in prompt
+
+
+class TestVerifyRfcBranch:
+    """Direct tests for the branch-verification helper."""
+
+    async def test_remote_hit_returns_true(self, tmp_path):
+        async def fake_run_cli(cmd, *, timeout_sec, env=None):
+            if "ls-remote" in cmd:
+                return "abcdef1234\trefs/heads/rfc/llmops-42\n"
+            raise AssertionError(f"unexpected cmd: {cmd}")
+
+        with (
+            patch.object(creating_doc_module, "require_docs_repo", return_value=tmp_path),
+            patch.object(creating_doc_module, "run_cli", fake_run_cli),
+        ):
+            result = await creating_doc_module._verify_rfc_branch("rfc/llmops-42")
+
+        assert result.branch_present is True
+        assert result.method == "ls-remote"
+
+    async def test_local_fallback_catches_unpushed_branch(self, tmp_path):
+        calls: list[list[str]] = []
+
+        async def fake_run_cli(cmd, *, timeout_sec, env=None):
+            calls.append(list(cmd))
+            if "ls-remote" in cmd:
+                return ""  # nothing on origin
+            if "show-ref" in cmd:
+                return ""  # local branch present (exit 0 -> no raise)
+            raise AssertionError(f"unexpected cmd: {cmd}")
+
+        with (
+            patch.object(creating_doc_module, "require_docs_repo", return_value=tmp_path),
+            patch.object(creating_doc_module, "run_cli", fake_run_cli),
+        ):
+            result = await creating_doc_module._verify_rfc_branch("rfc/llmops-42")
+
+        assert result.branch_present is True
+        assert result.method == "show-ref"
+        assert any("ls-remote" in c for c in calls)
+        assert any("show-ref" in c for c in calls)
+
+    async def test_both_checks_fail_reports_missing(self, tmp_path):
+        async def fake_run_cli(cmd, *, timeout_sec, env=None):
+            if "ls-remote" in cmd:
+                return ""
+            if "show-ref" in cmd:
+                raise RuntimeError("Subprocess failed (exit 1)")
+            raise AssertionError(f"unexpected cmd: {cmd}")
+
+        with (
+            patch.object(creating_doc_module, "require_docs_repo", return_value=tmp_path),
+            patch.object(creating_doc_module, "run_cli", fake_run_cli),
+        ):
+            result = await creating_doc_module._verify_rfc_branch("rfc/llmops-42")
+
+        assert result.branch_present is False
+        assert "not found" in result.detail
+
+    async def test_missing_docs_repo_fails_gracefully(self):
+        def boom():
+            raise creating_doc_module.DocsRepoError("docs_repo not configured")
+
+        with patch.object(creating_doc_module, "require_docs_repo", side_effect=boom):
+            result = await creating_doc_module._verify_rfc_branch("rfc/llmops-42")
+
+        assert result.branch_present is False
+        assert "docs_repo" in result.detail
 
 
 class TestApprovalStates:
