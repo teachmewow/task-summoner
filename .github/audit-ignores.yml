@@ -1,0 +1,39 @@
+# Dependency-audit suppression list.
+#
+# The `dep-audit.yml` workflow consults this file to ignore specific
+# advisories that are known not to apply to this repo. Each entry MUST
+# include a rationale — an un-explained ignore is worse than no ignore.
+#
+# Do not use this file to silence real vulnerabilities. If a finding is
+# legitimate, fix the dependency. Only ignore when the advisory does not
+# apply (e.g. affects a feature you don't use, transitive dep in a dev-
+# only code path, upstream library that hasn't published a fix yet).
+#
+# Review every entry at least once per quarter.
+
+# -----------------------------------------------------------------------
+# Python advisories (pip-audit).
+# `id` is the GHSA-*, PYSEC-*, or CVE identifier as reported by pip-audit.
+# -----------------------------------------------------------------------
+python: []
+# python:
+#   - id: GHSA-xxxx-xxxx-xxxx
+#     package: example-pkg
+#     rationale: |
+#       Affects only the `example_pkg.legacy_feature` module which we
+#       never import. Re-evaluate when upstream releases a fix.
+#     expires: 2026-12-31
+
+# -----------------------------------------------------------------------
+# NPM advisories.
+# `id` is the advisory source/url as reported by `npm audit --json`
+# (the `source` field inside `via` entries).
+# -----------------------------------------------------------------------
+npm: []
+# npm:
+#   - id: "1099999"
+#     package: example-pkg
+#     rationale: |
+#       Transitive dep of a build-only tool; not shipped to production.
+#       Tracked upstream at <link>.
+#     expires: 2026-12-31

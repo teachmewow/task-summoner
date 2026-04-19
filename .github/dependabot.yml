@@ -1,0 +1,42 @@
+# Dependabot configuration for the template.
+#
+# Covers both Python (pip) and Node (npm) ecosystems. Fork and adjust
+# `directory` entries to match where your manifests live. Add more
+# ecosystems (github-actions, docker, etc.) as your project grows.
+#
+# Reviewer / assignee fields are intentionally blank — configure them in
+# your fork so the right owners see the PRs.
+
+version: 2
+updates:
+  # GitHub Actions themselves (keeps the Actions in .github/workflows/
+  # pinned to fresh, patched versions).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Python (pip / pyproject.toml). Adjust `directory` if your Python
+  # project lives in a subfolder (e.g. /services/agent-core).
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  # Node (npm / pnpm / yarn).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "javascript"

@@ -1,0 +1,18 @@
+# Pre-commit hooks for this template repo.
+#
+# Install locally:
+#   pip install pre-commit
+#   pre-commit install
+#
+# This config is intentionally minimal: the only hook is gitleaks, which
+# mirrors the CI guardrail so leaks are caught before they reach a PR.
+# Add repo-specific hooks (formatters, linters) in your own fork.
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+        name: gitleaks (secret scan)
+        # Same config as CI so behavior is identical locally and in GitHub.
+        args: ["--config=.gitleaks.toml"]
