@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -69,6 +71,92 @@ class TestClaudeCodeAdapterPlugins:
         adapter = ClaudeCodeAdapter(ClaudeCodeConfig(api_key="k", plugin_mode="bogus"))
         with pytest.raises(ValueError, match="Unknown plugin_mode"):
             adapter._resolve_plugins(profile)
+
+
+class TestClaudeCodeAdapterPluginEnablement:
+    """ENG-120: LOCAL mode must enable the plugin, not just register it."""
+
+    def _write_manifest(
+        self,
+        root: Path,
+        *,
+        marketplace_name: str = "task-summoner-plugin",
+        plugin_names: list[str] | None = None,
+    ) -> None:
+        manifest_dir = root / ".claude-plugin"
+        manifest_dir.mkdir(parents=True, exist_ok=True)
+        plugins = [{"name": name} for name in (plugin_names or ["task-summoner-workflows"])]
+        manifest = {"name": marketplace_name, "plugins": plugins}
+        (manifest_dir / "marketplace.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    def test_local_mode_emits_enabled_plugins_in_settings(self, profile, tmp_path):
+        self._write_manifest(tmp_path)
+        adapter = ClaudeCodeAdapter(
+            ClaudeCodeConfig(api_key="k", plugin_mode="local", plugin_path=str(tmp_path))
+        )
+        options = adapter._build_options(profile, tmp_path)
+
+        assert options.settings is not None
+        parsed = json.loads(options.settings)
+        assert parsed == {"enabledPlugins": {"task-summoner-workflows@task-summoner-plugin": True}}
+
+    def test_local_mode_registers_and_enables_the_same_plugin(self, profile, tmp_path):
+        """The plugins list registers the directory; settings turns skills on."""
+        self._write_manifest(tmp_path)
+        adapter = ClaudeCodeAdapter(
+            ClaudeCodeConfig(api_key="k", plugin_mode="local", plugin_path=str(tmp_path))
+        )
+        options = adapter._build_options(profile, tmp_path)
+
+        assert options.plugins == [{"type": "local", "path": str(tmp_path.resolve())}]
+        assert options.settings is not None
+        enabled = json.loads(options.settings)["enabledPlugins"]
+        assert "task-summoner-workflows@task-summoner-plugin" in enabled
+
+    def test_local_mode_enables_every_plugin_in_manifest(self, profile, tmp_path):
+        self._write_manifest(
+            tmp_path,
+            marketplace_name="my-market",
+            plugin_names=["alpha", "beta"],
+        )
+        adapter = ClaudeCodeAdapter(
+            ClaudeCodeConfig(api_key="k", plugin_mode="local", plugin_path=str(tmp_path))
+        )
+        options = adapter._build_options(profile, tmp_path)
+
+        assert options.settings is not None
+        enabled = json.loads(options.settings)["enabledPlugins"]
+        assert enabled == {"alpha@my-market": True, "beta@my-market": True}
+
+    def test_installed_mode_emits_no_settings_blob(self, profile, tmp_path):
+        """INSTALLED mode relies on user settings for enablement — do not override."""
+        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(api_key="k", plugin_mode="installed"))
+        options = adapter._build_options(profile, tmp_path)
+        assert options.settings is None
+
+    def test_local_mode_without_manifest_emits_no_settings_blob(self, profile, tmp_path):
+        """Missing manifest degrades gracefully: no settings, no crash."""
+        adapter = ClaudeCodeAdapter(
+            ClaudeCodeConfig(api_key="k", plugin_mode="local", plugin_path=str(tmp_path))
+        )
+        options = adapter._build_options(profile, tmp_path)
+        assert options.settings is None
+
+    def test_local_mode_settings_do_not_include_user_scope_keys(self, profile, tmp_path):
+        """ENG-114 guardrail: our settings blob carries ONLY enabledPlugins."""
+        self._write_manifest(tmp_path)
+        adapter = ClaudeCodeAdapter(
+            ClaudeCodeConfig(api_key="k", plugin_mode="local", plugin_path=str(tmp_path))
+        )
+        options = adapter._build_options(profile, tmp_path)
+
+        assert options.settings is not None
+        parsed = json.loads(options.settings)
+        # Only the enablement map — never MCP servers, env, permissions, etc.
+        assert set(parsed.keys()) == {"enabledPlugins"}
+        # And setting_sources stays empty so the user's ~/.claude/settings.json
+        # does NOT get merged in from the CLI side either.
+        assert options.setting_sources == []
 
 
 class TestClaudeCodeAdapterSettingSources:

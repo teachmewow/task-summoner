@@ -9,10 +9,27 @@ Two modes:
 Lives alongside the Claude Code adapter because the plugin contract is specific
 to Claude Code's `ClaudeAgentOptions.plugins` shape. Other agent providers (e.g.
 Codex) define their own plugin conventions if/when they gain plugin support.
+
+## Plugin registration vs enablement (ENG-120)
+
+Passing `plugins=[{"type": "local", "path": "..."}]` only **registers** the
+directory with the Claude Code CLI (via the `--plugin-dir` flag): the CLI
+discovers the marketplace manifest and lists the plugin as available. It does
+**not** enable the plugin's skills. Skill enablement is driven by the
+`enabledPlugins` map in Claude Code settings — normally loaded from the user's
+`~/.claude/settings.json` via `setting_sources=["user"]`.
+
+Because LOCAL mode deliberately sets `setting_sources=[]` to block global MCP
+leakage (ENG-114), the adapter must inject the enablement map explicitly via
+`ClaudeAgentOptions.settings` (a JSON string). The enablement key follows the
+CLI convention ``<plugin-name>@<marketplace-name>`` — we derive both from the
+marketplace's own `.claude-plugin/marketplace.json` so we stay honest even if
+the plugin or marketplace is renamed.
 """
 
 from __future__ import annotations
 
+import json
 from enum import Enum
 from pathlib import Path
 
@@ -43,7 +60,10 @@ class PluginResolver:
         """Return the plugins list for `ClaudeAgentOptions`.
 
         - INSTALLED: empty list (plugin comes from user settings).
-        - LOCAL: one entry pointing at `plugin_path`.
+        - LOCAL: one entry pointing at `plugin_path`. The CLI discovers the
+          marketplace and registers each plugin inside it, but none of them
+          is enabled until `enabled_plugin_keys()` is also threaded into
+          `ClaudeAgentOptions.settings` (see ENG-120).
         """
         if self._mode == PluginMode.INSTALLED:
             log.debug("Plugin mode: installed — relying on user settings")
@@ -52,6 +72,59 @@ class PluginResolver:
         resolved = str(Path(self._plugin_path).resolve())
         log.debug("Plugin mode: local", path=resolved)
         return [{"type": "local", "path": resolved}]
+
+    def enabled_plugin_keys(self) -> list[str]:
+        """Return CLI-format enablement keys (``<plugin>@<marketplace>``) for LOCAL mode.
+
+        Reads the marketplace manifest at
+        ``<plugin_path>/.claude-plugin/marketplace.json`` to derive real plugin
+        and marketplace names. Returns an empty list for INSTALLED mode, or
+        when the manifest is missing/malformed (the adapter then emits a
+        warning — the agent will still start but without task-summoner skills).
+
+        The Claude Code CLI uses the enablement key convention
+        ``<plugin-name>@<marketplace-name>`` in its ``enabledPlugins`` map. An
+        inline ``--plugin-dir`` load gets the marketplace ``name`` field from
+        the manifest.
+        """
+        if self._mode != PluginMode.LOCAL:
+            return []
+
+        manifest = Path(self._plugin_path) / ".claude-plugin" / "marketplace.json"
+        if not manifest.is_file():
+            log.warning(
+                "Plugin marketplace manifest missing — skills will not be enabled",
+                path=str(manifest),
+            )
+            return []
+
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            log.warning(
+                "Plugin marketplace manifest unreadable — skills will not be enabled",
+                path=str(manifest),
+                error=str(exc),
+            )
+            return []
+
+        marketplace_name = data.get("name")
+        plugins = data.get("plugins") or []
+        if not marketplace_name or not isinstance(plugins, list):
+            log.warning(
+                "Plugin marketplace manifest missing name or plugins list",
+                path=str(manifest),
+            )
+            return []
+
+        keys: list[str] = []
+        for plugin in plugins:
+            if not isinstance(plugin, dict):
+                continue
+            plugin_name = plugin.get("name")
+            if plugin_name:
+                keys.append(f"{plugin_name}@{marketplace_name}")
+        return keys
 
     def validate(self) -> list[str]:
         """Return validation errors for the current configuration."""

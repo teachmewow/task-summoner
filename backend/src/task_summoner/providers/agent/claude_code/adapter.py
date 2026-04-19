@@ -17,11 +17,20 @@ Cancellation contract: `_consume_stream` wraps the SDK async-iterator in a
 `try/finally` so that on orchestrator shutdown (`asyncio.CancelledError`)
 the underlying `query(...)` generator is closed and any subprocess the SDK
 spawned receives termination. CancelledError is always re-raised.
+
+Plugin enablement (ENG-120): LOCAL mode pairs ``plugins=[{type: "local",
+path: ...}]`` with a synthesized ``settings`` JSON carrying
+``enabledPlugins: {<plugin>@<marketplace>: true}``. Without the
+enablement map the CLI lists the plugin directory but does not surface
+its skills, so the subprocess sees only global defaults. The map is
+derived from the plugin's own ``marketplace.json`` — see
+``PluginResolver.enabled_plugin_keys``.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -248,6 +257,7 @@ class ClaudeCodeAdapter:
         return output_parts, cost, turns, error
 
     def _build_options(self, profile: AgentProfile, working_dir: Path) -> ClaudeAgentOptions:
+        resolver = self._make_resolver()
         return ClaudeAgentOptions(
             cwd=str(working_dir),
             model=profile.model,
@@ -256,13 +266,14 @@ class ClaudeCodeAdapter:
             allowed_tools=profile.tools,
             permission_mode="bypassPermissions",
             setting_sources=self._resolve_setting_sources(),
-            plugins=self._resolve_plugins(profile),
+            plugins=resolver.resolve(),
+            settings=self._build_settings(resolver),
             env=self._build_env(),
             mcp_servers=self._build_mcp_servers(),
             system_prompt=self._build_system_prompt(),
         )
 
-    def _resolve_plugins(self, profile: AgentProfile) -> list[dict[str, str]]:
+    def _make_resolver(self) -> PluginResolver:
         try:
             mode = PluginMode(self._config.plugin_mode)
         except ValueError as e:
@@ -272,7 +283,46 @@ class ClaudeCodeAdapter:
         errors = resolver.validate()
         if errors:
             raise ValueError("; ".join(errors))
-        return resolver.resolve()
+        return resolver
+
+    def _resolve_plugins(self, profile: AgentProfile) -> list[dict[str, str]]:
+        """Back-compat helper retained for tests that exercise resolver output.
+
+        The production path runs through ``_build_options`` which shares a
+        single resolver with ``_build_settings`` — do not use this method to
+        build options.
+        """
+        return self._make_resolver().resolve()
+
+    def _build_settings(self, resolver: PluginResolver) -> str | None:
+        """Emit a JSON settings blob enabling the LOCAL-mode plugin (ENG-120).
+
+        In LOCAL mode ``setting_sources`` is ``[]`` so the CLI never reads
+        ``~/.claude/settings.json`` (that's how ENG-114 blocked global MCP
+        leakage). A side effect is that ``enabledPlugins`` from user settings
+        is also gone, which leaves ``--plugin-dir`` loading the marketplace
+        but never turning on any of its plugins — all ``task-summoner-
+        workflows:*`` skills vanish from the subprocess.
+
+        The CLI's ``--settings`` flag accepts an inline JSON blob that the SDK
+        threads through verbatim. We use it to ship the minimum
+        ``{"enabledPlugins": {<plugin>@<marketplace>: true, ...}}`` map, which
+        registers the plugins as enabled without re-opening the user scope to
+        any other setting (including MCP servers). Marketplace + plugin names
+        come from the plugin's own ``marketplace.json`` so we stay honest if
+        either is renamed.
+
+        Returns ``None`` for INSTALLED mode or when the marketplace manifest
+        can't be parsed — in both cases there is nothing for us to inject and
+        the SDK falls back to its default behaviour.
+        """
+        if resolver.mode != PluginMode.LOCAL:
+            return None
+        keys = resolver.enabled_plugin_keys()
+        if not keys:
+            return None
+        settings = {"enabledPlugins": {key: True for key in keys}}
+        return json.dumps(settings)
 
     def _resolve_setting_sources(self) -> list[str]:
         """Pick `setting_sources` from the user's plugin_mode config.
