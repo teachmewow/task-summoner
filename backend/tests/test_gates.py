@@ -78,6 +78,18 @@ class TestInferAllSevenStates:
         assert snap.state is GateState.PLANNING
         assert snap.active_pr is None
 
+    def test_planning_when_doc_merged_and_linear_auto_flipped_done(self):
+        """Linear's own automation moves to Done on PR merge; don't stall there.
+
+        Regression: clicking lgtm on the doc PR merged it, Linear fired its
+        workflow rule → state became ``completed``, and the inference fell
+        through to ``MANUAL_CHECK`` with the useless "Unclassified" message
+        even though the path forward is obvious (advance to PLANNING).
+        """
+        doc = _pr(state="MERGED")
+        snap = infer_gate_state(GateSignals(linear=_linear("completed"), doc_pr=doc))
+        assert snap.state is GateState.PLANNING
+
     def test_in_plan_review_when_draft_code_pr_has_plan_file(self):
         code = _pr(is_draft=True, has_plan_file=True, has_code_diff=False)
         snap = infer_gate_state(GateSignals(linear=_linear("started"), code_pr=code))
