@@ -22,7 +22,7 @@ from task_summoner.models import Ticket, TicketContext, TicketState
 from task_summoner.observability import state_trace_metadata, traceable
 from task_summoner.utils import run_cli
 
-from .base import BaseState, StateServices
+from .base import GATE_SUMMARY_FALLBACK, BaseState, StateServices, _extract_gate_summary
 
 log = structlog.get_logger()
 
@@ -114,6 +114,7 @@ class CreatingDocState(BaseState):
         if pr_url_match:
             ctx.set_meta("rfc_pr_url", pr_url_match.group(1))
         ctx.set_meta("rfc_branch", branch)
+        ctx.set_meta("gate_summary", _resolve_summary(result.output or "", ticket.key))
         ctx.retry_count = 0
         ctx.error = None
         log.info(
@@ -164,6 +165,19 @@ class CreatingDocState(BaseState):
 def _rfc_branch_for(ticket_key: str) -> str:
     """Mirror ``create-design-doc``'s branch convention: ``rfc/<issue-id-lower>``."""
     return f"rfc/{ticket_key.lower()}"
+
+
+def _resolve_summary(output: str, ticket_key: str) -> str:
+    """Return the skill's GATE_SUMMARY sentence, falling back + logging on miss."""
+    summary = _extract_gate_summary(output)
+    if summary is None:
+        log.warning(
+            "GATE_SUMMARY missing from agent output",
+            ticket=ticket_key,
+            state=TicketState.CREATING_DOC.value,
+        )
+        return GATE_SUMMARY_FALLBACK
+    return summary
 
 
 class _BranchCheck:

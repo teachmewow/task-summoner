@@ -23,6 +23,33 @@ from task_summoner.providers.board import (
 log = structlog.get_logger()
 
 
+# Matches the skill contract: every pre-gate SKILL.md promises a final line of
+# the form ``GATE_SUMMARY: <one sentence>``. The orchestrator surfaces that
+# sentence to the human reviewer (Linear comment body + UI gate card) and
+# discards the surrounding narrative — the raw transcript still lives in
+# ``stream.jsonl`` for anyone debugging the mechanics.
+_GATE_SUMMARY_PATTERN = re.compile(r"^GATE_SUMMARY:\s*(.+?)\s*$", re.MULTILINE)
+
+GATE_SUMMARY_FALLBACK = "Summary unavailable; see activity timeline"
+
+
+def _extract_gate_summary(output: str) -> str | None:
+    """Return the last ``GATE_SUMMARY:`` sentence in ``output`` (prefix stripped).
+
+    Skills may print several intermediate lines before the mandatory final
+    summary — always prefer the last match so replays / retries don't surface
+    a stale summary. Returns ``None`` when the skill forgot to emit the line;
+    callers fall back to :data:`GATE_SUMMARY_FALLBACK` and should log a
+    warning so the missing contract is diagnosable.
+    """
+    if not output:
+        return None
+    matches = _GATE_SUMMARY_PATTERN.findall(output)
+    if not matches:
+        return None
+    return matches[-1].strip() or None
+
+
 class WorkspaceService(Protocol):
     async def create(self, ticket_key: str, branch: str, repo_path: str) -> str: ...
     async def recover(self, ticket_key: str, branch: str, repo_path: str) -> str: ...

@@ -14,6 +14,51 @@ from task_summoner.providers.agent import AgentResult
 from task_summoner.providers.board import ApprovalDecision, ApprovalResult
 from task_summoner.states import build_state_registry
 from task_summoner.states import creating_doc as creating_doc_module
+from task_summoner.states.base import GATE_SUMMARY_FALLBACK, _extract_gate_summary
+
+
+class TestExtractGateSummary:
+    """Contract: every pre-gate skill emits a final ``GATE_SUMMARY:<text>`` line.
+
+    The helper parses that line (last match wins — skills may log intermediate
+    drafts) and returns just the sentence. Missing / empty input returns
+    ``None`` so callers can swap in the fallback and log a warning.
+    """
+
+    def test_happy_path_returns_sentence_without_prefix(self):
+        output = (
+            "Working on issue...\n"
+            "Plan committed.\n"
+            "GATE_SUMMARY: Plan committed on branch eng-137; 3 files, ~50 LOC.\n"
+        )
+        assert (
+            _extract_gate_summary(output) == "Plan committed on branch eng-137; 3 files, ~50 LOC."
+        )
+
+    def test_missing_summary_returns_none(self):
+        assert _extract_gate_summary("No marker here.\nAll done.") is None
+
+    def test_empty_input_returns_none(self):
+        assert _extract_gate_summary("") is None
+
+    def test_last_match_wins_when_summary_appears_mid_stream(self):
+        output = (
+            "GATE_SUMMARY: Draft summary (should be overridden).\n"
+            "Thinking more...\n"
+            "Decided the classifier says no doc needed.\n"
+            "GATE_SUMMARY: README-only docs change; no design doc needed.\n"
+        )
+        assert _extract_gate_summary(output) == "README-only docs change; no design doc needed."
+
+    def test_summary_without_trailing_newline_still_parses(self):
+        assert (
+            _extract_gate_summary("GATE_SUMMARY: Implementation complete; 4 tests added.")
+            == "Implementation complete; 4 tests added."
+        )
+
+    def test_whitespace_only_summary_returns_none(self):
+        # ``GATE_SUMMARY:   `` alone is not a valid contract emission.
+        assert _extract_gate_summary("GATE_SUMMARY:   \n") is None
 
 
 class TestStateRegistry:
@@ -106,6 +151,66 @@ class TestCheckingDocState:
         body = call_args.args[2] if len(call_args.args) >= 3 else call_args.kwargs["body"]
         assert "Design doc required" in body
         assert ctx.metadata.get("doc_comment_id") == "tag-x"
+
+    async def test_summary_extracted_and_narrative_dropped(
+        self, config, sample_ticket, mock_services
+    ):
+        """The comment body shows only verdict + summary + CTA, not the prose."""
+        registry = build_state_registry(config)
+        handler = registry[TicketState.CHECKING_DOC]
+        ctx = TicketContext(
+            ticket_key="LLMOPS-42",
+            state=TicketState.CHECKING_DOC,
+            workspace_path="/tmp/ws",
+            branch_name="LLMOPS-42-test",
+        )
+        narrative = (
+            "I'll execute the workflow in headless mode, fetching Linear context...\n"
+            "Phase 1 complete; classifier ran.\n"
+        )
+        agent_output = (
+            f"{narrative}"
+            "DOC_NOT_NEEDED\n"
+            "GATE_SUMMARY: README-only docs change; classifier says no design doc needed.\n"
+        )
+        mock_services.agent.run = AsyncMock(
+            return_value=AgentResult(success=True, output=agent_output, cost_usd=0.1)
+        )
+        mock_services.board.post_tagged_comment = AsyncMock(return_value="tag-x")
+
+        trigger = await handler.handle(ctx, sample_ticket, mock_services)
+
+        assert trigger == "doc_not_needed"
+        body = mock_services.board.post_tagged_comment.call_args.args[2]
+        assert "README-only docs change" in body
+        assert "I'll execute" not in body
+        assert "Phase 1" not in body
+        assert (
+            ctx.metadata["gate_summary"]
+            == "README-only docs change; classifier says no design doc needed."
+        )
+
+    async def test_missing_summary_falls_back(self, config, sample_ticket, mock_services):
+        """When the skill skips the contract, the gate still fires with fallback."""
+        registry = build_state_registry(config)
+        handler = registry[TicketState.CHECKING_DOC]
+        ctx = TicketContext(
+            ticket_key="LLMOPS-42",
+            state=TicketState.CHECKING_DOC,
+            workspace_path="/tmp/ws",
+            branch_name="LLMOPS-42-test",
+        )
+        mock_services.agent.run = AsyncMock(
+            return_value=AgentResult(success=True, output="DOC_NOT_NEEDED", cost_usd=0.1)
+        )
+        mock_services.board.post_tagged_comment = AsyncMock(return_value="tag-x")
+
+        trigger = await handler.handle(ctx, sample_ticket, mock_services)
+
+        assert trigger == "doc_not_needed"
+        assert ctx.metadata["gate_summary"] == GATE_SUMMARY_FALLBACK
+        body = mock_services.board.post_tagged_comment.call_args.args[2]
+        assert GATE_SUMMARY_FALLBACK in body
 
 
 class TestCreatingDocState:
@@ -399,7 +504,14 @@ class TestPlanningState:
         (plan_dir / "plan.md").write_text("## Plan\nDo it")
 
         mock_services.agent.run = AsyncMock(
-            return_value=AgentResult(success=True, output="thinking...", cost_usd=1.0)
+            return_value=AgentResult(
+                success=True,
+                output=(
+                    "thinking...\n"
+                    "GATE_SUMMARY: Plan committed on branch llmops-42; 3 files, ~50 LOC.\n"
+                ),
+                cost_usd=1.0,
+            )
         )
         mock_services.board.post_tagged_comment = AsyncMock(side_effect=lambda tid, tag, body: tag)
 
@@ -410,6 +522,10 @@ class TestPlanningState:
         posted_call = mock_services.board.post_tagged_comment.call_args
         body = posted_call.args[2]
         assert "## Plan" in body
+        assert "Plan committed on branch llmops-42" in body
+        assert (
+            ctx.get_meta("gate_summary") == "Plan committed on branch llmops-42; 3 files, ~50 LOC."
+        )
 
     async def test_handle_failure_retries(self, config, sample_ticket, mock_services):
         registry = build_state_registry(config)
@@ -446,7 +562,10 @@ class TestImplementingState:
         mock_services.agent.run = AsyncMock(
             return_value=AgentResult(
                 success=True,
-                output="PR: https://github.com/teachmewow/task-summoner/pull/42",
+                output=(
+                    "PR: https://github.com/teachmewow/task-summoner/pull/42\n"
+                    "GATE_SUMMARY: Implementation complete; 4 tests added, CI green.\n"
+                ),
                 cost_usd=5.0,
             )
         )
@@ -456,6 +575,9 @@ class TestImplementingState:
         assert trigger == "mr_created"
         assert "42" in ctx.mr_url
         assert ctx.get_meta("mr_comment_id").startswith("[ts:LLMOPS-42:implementing:")
+        assert ctx.get_meta("gate_summary") == "Implementation complete; 4 tests added, CI green."
+        body = mock_services.board.post_tagged_comment.call_args.args[2]
+        assert "Implementation complete; 4 tests added" in body
 
 
 class TestTerminalStates:
