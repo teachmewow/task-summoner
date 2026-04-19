@@ -70,7 +70,11 @@ from task_summoner.providers.config import (
 )
 from task_summoner.utils import expand as _expand_path
 
-load_dotenv()
+# Project `.env` is canonical and wins over shell exports.
+# Without `override=True`, a stale `LINEAR_API_KEY` (or similar) exported in the
+# user's shell silently shadows the per-project value, causing cross-workspace
+# API calls that are very hard to diagnose.
+load_dotenv(override=True)
 
 _ENV_VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
 
