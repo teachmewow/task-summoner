@@ -71,6 +71,35 @@ class TestClaudeCodeAdapterPlugins:
             adapter._resolve_plugins(profile)
 
 
+class TestClaudeCodeAdapterSettingSources:
+    def test_local_mode_disables_inheritance(self, tmp_path):
+        adapter = ClaudeCodeAdapter(
+            ClaudeCodeConfig(api_key="k", plugin_mode="local", plugin_path=str(tmp_path))
+        )
+        assert adapter._resolve_setting_sources() == []
+
+    def test_installed_mode_inherits_user_settings(self):
+        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(api_key="k", plugin_mode="installed"))
+        assert adapter._resolve_setting_sources() == ["user"]
+
+    def test_unknown_plugin_mode_raises(self):
+        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(api_key="k", plugin_mode="bogus"))
+        with pytest.raises(ValueError, match="Unknown plugin_mode"):
+            adapter._resolve_setting_sources()
+
+    def test_build_options_local_mode_passes_empty_setting_sources(self, profile, tmp_path):
+        adapter = ClaudeCodeAdapter(
+            ClaudeCodeConfig(api_key="k", plugin_mode="local", plugin_path=str(tmp_path))
+        )
+        options = adapter._build_options(profile, tmp_path)
+        assert options.setting_sources == []
+
+    def test_build_options_installed_mode_passes_user_setting_sources(self, profile, tmp_path):
+        adapter = ClaudeCodeAdapter(ClaudeCodeConfig(api_key="k", plugin_mode="installed"))
+        options = adapter._build_options(profile, tmp_path)
+        assert options.setting_sources == ["user"]
+
+
 class TestClaudeCodeAdapterRun:
     @pytest.mark.asyncio
     async def test_run_returns_agent_result_on_success(self, adapter, profile, tmp_path):
