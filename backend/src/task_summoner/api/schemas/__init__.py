@@ -29,6 +29,12 @@ from task_summoner.api.schemas.cost import (
     CostSummaryResponse,
     TurnsBucket,
 )
+from task_summoner.api.schemas.decision import (
+    DecisionsResponse,
+    DecisionSummary,
+    OpenEditorPayload,
+    OpenEditorResponse,
+)
 from task_summoner.api.schemas.event import EventResponse
 from task_summoner.api.schemas.failure import (
     FailedTicket,
@@ -36,6 +42,13 @@ from task_summoner.api.schemas.failure import (
     FailureByPhase,
     FailureSummaryResponse,
     RetryResponse,
+)
+from task_summoner.api.schemas.gate import (
+    GateActionResponse,
+    GateApprovePayload,
+    GateRequestChangesPayload,
+    GateResponse,
+    PrInfo,
 )
 from task_summoner.api.schemas.health import (
     AgentHealth,
@@ -45,6 +58,7 @@ from task_summoner.api.schemas.health import (
     LocalStateHealth,
     TestBoardResponse,
 )
+from task_summoner.api.schemas.rfc import RfcResponse
 from task_summoner.api.schemas.setup import (
     LinearTeamsRequest,
     LinearTeamsResponse,
@@ -90,7 +104,17 @@ __all__ = [
     "LocalStateHealth",
     "TestBoardResponse",
     "CostSummaryResponse",
+    "DecisionSummary",
+    "DecisionsResponse",
     "EventResponse",
+    "GateActionResponse",
+    "GateApprovePayload",
+    "GateRequestChangesPayload",
+    "GateResponse",
+    "OpenEditorPayload",
+    "OpenEditorResponse",
+    "PrInfo",
+    "RfcResponse",
     "FailedTicket",
     "FailureByCategory",
     "FailureByPhase",
