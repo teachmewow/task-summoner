@@ -68,14 +68,29 @@ class Orchestrator:
     def store(self) -> StateStore:
         return self._store
 
-    async def run(self) -> None:
+    async def run(self, *, install_signal_handlers: bool = True) -> None:
+        """Drive the polling loop.
+
+        Signal handling (ENG-116): by default we install handlers for
+        SIGINT/SIGTERM so that running the orchestrator standalone (e.g.
+        from a pytest harness) responds to Ctrl+C. When embedded inside
+        uvicorn's lifespan (the normal CLI path), the caller MUST pass
+        ``install_signal_handlers=False`` because uvicorn installs its own
+        ``signal.signal`` handler first, and ``loop.add_signal_handler``
+        silently overwrites it — breaking uvicorn's own graceful-shutdown
+        path and causing ``task-summoner run --dev`` to hang on Ctrl+C.
+        When uvicorn owns SIGINT, it triggers the FastAPI lifespan
+        finalizer, which calls ``stop()`` explicitly.
+        """
         log.info(
             "Task Summoner starting",
             poll_interval=self._config.poll_interval_sec,
             repos=list(self._config.repos.keys()),
+            install_signal_handlers=install_signal_handlers,
         )
 
-        self._install_signal_handlers()
+        if install_signal_handlers:
+            self._install_signal_handlers()
 
         await asyncio.sleep(0.5)
 
