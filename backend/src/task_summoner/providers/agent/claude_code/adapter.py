@@ -22,6 +22,7 @@ from claude_agent_sdk import (
     query,
 )
 
+from task_summoner.observability import traceable
 from task_summoner.providers.agent.claude_code.plugin_resolver import (
     PluginMode,
     PluginResolver,
@@ -57,6 +58,17 @@ class ClaudeCodeAdapter:
     def supports_tool_use(self) -> bool:
         return True
 
+    @traceable(
+        run_type="llm",
+        name="claude_code.dispatch",
+        metadata_fn=lambda self, prompt, profile, working_dir, event_callback=None: {
+            "agent": profile.name,
+            "model": profile.model,
+            "max_turns": profile.max_turns,
+            "max_cost_usd": profile.max_cost_usd,
+            "tools_available": list(profile.tools or []),
+        },
+    )
     async def run(
         self,
         prompt: str,
@@ -81,36 +93,12 @@ class ClaudeCodeAdapter:
         error: str | None = None
 
         try:
-            async for message in query(prompt=prompt, options=options):
-                if isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            output_parts.append(block.text)
-                            self._emit(
-                                event_callback,
-                                AgentEvent(
-                                    type=AgentEventType.MESSAGE,
-                                    content=block.text,
-                                    metadata={"agent": profile.name},
-                                ),
-                            )
-                        elif isinstance(block, ToolUseBlock):
-                            self._emit(
-                                event_callback,
-                                AgentEvent(
-                                    type=AgentEventType.TOOL_USE,
-                                    content=block.name,
-                                    metadata={
-                                        "agent": profile.name,
-                                        "tool_input": _safe_tool_input(block.input),
-                                    },
-                                ),
-                            )
-                elif isinstance(message, ResultMessage):
-                    cost = getattr(message, "total_cost_usd", 0.0) or 0.0
-                    turns = getattr(message, "num_turns", 0) or 0
-                    if getattr(message, "is_error", False):
-                        error = getattr(message, "result", None) or "Agent error"
+            output_parts, cost, turns, error = await self._consume_stream(
+                prompt=prompt,
+                options=options,
+                profile=profile,
+                event_callback=event_callback,
+            )
         except Exception as e:
             log.error("Agent SDK error", agent=profile.name, error=str(e))
             error = str(e)
@@ -153,6 +141,65 @@ class ClaudeCodeAdapter:
             turns_used=turns,
             error=error,
         )
+
+    @traceable(
+        run_type="chain",
+        name="claude_code.stream",
+        metadata_fn=lambda self, *, prompt, options, profile, event_callback=None: {
+            "agent": profile.name,
+            "model": profile.model,
+        },
+    )
+    async def _consume_stream(
+        self,
+        *,
+        prompt: str,
+        options: ClaudeAgentOptions,
+        profile: AgentProfile,
+        event_callback: Callable[[AgentEvent], None] | None,
+    ) -> tuple[list[str], float, int, str | None]:
+        """Consume the streaming response from the Claude SDK.
+
+        Extracted from `run` so LangSmith traces the streamed tool-use /
+        text deltas as a nested chain under `claude_code.dispatch`.
+        """
+        output_parts: list[str] = []
+        cost = 0.0
+        turns = 0
+        error: str | None = None
+
+        async for message in query(prompt=prompt, options=options):
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if isinstance(block, TextBlock):
+                        output_parts.append(block.text)
+                        self._emit(
+                            event_callback,
+                            AgentEvent(
+                                type=AgentEventType.MESSAGE,
+                                content=block.text,
+                                metadata={"agent": profile.name},
+                            ),
+                        )
+                    elif isinstance(block, ToolUseBlock):
+                        self._emit(
+                            event_callback,
+                            AgentEvent(
+                                type=AgentEventType.TOOL_USE,
+                                content=block.name,
+                                metadata={
+                                    "agent": profile.name,
+                                    "tool_input": _safe_tool_input(block.input),
+                                },
+                            ),
+                        )
+            elif isinstance(message, ResultMessage):
+                cost = getattr(message, "total_cost_usd", 0.0) or 0.0
+                turns = getattr(message, "num_turns", 0) or 0
+                if getattr(message, "is_error", False):
+                    error = getattr(message, "result", None) or "Agent error"
+
+        return output_parts, cost, turns, error
 
     def _build_options(self, profile: AgentProfile, working_dir: Path) -> ClaudeAgentOptions:
         return ClaudeAgentOptions(

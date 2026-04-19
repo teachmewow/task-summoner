@@ -161,6 +161,56 @@ existing git repo, and contain `.task-summoner/config.yml` (created by the
 [task-summoner-docs-template](https://github.com/teachmewow/task-summoner-docs-template)
 fork — see ENG-93).
 
+## Observability
+
+Task Summoner ships with opt-in [LangSmith](https://smith.langchain.com/)
+tracing so you can inspect the full prompt, response, and FSM path of every
+agent dispatch. Tracing is **off by default** — the `@traceable` decorator is a
+no-op until you set two environment variables.
+
+### Enable tracing
+
+```bash
+export LANGCHAIN_TRACING_V2=true
+export LANGCHAIN_API_KEY=<your langsmith api key>
+export LANGCHAIN_PROJECT=task-summoner   # optional; defaults to "default"
+```
+
+Then run `task-summoner run` as usual. Traces appear under your project at:
+
+```
+https://smith.langchain.com/o/<your-org-slug>/projects/p/task-summoner
+```
+
+### What's traced
+
+| Run type | Name | Where |
+|----------|------|-------|
+| `chain`  | `state.<phase>` | Each FSM state handler (`planning`, `implementing`, `checking_doc`, `creating_doc`, `improving_doc`, `fixing_mr`) |
+| `prompt` | `prompt.<phase>` | The `build_prompt` helper for each state (system prompt + skill + ticket context) |
+| `llm`    | `claude_code.dispatch` | `ClaudeCodeAdapter.run` — the top-level agent invocation |
+| `chain`  | `claude_code.stream` | Nested: streamed tool-use / text deltas from the Claude SDK |
+
+Every state trace is tagged with `issue_id`, `skill`, `repo`, `phase`, and
+`retry_count` so you can slice runs by ticket, target repo, or phase in the
+LangSmith UI.
+
+### Off-by-default guarantees
+
+- If `LANGCHAIN_TRACING_V2` or `LANGCHAIN_API_KEY` is unset, the decorator
+  short-circuits before touching the `langsmith` SDK — zero behavior change,
+  zero overhead.
+- If `langsmith` is not installed, the decorator is still a safe no-op.
+- Exceptions in traced functions are never swallowed; they propagate with the
+  trace closed in error state.
+
+### Follow-ups (out of scope for ENG-107)
+
+- Sampling / rate limiting / cost controls for high-volume runs.
+- Dashboards and alerts in LangSmith.
+- Tracing the OpenAI / Anthropic providers directly (today we trace the
+  subprocess dispatch, not the underlying API calls).
+
 ## Testing
 
 ```bash
