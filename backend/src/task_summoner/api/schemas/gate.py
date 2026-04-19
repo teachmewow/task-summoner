@@ -17,7 +17,7 @@ class GateResponse(BaseModel):
     """Current gate state for an issue + the PR the UI buttons act on."""
 
     issue_key: str
-    state: str  # GateState enum value
+    state: str  # GateState enum value — inferred from PR + Linear signals
     active_pr: PrInfo | None
     retry_skill: str | None
     reason: str = ""
@@ -32,6 +32,17 @@ class GateResponse(BaseModel):
     # Linear comment. ``None`` when the context is not yet persisted or the
     # skill forgot to emit the contract line.
     summary: str | None = None
+    # FSM state read directly from the orchestrator's TicketContext. This is
+    # the authoritative "is this a gate?" signal — every ``WAITING_*_REVIEW``
+    # is a gate, independent of whether PR inference found the underlying PR.
+    # ``None`` before the first dispatch persists a context for the ticket.
+    orchestrator_state: str | None = None
+    # PR URL the orchestrator stashed in metadata for the current state
+    # (``rfc_pr_url`` / ``plan_pr_url`` / ``mr_url``). The UI uses this when
+    # PR inference's ``active_pr`` comes back empty — e.g., the plan PR lives
+    # on a repo outside the configured ``default_repo`` scope. ``None`` when
+    # the state doesn't expect a PR or the metadata isn't populated yet.
+    orchestrator_pr_url: str | None = None
 
 
 class GateApprovePayload(BaseModel):

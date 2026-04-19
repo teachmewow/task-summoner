@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RfcPanel } from "~/components/RfcPanel";
 import type { RfcResponse } from "~/lib/rfcs";
@@ -24,7 +24,7 @@ function mockFetch(body: RfcResponse) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("RfcPanel", () => {
-  it("renders markdown content when an RFC exists", async () => {
+  it("renders markdown content after expanding the panel", async () => {
     mockFetch({
       ok: true,
       exists: true,
@@ -37,16 +37,20 @@ describe("RfcPanel", () => {
       reason: null,
     });
     wrap(<RfcPanel issueKey="ENG-98" />);
+    // Collapsed by default — the header shows the title, the body is hidden.
+    await screen.findByText(/click to expand/i);
+    expect(document.querySelector("[data-rfc-body]")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /click to expand/i }));
+
     await waitFor(() => {
       const h1 = document.querySelector("[data-rfc-body] h1");
       expect(h1?.textContent).toBe("Render the RFC");
     });
-    // The image src gets rewritten to the API route.
     await waitFor(() => {
       const img = document.querySelector<HTMLImageElement>("[data-rfc-body] img");
       expect(img?.src).toContain("/api/rfcs/ENG-98/image/impact.png");
     });
-    // "Open in editor" is visible.
     expect(screen.getByRole("button", { name: /open in editor/i })).toBeInTheDocument();
   });
 

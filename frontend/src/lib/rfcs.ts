@@ -25,8 +25,13 @@ export function useRfc(issueKey: string | null) {
     queryKey: issueKey ? rfcKey(issueKey) : ["rfc", "__none__"],
     queryFn: () => apiFetch<RfcResponse>(`/api/rfcs/${issueKey}`),
     enabled: !!issueKey,
-    refetchOnWindowFocus: false,
-    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    // Poll every 15s so the RFC panel picks up a newly-created doc without
+    // the user having to reload. The endpoint is a cheap file read; the gate
+    // queries already poll at 30s so this doesn't change the ambient traffic
+    // profile meaningfully.
+    refetchInterval: 15_000,
+    staleTime: 10_000,
   });
 }
 

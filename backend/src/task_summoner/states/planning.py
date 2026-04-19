@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 
 import structlog
@@ -19,6 +20,12 @@ from .base import (
 )
 
 log = structlog.get_logger()
+
+# The skill's Phase 5 opens a draft PR and echoes the URL. We grep for it so
+# the gate endpoint can surface ``plan_pr_url`` to the UI — without it, gate
+# inference has to re-discover the PR via ``gh``, which silently misses when
+# the PR lives on a repo outside ``config.default_repo``.
+_PR_URL_PATTERN = re.compile(r"(https?://github\.com/[^\s)\"']+/pull/\d+)")
 
 
 class PlanningState(BaseState):
@@ -68,6 +75,9 @@ class PlanningState(BaseState):
             tag = _build_tag(ticket.key, "planning")
             summary = _resolve_summary(result.output or "", ticket.key)
             ctx.set_meta("gate_summary", summary)
+            pr_url_match = _PR_URL_PATTERN.search(result.output or "")
+            if pr_url_match:
+                ctx.set_meta("plan_pr_url", pr_url_match.group(1))
             body = _compose_plan_body(summary, plan_text)
             posted = await svc.board.post_tagged_comment(ticket.key, tag, body)
             ctx.set_meta("plan_comment_id", posted)

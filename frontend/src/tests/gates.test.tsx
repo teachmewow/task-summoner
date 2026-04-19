@@ -26,6 +26,8 @@ function baseGate(overrides: Partial<GateResponse> = {}): GateResponse {
     linear_status_type: "started",
     linear_status_name: "In Progress",
     summary: "RFC drafted covering storage + rollout; open for review.",
+    orchestrator_state: "WAITING_DOC_REVIEW",
+    orchestrator_pr_url: null,
     ...overrides,
   };
 }
