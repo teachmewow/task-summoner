@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { marked } from "marked";
 import { useEffect, useMemo } from "react";
 
@@ -48,6 +48,12 @@ interface Props {
    * to rewrite relative image paths to the API image endpoint.
    */
   postRender?: (container: HTMLElement) => void;
+  /**
+   * Optional PR URL. When provided, the modal header includes a
+   * "View PR on GitHub" link — reviewers sometimes want to jump to the
+   * diff after reading the doc.
+   */
+  prUrl?: string | null;
 }
 
 export function MarkdownPreviewModal({
@@ -61,6 +67,7 @@ export function MarkdownPreviewModal({
   error,
   openEditor,
   postRender,
+  prUrl,
 }: Props) {
   const html = useMemo(() => {
     if (!data?.content) return "";
@@ -105,6 +112,17 @@ export function MarkdownPreviewModal({
             </h2>
           </div>
           <div className="flex items-center gap-2">
+            {prUrl ? (
+              <a
+                href={prUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-shadow-purple/60 bg-void-800 px-2 py-1 text-xs text-soul-cyan hover:border-arise-violet/50 hover:text-ghost-white"
+              >
+                View PR
+                <ExternalLink size={10} strokeWidth={2} />
+              </a>
+            ) : null}
             {openEditor && data?.exists ? (
               <button
                 type="button"

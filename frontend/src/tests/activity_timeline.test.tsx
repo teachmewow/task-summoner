@@ -25,6 +25,10 @@ import type { ActivityEvent } from "~/lib/activity";
 
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
+  // Records queued via ``mockHistoryFetch``. The next constructed
+  // EventSource flushes them after listeners attach, mirroring the real
+  // SSE endpoint which replays ``stream.jsonl`` on connect.
+  static pendingHistory: ActivityEvent[] = [];
   url: string;
   listeners: Map<string, Array<(e: MessageEvent) => void>> = new Map();
   readyState = 0;
@@ -34,6 +38,17 @@ class FakeEventSource {
   constructor(url: string) {
     this.url = url;
     FakeEventSource.instances.push(this);
+    if (FakeEventSource.pendingHistory.length > 0) {
+      const records = FakeEventSource.pendingHistory;
+      FakeEventSource.pendingHistory = [];
+      // Defer via microtask so the component's useEffect has finished
+      // attaching its per-type listeners before the first event fires.
+      Promise.resolve().then(() => {
+        for (const record of records) {
+          this.emit(record.type, record);
+        }
+      });
+    }
   }
 
   addEventListener(type: string, handler: (e: MessageEvent) => void) {
@@ -62,20 +77,20 @@ class FakeEventSource {
   }
 }
 
+/**
+ * Previously stubbed ``fetch`` for the (now-deleted) history endpoint.
+ * After the timeline dedup refactor, the backend's SSE stream is the only
+ * source of truth — it replays history on connect and then tails. Tests
+ * stash the records on ``FakeEventSource.pendingHistory`` so the next
+ * constructed EventSource flushes them exactly as the server would.
+ */
 function mockHistoryFetch(records: ActivityEvent[]) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(
-      async () =>
-        new Response(JSON.stringify(records), {
-          headers: { "Content-Type": "application/json" },
-        }),
-    ),
-  );
+  FakeEventSource.pendingHistory = records;
 }
 
 beforeEach(() => {
   FakeEventSource.instances = [];
+  FakeEventSource.pendingHistory = [];
   vi.stubGlobal("EventSource", FakeEventSource as unknown as typeof EventSource);
 });
 

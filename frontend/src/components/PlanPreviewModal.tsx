@@ -6,9 +6,11 @@ interface Props {
   issueKey: string;
   open: boolean;
   onClose: () => void;
+  /** PR URL this artifact belongs to, shown as a "View PR" link in the modal header. */
+  prUrl?: string | null;
 }
 
-export function PlanPreviewModal({ issueKey, open, onClose }: Props) {
+export function PlanPreviewModal({ issueKey, open, onClose, prUrl }: Props) {
   const query = usePlan(open ? issueKey : null);
   const openEditor = useOpenPlan(issueKey);
   return (
@@ -25,6 +27,7 @@ export function PlanPreviewModal({ issueKey, open, onClose }: Props) {
         mutate: () => openEditor.mutate(undefined),
         isPending: openEditor.isPending,
       }}
+      prUrl={prUrl ?? null}
     />
   );
 }

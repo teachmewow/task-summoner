@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
-import { DecisionsSidebar } from "~/components/DecisionsSidebar";
+import { GatesWaitingPanel } from "~/components/GatesWaitingPanel";
 import { useTickets } from "~/lib/issues";
 
 export const Route = createFileRoute("/monitor")({
@@ -15,7 +15,7 @@ function Monitor() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold text-ghost-white">Agents Monitoring</h1>
         <p className="text-soul-cyan/90">
-          Pick an issue to see its gate state, RFC, and recent decisions.
+          Pick an issue to see its gate state, or jump straight into one waiting for review.
         </p>
       </header>
 
@@ -70,7 +70,7 @@ function Monitor() {
           )}
         </div>
 
-        <DecisionsSidebar limit={10} />
+        <GatesWaitingPanel />
       </div>
     </section>
   );
