@@ -1,15 +1,15 @@
-# Plan: ENG-190 — Add "✨ Smoke verified" one-liner to task-summoner README
+# Plan: ENG-191 — Smoke: add "✨ Smoke verified" one-liner to task-summoner README
 
 ## Ticket
-- ID: ENG-190
-- Linear: https://linear.app/teachmewow/issue/ENG-190/smoke-add-smoke-verified-one-liner-to-task-summoner-readme
+- ID: ENG-191
+- Linear: https://linear.app/teachmewow/issue/ENG-191/smoke-add-smoke-verified-one-liner-to-task-summoner-readme
 - Parent: none
-- Branch: ENG-190-smoke-add-smoke-verified
+- Branch: ENG-191-smoke-add-smoke-verified
 - Repo: task-summoner
 
 ## Scope
 - In-scope:
-  - Append exactly one blockquote line to the top-level `README.md`, placed immediately after the `**Local-first agentic board management.**` intro paragraph and before the ASCII lifecycle flow block.
+  - Append exactly one blockquote line to the top-level `README.md`, placed immediately after the `**Local-first agentic board management.**` intro paragraph (line 7) and before the ` ``` ` fence that starts the lifecycle ASCII diagram (currently line 9).
   - The inserted line: `> ✨ **Smoke**: End-to-end pipeline verified via Linear + Claude Code dispatch.`
   - Exactly one blank line above and below the blockquote.
 - Out-of-scope:
@@ -18,10 +18,10 @@
   - Changelog entries, version bumps, test additions
 
 ## Implementation steps
-1. Edit `README.md`: insert the blockquote line immediately after line 7 (`**Local-first agentic board management.**...` paragraph), before the `` ``` `` fence that opens the lifecycle ASCII diagram (currently line 9).
-2. Ensure exactly one blank line above the blockquote (already present as line 8) and one blank line below (insert between the blockquote and the `` ``` `` fence).
-3. Commit with message `feat(ENG-190): add Smoke verified one-liner to README`.
-4. Open the code PR ready-for-review on branch `ENG-190-smoke-add-smoke-verified` targeting `main`.
+1. Edit `README.md`: insert the blockquote line immediately after line 7 (`**Local-first agentic board management.**` paragraph), before the ` ``` ` fence that opens the lifecycle ASCII diagram (currently line 9).
+2. Ensure exactly one blank line above the blockquote (already present as line 8) and one blank line below (insert between the blockquote and the ` ``` ` fence).
+3. Commit with message `feat(ENG-191): add Smoke verified one-liner to README`.
+4. Open the code PR ready-for-review on branch `ENG-191-smoke-add-smoke-verified` targeting `main`.
 
 ## Files to create
 - None
@@ -39,6 +39,7 @@
 - Keep the emoji first, bolded keyword second, then the sentence — consistent with those precedents.
 
 ## Notes
-- The worktree is already at `/private/tmp/task-summoner-workspaces/ENG-190` on branch `ENG-190-smoke-add-smoke-verified`.
-- The branch is currently at the same commit as `main` (24ade25) — no divergence; a clean single-commit diff is guaranteed.
+- The worktree is already at `/private/tmp/task-summoner-workspaces/ENG-191` on branch `ENG-191-smoke-add-smoke-verified`.
+- The branch is currently at the same commit as `main` — a clean single-commit diff is guaranteed.
+- This ticket supersedes the cancelled ENG-190 run; the `merge_pr` idempotency fix (PR #81) is already merged on `main`, so no FSM stalls should recur.
 - The smoke acceptance criterion requires no retries: the entire FSM walk (`QUEUED → PLANNING → WAITING_PLAN_REVIEW → IMPLEMENTING → WAITING_MR_REVIEW → DONE`) must complete with one `lgtm` per gate and no `MANUAL_CHECK` banners.
