@@ -370,6 +370,15 @@
   color: var(--color-ghost);
   margin: 1rem 0 0.5rem;
 }
+.prose-rfc h2 {
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-arcane);
+  margin: 1.25rem 0 0.5rem;
+}
 .prose-rfc h3 {
   font-size: 0.95rem;
   font-weight: 600;
@@ -402,11 +411,12 @@
   color: var(--color-arcane-300);
 }
 .prose-rfc code {
-  background: rgba(21, 28, 58, 0.7);
-  padding: 0.05rem 0.3rem;
-  border-radius: 3px;
-  font-size: 0.85em;
-  color: var(--color-ghost);
+  background: rgba(54, 224, 208, 0.08);
+  border: 1px solid rgba(54, 224, 208, 0.3);
+  padding: 0.05rem 0.35rem;
+  border-radius: 5px;
+  font-size: 0.82em;
+  color: var(--color-arcane);
 }
 .prose-rfc pre {
   background: rgba(15, 21, 48, 0.8);
