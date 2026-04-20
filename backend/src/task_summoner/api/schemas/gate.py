@@ -38,23 +38,34 @@ class GateResponse(BaseModel):
     # ``None`` before the first dispatch persists a context for the ticket.
     orchestrator_state: str | None = None
     # PR URL the orchestrator stashed in metadata for the current state
-    # (``rfc_pr_url`` / ``plan_pr_url`` / ``mr_url``). The UI uses this when
-    # PR inference's ``active_pr`` comes back empty — e.g., the plan PR lives
-    # on a repo outside the configured ``default_repo`` scope. ``None`` when
-    # the state doesn't expect a PR or the metadata isn't populated yet.
+    # (``rfc_pr_url`` for doc, ``mr_url`` for code). ``None`` when the
+    # state has no PR — plan gate is always ``None`` by design.
     orchestrator_pr_url: str | None = None
+    # True when ``artifacts/<key>/plan.md`` exists on disk. Drives the
+    # "Preview Plan" button on the UI.
+    has_plan: bool = False
 
 
 class GateApprovePayload(BaseModel):
-    """Payload for ``POST /api/gates/{key}/approve``."""
+    """Payload for ``POST /api/gates/{key}/approve``.
 
-    pr_url: str
+    ``pr_url`` is optional: plan gates have no backing PR (plan lives as a
+    local artifact), so the UI omits the field. The endpoint enforces
+    presence only for gates that actually need a merge.
+    """
+
+    pr_url: str | None = None
 
 
 class GateRequestChangesPayload(BaseModel):
-    """Payload for ``POST /api/gates/{key}/request-changes``."""
+    """Payload for ``POST /api/gates/{key}/request-changes``.
 
-    pr_url: str
+    ``pr_url`` is optional: plan gates store feedback locally and re-run
+    the ``ticket-plan`` skill with no GitHub review call. Code gates still
+    require it (we post a ``gh pr review --request-changes``).
+    """
+
+    pr_url: str | None = None
     feedback: str
     # When true (the default), the backend also re-summons the relevant skill
     # so the agent picks up the feedback. UI can set this false for silent

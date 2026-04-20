@@ -79,12 +79,8 @@ class PrSignal:
     number: int
     state: str  # "OPEN" | "CLOSED" | "MERGED"
     is_draft: bool
-    # True if the PR body or any commit message mentions ``plan.md`` / contains
-    # ``plan.md`` in the diff — used to tell plan PRs from code PRs on the same
-    # feature branch.
-    has_plan_file: bool = False
-    # True if the PR has any non-``plan.md`` file changes. Lets us distinguish
-    # a plan-only draft from a plan+code PR that's been converted to ready.
+    # True if the PR has any file changes — distinguishes an empty draft
+    # (nothing committed yet) from a PR ready for review.
     has_code_diff: bool = False
     head_branch: str = ""
 
@@ -190,22 +186,13 @@ def infer_gate_state(signals: GateSignals) -> GateSnapshot:
             related_prs=related,
         )
 
-    # --- Plan review: draft code PR that contains plan.md -------------------
-    if code_pr and code_pr.state == "OPEN" and code_pr.is_draft and code_pr.has_plan_file:
-        if doc_pr is not None and doc_pr.state == "OPEN":
-            return GateSnapshot(
-                state=GateState.MANUAL_CHECK,
-                active_pr=code_pr,
-                retry_skill=None,
-                reason="Plan PR is open while the doc PR is still open.",
-                related_prs=related,
-            )
-        return GateSnapshot(
-            state=GateState.IN_PLAN_REVIEW,
-            active_pr=code_pr,
-            retry_skill="ticket-plan",
-            related_prs=related,
-        )
+    # --- Plan review: handled purely by FSM state (no PR inference) ---------
+    #
+    # Plan lives as a local artifact at ``artifacts/<key>/plan.md``. There
+    # is no plan PR to look up, so the gate-inference layer cannot surface
+    # IN_PLAN_REVIEW on its own — the orchestrator's FSM state drives that
+    # chip. ``GateResponse.orchestrator_state`` (``WAITING_PLAN_REVIEW``)
+    # is the single signal the UI consults.
 
     # --- Doc review: open doc PR ------------------------------------------
     if doc_pr and doc_pr.state == "OPEN":
@@ -284,8 +271,10 @@ def infer_gate_state(signals: GateSignals) -> GateSnapshot:
             related_prs=related,
         )
 
-    # --- Draft code PR with NO plan.md — treat as plain coding -------------
-    if code_pr and code_pr.state == "OPEN" and code_pr.is_draft and not code_pr.has_plan_file:
+    # --- Draft code PR — treat as plain coding -------------------------
+    # (Plan-only draft PRs no longer exist — plan lives as a local
+    #  artifact. Any draft PR we see now is mid-implementation.)
+    if code_pr and code_pr.state == "OPEN" and code_pr.is_draft:
         return GateSnapshot(
             state=GateState.CODING,
             active_pr=code_pr,
@@ -470,28 +459,7 @@ async def _fetch_code_pr(issue_key: str, target_repo_slug: str | None) -> PrSign
     # accidental matches like ``eng-951-*`` from an issue ``ENG-95``).
     head_rx = re.compile(rf"^{re.escape(issue_key)}-", re.IGNORECASE)
     rows = [r for r in rows if head_rx.match(r.get("headRefName", ""))]
-    # Drop merged plan-only PRs. ``ticket-plan`` opens a draft PR on the
-    # feature branch containing just ``plan.md``; lgtm squash-merges it to
-    # advance the FSM. Before ``ticket-implement`` opens the new code PR on
-    # the same branch there's a brief window where the merged plan PR is
-    # the only match. Returning it as the "code PR" trips the MANUAL_CHECK
-    # rule ("Code PR is merged but Linear state is ...") even though we're
-    # actively implementing. Filter those rows out — they're never the
-    # "code PR" we care about for gate inference.
-    rows = [r for r in rows if not _is_plan_only_merged(r)]
     return _pick_best_pr(rows)
-
-
-def _is_plan_only_merged(row: dict) -> bool:
-    """True iff ``row`` is a MERGED PR whose files are only ``plan.md``."""
-    if row.get("state", "") != "MERGED":
-        return False
-    files = [f.get("path", "") for f in row.get("files", []) if isinstance(f, dict)]
-    if not files:
-        return False
-    has_plan = any(p.endswith("plan.md") or p == "plan.md" for p in files)
-    has_code = any(not (p.endswith("plan.md") or p == "plan.md") for p in files)
-    return has_plan and not has_code
 
 
 async def _resolve_origin_slug(repo_path: str) -> str | None:
@@ -523,15 +491,12 @@ def _pick_best_pr(rows: list[dict]) -> PrSignal | None:
     rows = sorted(rows, key=lambda r: priority.get(r.get("state", ""), 9))
     row = rows[0]
     files = [f.get("path", "") for f in row.get("files", []) if isinstance(f, dict)]
-    has_plan = any(p.endswith("plan.md") or p.endswith("/plan.md") or p == "plan.md" for p in files)
-    has_code = any(not (p.endswith("plan.md") or p == "plan.md") for p in files)
     return PrSignal(
         url=row.get("url", ""),
         number=int(row.get("number", 0)),
         state=row.get("state", ""),
         is_draft=bool(row.get("isDraft", False)),
-        has_plan_file=has_plan,
-        has_code_diff=has_code,
+        has_code_diff=bool(files),
         head_branch=row.get("headRefName", ""),
     )
 

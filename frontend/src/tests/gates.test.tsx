@@ -56,6 +56,7 @@ function baseGate(overrides: Partial<GateResponse> = {}): GateResponse {
     summary: "RFC drafted covering storage + rollout; open for review.",
     orchestrator_state: "WAITING_DOC_REVIEW",
     orchestrator_pr_url: null,
+    has_plan: false,
     ...overrides,
   };
 }
@@ -103,7 +104,9 @@ describe("GateCard", () => {
     expect(screen.queryByRole("button", { name: /preview plan/i })).not.toBeInTheDocument();
     unmount();
 
-    // Doc-path ticket at the plan gate: both artifacts are present.
+    // Doc-path ticket at the plan gate: both artifacts present. Plan
+    // availability now surfaces via ``gate.has_plan`` (backend checks
+    // the artifact exists on disk) rather than a ``plan_pr_url`` meta.
     wrap(
       <GateCard
         issueKey="ENG-95"
@@ -111,6 +114,7 @@ describe("GateCard", () => {
           orchestrator_state: "WAITING_PLAN_REVIEW",
           state: "in_plan_review",
           retry_skill: "ticket-plan",
+          has_plan: true,
         })}
         onRefresh={() => undefined}
         isRefreshing={false}
@@ -119,7 +123,6 @@ describe("GateCard", () => {
         ticket: {
           metadata: {
             rfc_pr_url: "https://github.com/x/docs/pull/1",
-            plan_pr_url: "https://github.com/x/plug/pull/2",
           },
         },
       },
@@ -139,6 +142,7 @@ describe("GateCard", () => {
           orchestrator_state: "WAITING_PLAN_REVIEW",
           state: "in_plan_review",
           retry_skill: "ticket-plan",
+          has_plan: true,
         })}
         onRefresh={() => undefined}
         isRefreshing={false}
@@ -147,7 +151,6 @@ describe("GateCard", () => {
         ticket: {
           ticket_key: "ENG-162",
           state: "WAITING_PLAN_REVIEW",
-          metadata: { plan_pr_url: "https://github.com/x/plug/pull/21" },
         },
       },
     );
@@ -206,7 +209,6 @@ describe("GateCard", () => {
           mr_url: "https://github.com/x/plug/pull/20",
           metadata: {
             rfc_pr_url: "https://github.com/x/docs/pull/1",
-            plan_pr_url: "https://github.com/x/plug/pull/20",
           },
         },
       },
@@ -216,7 +218,9 @@ describe("GateCard", () => {
     // No approval actions on a terminal ticket.
     expect(screen.queryByRole("button", { name: /lgtm/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /retry with feedback/i })).not.toBeInTheDocument();
-    // Preview still available so the user can re-read what shipped.
+    // Preview still available so the user can re-read what shipped —
+    // plan preview falls back to ``mr_url`` presence for post-merge
+    // re-reading even when ``has_plan`` isn't set.
     expect(screen.getByRole("button", { name: /preview rfc/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /preview plan/i })).toBeInTheDocument();
   });

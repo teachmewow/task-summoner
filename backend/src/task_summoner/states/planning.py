@@ -1,8 +1,16 @@
-"""PLANNING → runs the ticket-plan skill and posts the plan for review."""
+"""PLANNING → runs the ticket-plan skill, writes plan.md to artifacts.
+
+Plan-as-artifact workflow: the skill writes ``plan.md`` into
+``artifacts/<key>/plan.md``. There is no draft PR, no GitHub commit, no
+remote state — the plan lives purely on the local orchestrator disk and
+is previewed via the Preview Plan modal (which reads the same file).
+Approve = pure FSM advance, retry = store feedback + re-run planning.
+The implementing state copies the plan into the worktree so
+``ticket-implement`` still finds its expected ``plan.md``.
+"""
 
 from __future__ import annotations
 
-import re
 import uuid
 
 import structlog
@@ -20,12 +28,6 @@ from .base import (
 )
 
 log = structlog.get_logger()
-
-# The skill's Phase 5 opens a draft PR and echoes the URL. We grep for it so
-# the gate endpoint can surface ``plan_pr_url`` to the UI — without it, gate
-# inference has to re-discover the PR via ``gh``, which silently misses when
-# the PR lives on a repo outside ``config.default_repo``.
-_PR_URL_PATTERN = re.compile(r"(https?://github\.com/[^\s)\"']+/pull/\d+)")
 
 
 class PlanningState(BaseState):
@@ -75,9 +77,10 @@ class PlanningState(BaseState):
             tag = _build_tag(ticket.key, "planning")
             summary = _resolve_summary(result.output or "", ticket.key)
             ctx.set_meta("gate_summary", summary)
-            pr_url_match = _PR_URL_PATTERN.search(result.output or "")
-            if pr_url_match:
-                ctx.set_meta("plan_pr_url", pr_url_match.group(1))
+            # Signals to the UI that ``artifacts/<key>/plan.md`` is present
+            # and Preview Plan can render from it. Replaces the old
+            # ``plan_pr_url`` signal that tied plan-review to a draft PR.
+            ctx.set_meta("has_plan", True)
             body = _compose_plan_body(summary, plan_text)
             posted = await svc.board.post_tagged_comment(ticket.key, tag, body)
             ctx.set_meta("plan_comment_id", posted)

@@ -178,12 +178,24 @@ async def get_gate(
     summary = ctx.get_meta("gate_summary") if ctx else None
     orchestrator_state = ctx.state.value if ctx else None
     orchestrator_pr_url = _orchestrator_pr_url(ctx) if ctx else None
+    has_plan = bool(ctx.get_meta("has_plan")) if ctx else False
+
+    # If the FSM is at the plan-review gate, the UI needs to know this is
+    # a gate even though inference (no plan PR) reports a different state.
+    # Surface it via ``state`` directly so the chip reads correctly.
+    gate_state_value = snapshot.state.value
+    if orchestrator_state == TicketState.WAITING_PLAN_REVIEW.value:
+        gate_state_value = GateState.IN_PLAN_REVIEW.value
 
     return GateResponse(
         issue_key=ticket_key,
-        state=snapshot.state.value,
+        state=gate_state_value,
         active_pr=_pr_to_info(snapshot.active_pr),
-        retry_skill=snapshot.retry_skill,
+        retry_skill=(
+            "ticket-plan"
+            if orchestrator_state == TicketState.WAITING_PLAN_REVIEW.value
+            else snapshot.retry_skill
+        ),
         reason=snapshot.reason,
         related_prs=[p for p in (_pr_to_info(pr) for pr in snapshot.related_prs) if p],
         linear_status_type=status_type,
@@ -191,6 +203,7 @@ async def get_gate(
         summary=summary or None,
         orchestrator_state=orchestrator_state,
         orchestrator_pr_url=orchestrator_pr_url,
+        has_plan=has_plan,
     )
 
 
@@ -212,11 +225,10 @@ def _load_context(request: Request, ticket_key: str):
 
 
 # Which ``ctx.metadata`` key carries the PR URL for each FSM gate state.
-# Kept here (not on the state classes) because the gate endpoint is the only
-# consumer; colocating with the state handler would force a cyclic import.
+# ``WAITING_PLAN_REVIEW`` is deliberately absent — the plan gate has no
+# backing PR (plan lives as a local artifact), so nothing to look up.
 _ORCHESTRATOR_PR_META_KEY: dict[str, str] = {
     "WAITING_DOC_REVIEW": "rfc_pr_url",
-    "WAITING_PLAN_REVIEW": "plan_pr_url",
     "WAITING_MR_REVIEW": "mr_url",
 }
 
@@ -244,40 +256,57 @@ async def post_approve(
     request: Request,
     config_path: Path = Depends(get_config_path),
 ) -> GateActionResponse:
-    # ``lgtm`` in task-summoner means *merge*. Task-summoner (and the Linear
-    # trail) is the source of truth for approval — GitHub reviews are skipped
-    # entirely because the PR author and the runner share ``gh`` credentials,
-    # and GitHub rejects self-approval. The endpoint name stays ``/approve``
-    # for UI compatibility; the action is ``gh pr merge --squash``.
+    # ``lgtm`` in task-summoner means "advance the FSM". For the code gate
+    # that also runs ``gh pr merge --squash`` so GitHub reflects the
+    # approval; for the plan gate it's purely local — the plan lives as
+    # ``artifacts/<key>/plan.md`` with no backing PR, so there is nothing
+    # to merge on GitHub.
     config = _load_config(config_path)
-    if not payload.pr_url:
-        raise HTTPException(status_code=400, detail="pr_url is required")
-    try:
-        out = await merge_pr(payload.pr_url)
-    except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=f"gh pr merge failed: {e}") from e
+    current_state = _current_state(request, ticket_key)
+    is_plan_gate = current_state == TicketState.WAITING_PLAN_REVIEW
 
-    # The merge went through — advance the FSM and drag Linear to match.
-    # We don't trust Linear's own PR-merge automation to put the issue in
-    # the right bucket: sometimes the PR-to-issue link is missing and the
-    # auto-flip never fires (ENG-164 smoke hit this), sometimes it fires
-    # for an intermediate gate and sends the ticket to Done too early.
-    # The FSM is the single source of truth — we tell Linear what it is.
+    out = ""
+    if is_plan_gate:
+        out = f"Plan approved locally for {ticket_key} (no PR required)"
+    else:
+        if not payload.pr_url:
+            raise HTTPException(status_code=400, detail="pr_url is required")
+        try:
+            out = await merge_pr(payload.pr_url)
+        except RuntimeError as e:
+            raise HTTPException(status_code=502, detail=f"gh pr merge failed: {e}") from e
+
+    # The (logical) merge went through — advance the FSM and drag Linear
+    # to match. The FSM is the single source of truth; we tell Linear
+    # what it is.
     new_state = _advance_fsm_after_approve(request, ticket_key)
     if new_state is not None:
         await _align_linear_to_fsm(config, ticket_key, new_state)
 
     log.info(
-        "Gate merged",
+        "Gate approved",
         ticket=ticket_key,
         pr=payload.pr_url,
+        plan_gate=is_plan_gate,
         new_state=new_state.value if new_state else None,
     )
     return GateActionResponse(
         ok=True,
-        message=f"Merged {payload.pr_url}",
+        message=("Plan approved" if is_plan_gate else f"Merged {payload.pr_url}"),
         gh_output=out,
     )
+
+
+def _current_state(request: Request, ticket_key: str) -> TicketState | None:
+    """Best-effort read of the ticket's current FSM state from the store."""
+    store = getattr(request.app.state, "store", None)
+    if store is None:
+        return None
+    try:
+        ctx = store.load(ticket_key)
+    except Exception:  # noqa: BLE001 — best-effort read
+        return None
+    return ctx.state if ctx else None
 
 
 def _advance_fsm_after_approve(request: Request, ticket_key: str) -> TicketState | None:
@@ -358,15 +387,26 @@ async def post_request_changes(
     config_path: Path = Depends(get_config_path),
 ) -> GateActionResponse:
     config = _load_config(config_path)
-    if not payload.pr_url:
-        raise HTTPException(status_code=400, detail="pr_url is required")
     if not payload.feedback.strip():
         raise HTTPException(status_code=400, detail="feedback is required")
 
-    try:
-        out = await request_changes(payload.pr_url, payload.feedback)
-    except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=f"gh pr review failed: {e}") from e
+    current_state = _current_state(request, ticket_key)
+    is_plan_gate = current_state == TicketState.WAITING_PLAN_REVIEW
+
+    out = ""
+    if is_plan_gate:
+        # Plan lives as a local artifact (no PR, no GitHub review thread).
+        # Feedback is stored in ctx.metadata.latest_feedback and the
+        # orchestrator re-runs ``ticket-plan`` with that feedback threaded
+        # into the prompt. Zero ``gh`` calls.
+        out = f"Plan feedback stored locally for {ticket_key}"
+    else:
+        if not payload.pr_url:
+            raise HTTPException(status_code=400, detail="pr_url is required")
+        try:
+            out = await request_changes(payload.pr_url, payload.feedback)
+        except RuntimeError as e:
+            raise HTTPException(status_code=502, detail=f"gh pr review failed: {e}") from e
 
     resummoned: str | None = None
     if payload.resummon_skill:
@@ -381,11 +421,16 @@ async def post_request_changes(
         "Gate change-requested",
         ticket=ticket_key,
         pr=payload.pr_url,
+        plan_gate=is_plan_gate,
         resummoned_skill=resummoned,
     )
     return GateActionResponse(
         ok=True,
-        message=f"Change-requested {payload.pr_url}",
+        message=(
+            "Plan feedback stored"
+            if is_plan_gate
+            else f"Change-requested {payload.pr_url}"
+        ),
         gh_output=out,
         resummoned_skill=resummoned,
     )
