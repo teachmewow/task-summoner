@@ -39,7 +39,7 @@ describe("RfcPreviewModal", () => {
     expect(document.querySelector("[data-markdown-preview-modal]")).toBeNull();
   });
 
-  it("renders markdown content when open with an existing RFC", async () => {
+  it("renders markdown body when open with an existing RFC (H1 stripped)", async () => {
     mockFetch({
       ok: true,
       exists: true,
@@ -53,18 +53,22 @@ describe("RfcPreviewModal", () => {
     });
     wrap(<RfcPreviewModal issueKey="ENG-98" open={true} onClose={() => undefined} />);
 
+    // Modal header owns the title (``<h2>``); the markdown body renders
+    // below it with the leading ``# Render the RFC`` stripped so the
+    // title isn't displayed twice.
     await waitFor(() => {
-      const h1 = document.querySelector("[data-markdown-preview-body='rfc'] h1");
-      expect(h1?.textContent).toBe("Render the RFC");
+      const body = document.querySelector("[data-markdown-preview-body='rfc']");
+      expect(body?.textContent).toMatch(/markdown/);
     });
-    // Image rewriting still happens in the modal (postRender callback).
+    expect(document.querySelector("[data-markdown-preview-body='rfc'] h1")).toBeNull();
+    // Image rewriting still happens via the postRender callback.
     await waitFor(() => {
       const img = document.querySelector<HTMLImageElement>(
         "[data-markdown-preview-body='rfc'] img",
       );
       expect(img?.src).toContain("/api/rfcs/ENG-98/image/impact.png");
     });
-    // Open in editor CTA lives in the modal header now.
+    // Open in editor CTA lives in the modal header.
     expect(screen.getByRole("button", { name: /open in editor/i })).toBeInTheDocument();
   });
 
