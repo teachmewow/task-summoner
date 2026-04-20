@@ -32,6 +32,34 @@ interface Props {
   maxRetries?: number;
 }
 
+// Orchestrator states where the ticket is already closed out — no more
+// actions, no stale "ready-for-review" banner needed. We still render
+// Preview buttons so the user can re-read what shipped.
+const TERMINAL_ORCHESTRATOR_STATES = new Set(["DONE", "FAILED"]);
+
+// Orchestrator states where the RFC artifact plausibly exists. ``QUEUED``
+// / ``CHECKING_DOC`` / ``CREATING_DOC`` still have no RFC drafted; after
+// the doc gate the RFC is always present on the doc-path flow.
+const RFC_PREVIEWABLE_STATES = new Set([
+  "WAITING_DOC_REVIEW",
+  "IMPROVING_DOC",
+  "PLANNING",
+  "WAITING_PLAN_REVIEW",
+  "IMPLEMENTING",
+  "WAITING_MR_REVIEW",
+  "FIXING_MR",
+  "DONE",
+]);
+
+// Orchestrator states where ``plan.md`` plausibly exists on disk.
+const PLAN_PREVIEWABLE_STATES = new Set([
+  "WAITING_PLAN_REVIEW",
+  "IMPLEMENTING",
+  "WAITING_MR_REVIEW",
+  "FIXING_MR",
+  "DONE",
+]);
+
 export function GateCard({
   issueKey,
   gate,
@@ -45,20 +73,18 @@ export function GateCard({
   const [planPreviewOpen, setPlanPreviewOpen] = useState(false);
   const approve = useApproveGate(issueKey);
   const requestChanges = useRequestChangesGate(issueKey);
-  // Each gate surfaces a "Preview <artifact>" button so reviewers can read
-  // the thing they're about to approve without scrolling past the timeline
-  // to the collapsed artifact panel. We derive the gate kind from
-  // ``orchestrator_state`` because it's always present and unambiguous,
-  // unlike the inferred ``state`` which falls through to ``manual_check``
-  // when PR discovery fails.
-  const isDocGate = gate.orchestrator_state === "WAITING_DOC_REVIEW";
-  const isPlanGate = gate.orchestrator_state === "WAITING_PLAN_REVIEW";
 
-  // Prefer the FSM state — every ``WAITING_*_REVIEW`` is a gate. Fall back
-  // to the inferred state for old ctx files (pre-orchestrator_state schema)
-  // or when the orchestrator hasn't dispatched this ticket yet.
+  const isTerminal =
+    !!gate.orchestrator_state && TERMINAL_ORCHESTRATOR_STATES.has(gate.orchestrator_state);
+  const canPreviewRfc =
+    !!gate.orchestrator_state && RFC_PREVIEWABLE_STATES.has(gate.orchestrator_state);
+  const canPreviewPlan =
+    !!gate.orchestrator_state && PLAN_PREVIEWABLE_STATES.has(gate.orchestrator_state);
+
+  // Reviewable iff the FSM is at an approval gate — never while terminal.
   const reviewable =
-    isReviewableOrchestratorState(gate.orchestrator_state) || isReviewableState(gate.state);
+    !isTerminal &&
+    (isReviewableOrchestratorState(gate.orchestrator_state) || isReviewableState(gate.state));
   // PR URL the buttons act on — inference first (has metadata like draft /
   // headBranch), orchestrator fallback second (the URL the skill opened when
   // inference can't find it due to repo scope).
@@ -84,6 +110,7 @@ export function GateCard({
     <section
       className="flex flex-col gap-4 rounded-lg border border-shadow-purple/60 bg-void-800/70 p-5"
       data-gate-card
+      data-gate-terminal={isTerminal ? "true" : "false"}
     >
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -104,7 +131,7 @@ export function GateCard({
           <span className="text-xs text-soul-cyan/70">
             Linear: <code className="text-ghost-white/90">{gate.linear_status_name || "—"}</code>
           </span>
-          {retryCount > 0 ? (
+          {retryCount > 0 && !isTerminal ? (
             <span
               data-gate-attempt
               data-attempt-current={retryCount + 1}
@@ -132,15 +159,14 @@ export function GateCard({
         </button>
       </header>
 
-      {gate.summary ? (
+      {/* The gate summary is review-time context — once the ticket is DONE
+          or FAILED it's stale (talks about "ready-for-review") and just adds
+          noise. Hide it on terminal states. */}
+      {!isTerminal && gate.summary ? (
         <p data-gate-summary className="text-sm leading-relaxed text-ghost-white/90">
           {gate.summary}
         </p>
-      ) : (
-        <p data-gate-summary="missing" className="text-sm italic text-soul-cyan/50">
-          No summary available
-        </p>
-      )}
+      ) : null}
 
       {gate.state === "manual_check" && gate.reason ? (
         <div className="flex items-start gap-2 rounded-md border border-ember-red/40 bg-ember-red/10 px-3 py-2 text-sm text-ember-red">
@@ -149,7 +175,7 @@ export function GateCard({
         </div>
       ) : null}
 
-      {gate.active_pr ? (
+      {!isTerminal && gate.active_pr ? (
         <div className="flex flex-col gap-1 text-sm">
           <span className="text-xs uppercase tracking-wider text-soul-cyan/60">
             Active PR (gate)
@@ -167,7 +193,7 @@ export function GateCard({
             <ExternalLink size={12} strokeWidth={2} />
           </a>
         </div>
-      ) : actionPrUrl ? (
+      ) : !isTerminal && actionPrUrl ? (
         <div className="flex flex-col gap-1 text-sm">
           <span className="text-xs uppercase tracking-wider text-soul-cyan/60">
             Active PR (gate)
@@ -206,33 +232,40 @@ export function GateCard({
         </div>
       ) : null}
 
-      {reviewable && actionPrUrl ? (
+      {/* Actions + Preview buttons. Preview is available whenever the
+          artifact exists (including after DONE for re-read); the approval
+          buttons only show at a real review gate. */}
+      {reviewable || canPreviewRfc || canPreviewPlan ? (
         <div className="flex flex-wrap items-center gap-2 pt-2">
-          <button
-            type="button"
-            onClick={onApprove}
-            disabled={approve.isPending}
-            data-gate-action="approve"
-            className="inline-flex items-center gap-1.5 rounded-md border border-mana-green/60 bg-mana-green/15 px-3 py-1.5 text-xs font-medium text-mana-green transition hover:bg-mana-green/25 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {approve.isPending ? (
-              <Loader2 size={12} strokeWidth={2} className="animate-spin" />
-            ) : (
-              <CheckCircle2 size={12} strokeWidth={2} />
-            )}
-            lgtm
-          </button>
-          <button
-            type="button"
-            onClick={() => setModalOpen(true)}
-            disabled={requestChanges.isPending}
-            data-gate-action="request-changes"
-            className="inline-flex items-center gap-1.5 rounded-md border border-amber-flame/50 bg-amber-flame/15 px-3 py-1.5 text-xs font-medium text-amber-flame transition hover:bg-amber-flame/25 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <RefreshCw size={12} strokeWidth={2} />
-            Retry with feedback
-          </button>
-          {isDocGate ? (
+          {reviewable && actionPrUrl ? (
+            <>
+              <button
+                type="button"
+                onClick={onApprove}
+                disabled={approve.isPending}
+                data-gate-action="approve"
+                className="inline-flex items-center gap-1.5 rounded-md border border-mana-green/60 bg-mana-green/15 px-3 py-1.5 text-xs font-medium text-mana-green transition hover:bg-mana-green/25 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {approve.isPending ? (
+                  <Loader2 size={12} strokeWidth={2} className="animate-spin" />
+                ) : (
+                  <CheckCircle2 size={12} strokeWidth={2} />
+                )}
+                lgtm
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalOpen(true)}
+                disabled={requestChanges.isPending}
+                data-gate-action="request-changes"
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-flame/50 bg-amber-flame/15 px-3 py-1.5 text-xs font-medium text-amber-flame transition hover:bg-amber-flame/25 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCw size={12} strokeWidth={2} />
+                Retry with feedback
+              </button>
+            </>
+          ) : null}
+          {canPreviewRfc ? (
             <button
               type="button"
               onClick={() => setRfcPreviewOpen(true)}
@@ -243,7 +276,7 @@ export function GateCard({
               Preview RFC
             </button>
           ) : null}
-          {isPlanGate ? (
+          {canPreviewPlan ? (
             <button
               type="button"
               onClick={() => setPlanPreviewOpen(true)}
@@ -254,7 +287,7 @@ export function GateCard({
               Preview Plan
             </button>
           ) : null}
-          {gate.retry_skill ? (
+          {reviewable && gate.retry_skill ? (
             <span className="text-xs text-soul-cyan/60">
               Will re-summon <code className="text-ghost-white/90">{gate.retry_skill}</code>
             </span>
@@ -267,7 +300,7 @@ export function GateCard({
           {approve.error instanceof Error ? approve.error.message : "Approve failed"}
         </p>
       ) : null}
-      {approve.isSuccess ? (
+      {approve.isSuccess && !isTerminal ? (
         <p className="text-xs text-mana-green">Merged. State advancing…</p>
       ) : null}
 
@@ -290,12 +323,14 @@ export function GateCard({
         issueKey={issueKey}
         open={rfcPreviewOpen}
         onClose={() => setRfcPreviewOpen(false)}
+        prUrl={gate.orchestrator_pr_url ?? gate.active_pr?.url ?? null}
       />
 
       <PlanPreviewModal
         issueKey={issueKey}
         open={planPreviewOpen}
         onClose={() => setPlanPreviewOpen(false)}
+        prUrl={gate.orchestrator_pr_url ?? gate.active_pr?.url ?? null}
       />
     </section>
   );

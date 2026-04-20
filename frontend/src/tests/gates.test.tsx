@@ -60,7 +60,8 @@ describe("GateCard", () => {
     expect(screen.getByText(/address-doc-feedback/)).toBeInTheDocument();
   });
 
-  it("shows a Preview RFC button on doc-review gates only", () => {
+  it("shows Preview buttons whenever the artifact plausibly exists", () => {
+    // Doc-review gate: RFC exists; plan doesn't yet.
     const { unmount } = wrap(
       <GateCard
         issueKey="ENG-95"
@@ -70,8 +71,10 @@ describe("GateCard", () => {
       />,
     );
     expect(screen.getByRole("button", { name: /preview rfc/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /preview plan/i })).not.toBeInTheDocument();
     unmount();
 
+    // Plan-review gate: both RFC and plan exist on disk.
     wrap(
       <GateCard
         issueKey="ENG-95"
@@ -84,7 +87,32 @@ describe("GateCard", () => {
         isRefreshing={false}
       />,
     );
-    expect(screen.queryByRole("button", { name: /preview rfc/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /preview rfc/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /preview plan/i })).toBeInTheDocument();
+  });
+
+  it("hides summary + action buttons when the ticket is DONE", () => {
+    wrap(
+      <GateCard
+        issueKey="ENG-95"
+        gate={baseGate({
+          orchestrator_state: "DONE",
+          state: "done",
+          retry_skill: null,
+          summary: "Implementation PR #20 ready-for-review.",
+        })}
+        onRefresh={() => undefined}
+        isRefreshing={false}
+      />,
+    );
+    // Stale "ready-for-review" summary must not leak after completion.
+    expect(screen.queryByText(/ready-for-review/i)).not.toBeInTheDocument();
+    // No approval actions on a terminal ticket.
+    expect(screen.queryByRole("button", { name: /lgtm/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /retry with feedback/i })).not.toBeInTheDocument();
+    // Preview still available so the user can re-read what shipped.
+    expect(screen.getByRole("button", { name: /preview rfc/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /preview plan/i })).toBeInTheDocument();
   });
 
   it("hides action buttons for non-reviewable states (e.g. writing_doc)", () => {
@@ -154,7 +182,10 @@ describe("GateCard", () => {
     expect(el).toHaveAttribute("data-gate-summary");
   });
 
-  it("renders a dimmed fallback when summary is missing", () => {
+  it("omits the summary paragraph entirely when no summary is present", () => {
+    // Previously we rendered a dimmed "No summary available" placeholder,
+    // but that added noise to the gate card — a missing summary is
+    // self-evident. The paragraph simply doesn't render.
     wrap(
       <GateCard
         issueKey="ENG-95"
@@ -163,8 +194,6 @@ describe("GateCard", () => {
         isRefreshing={false}
       />,
     );
-    const el = screen.getByText(/No summary available/i);
-    expect(el).toBeInTheDocument();
-    expect(el).toHaveAttribute("data-gate-summary", "missing");
+    expect(document.querySelector("[data-gate-summary]")).toBeNull();
   });
 });

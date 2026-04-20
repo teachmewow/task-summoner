@@ -1,6 +1,6 @@
 import { Terminal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type ActivityEvent, activityStreamUrl, fetchActivityHistory } from "~/lib/activity";
+import { type ActivityEvent, activityStreamUrl } from "~/lib/activity";
 import { groupItems } from "./grouping";
 import { mergeIntoItems } from "./merge";
 import { renderGroupedItem } from "./renderGroupedItem";
@@ -39,37 +39,30 @@ export function IssueActivityTimeline({ issueKey }: Props) {
   const lastScrolledAttemptRef = useRef<number>(0);
 
   useEffect(() => {
-    let cancelled = false;
+    // Single source of truth: the SSE stream already replays the full
+    // history on connect and then tails live events. Fetching /events AND
+    // opening the stream doubled every historical event (dedup-by-last-ts
+    // only catches adjacent duplicates, not out-of-order replay) — the
+    // symptom was every completed step rendering twice after navigating
+    // back to the issue page.
     setLoadError(null);
     setEvents([]);
     resultIdsRef.current = new Set();
     lastScrolledAttemptRef.current = 0;
-    fetchActivityHistory(issueKey)
-      .then((history) => {
-        if (cancelled) return;
-        setEvents(history);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setLoadError(err instanceof Error ? err.message : "Failed to load history");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [issueKey]);
+    // Remember which (ts, type, tool_use_id) triples we've already
+    // rendered so even an in-flight reconnection that replays events we
+    // already have can't add duplicates. Cheap — bounded by the number
+    // of events in the jsonl file.
+    const seen = new Set<string>();
 
-  useEffect(() => {
     const source = new EventSource(activityStreamUrl(issueKey));
     const handleEvent = (e: MessageEvent) => {
       try {
         const record = JSON.parse(e.data) as ActivityEvent;
-        setEvents((prev) => {
-          const last = prev[prev.length - 1];
-          if (last && last.ts === record.ts && last.type === record.type) {
-            return prev;
-          }
-          return [...prev, record];
-        });
+        const key = `${record.ts}|${record.type}|${record.tool_use_id ?? ""}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        setEvents((prev) => [...prev, record]);
       } catch (err) {
         console.error("timeline parse error", err);
       }

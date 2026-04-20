@@ -15,9 +15,11 @@ interface Props {
   issueKey: string;
   open: boolean;
   onClose: () => void;
+  /** PR URL this artifact belongs to, shown as a "View PR" link in the modal header. */
+  prUrl?: string | null;
 }
 
-export function RfcPreviewModal({ issueKey, open, onClose }: Props) {
+export function RfcPreviewModal({ issueKey, open, onClose, prUrl }: Props) {
   const query = useRfc(open ? issueKey : null);
   const openEditor = useOpenRfc(issueKey);
 
@@ -49,6 +51,7 @@ export function RfcPreviewModal({ issueKey, open, onClose }: Props) {
         isPending: openEditor.isPending,
       }}
       postRender={postRender}
+      prUrl={prUrl ?? null}
     />
   );
 }
