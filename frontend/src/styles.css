@@ -94,6 +94,18 @@
     background: var(--arcane-glow);
     color: var(--color-ghost);
   }
+
+  /* Keyboard-only focus ring. Applies to every interactive element that
+   * doesn't already paint its own focus style — individual components can
+   * still opt into a stronger treatment via `focus-visible:ring-*`. The
+   * browser default outline is near-invisible on the obsidian canvas; this
+   * makes tab traversal usable for keyboard-only users without regressing
+   * the hover/pressed visuals. */
+  :focus-visible {
+    outline: 2px solid var(--color-arcane);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
 
 /* ===== Motion keyframes =============================================== */
