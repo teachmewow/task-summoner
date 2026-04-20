@@ -2,23 +2,26 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { GateCard } from "~/components/GateCard";
 import { IssueActivityTimeline } from "~/components/IssueActivityTimeline";
-import { PlanPanel } from "~/components/PlanPanel";
-import { RfcPanel } from "~/components/RfcPanel";
 import { useGate } from "~/lib/gates";
 import { useTicket } from "~/lib/issues";
 
 /**
  * Per-issue detail view.
  *
- * Order is deliberately "decision → artifact → agent trace":
+ * Order is deliberately "decision → agent trace":
  *
- *  1. GateCard — what action the human needs to take right now.
- *  2. RfcPanel — the artifact the gate is about (the doc being reviewed).
- *  3. IssueActivityTimeline — the agent's step-by-step log, below because it
- *     only matters when debugging or watching a live dispatch.
+ *  1. GateCard — what action the human needs to take right now. The gate
+ *     surfaces ``Preview RFC`` / ``Preview Plan`` buttons that open a modal
+ *     with the relevant artifact, so the page itself stays tight.
+ *  2. IssueActivityTimeline — the agent's step-by-step log, including the
+ *     collapsed step groups (``✓ Creating doc · N turns · $X.XX``) that let
+ *     the user re-read any completed phase.
  *
- * Previous layout put the RFC at the very bottom, forcing users to scroll
- * past the full timeline to read the doc they just approved.
+ * The standalone ``RfcPanel`` / ``PlanPanel`` sections that used to live
+ * between gate and timeline were deleted: the Preview modal covers the
+ * review case, and expanding the relevant timeline step covers the
+ * after-the-fact re-read case — two places to read the same doc was
+ * duplicate surface.
  */
 export const Route = createFileRoute("/issues/$key")({
   component: IssueDetail,
@@ -81,10 +84,6 @@ function IssueDetail() {
           {gate.error instanceof Error ? gate.error.message : "Gate fetch failed"}
         </p>
       ) : null}
-
-      <RfcPanel issueKey={key} orchestratorState={ticket.data?.state ?? null} />
-
-      <PlanPanel issueKey={key} orchestratorState={ticket.data?.state ?? null} />
 
       <IssueActivityTimeline issueKey={key} />
     </section>

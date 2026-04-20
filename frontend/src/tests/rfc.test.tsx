@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RfcPanel } from "~/components/RfcPanel";
+import { RfcPreviewModal } from "~/components/RfcPreviewModal";
 import type { RfcResponse } from "~/lib/rfcs";
 
 function wrap(ui: React.ReactElement) {
@@ -23,8 +23,23 @@ function mockFetch(body: RfcResponse) {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("RfcPanel", () => {
-  it("renders markdown content after expanding the panel", async () => {
+describe("RfcPreviewModal", () => {
+  it("renders nothing when closed, even if the hook has data", () => {
+    mockFetch({
+      ok: true,
+      exists: true,
+      issue_key: "ENG-98",
+      title: "Render the RFC",
+      content: "# Render the RFC\n\nHello.",
+      readme_path: "/tmp/r.md",
+      images: [],
+      reason: null,
+    });
+    wrap(<RfcPreviewModal issueKey="ENG-98" open={false} onClose={() => undefined} />);
+    expect(document.querySelector("[data-markdown-preview-modal]")).toBeNull();
+  });
+
+  it("renders markdown content when open with an existing RFC", async () => {
     mockFetch({
       ok: true,
       exists: true,
@@ -36,25 +51,24 @@ describe("RfcPanel", () => {
       images: ["impact.png"],
       reason: null,
     });
-    wrap(<RfcPanel issueKey="ENG-98" />);
-    // Collapsed by default — the header shows the title, the body is hidden.
-    await screen.findByText(/click to expand/i);
-    expect(document.querySelector("[data-rfc-body]")).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: /click to expand/i }));
+    wrap(<RfcPreviewModal issueKey="ENG-98" open={true} onClose={() => undefined} />);
 
     await waitFor(() => {
-      const h1 = document.querySelector("[data-rfc-body] h1");
+      const h1 = document.querySelector("[data-markdown-preview-body='rfc'] h1");
       expect(h1?.textContent).toBe("Render the RFC");
     });
+    // Image rewriting still happens in the modal (postRender callback).
     await waitFor(() => {
-      const img = document.querySelector<HTMLImageElement>("[data-rfc-body] img");
+      const img = document.querySelector<HTMLImageElement>(
+        "[data-markdown-preview-body='rfc'] img",
+      );
       expect(img?.src).toContain("/api/rfcs/ENG-98/image/impact.png");
     });
+    // Open in editor CTA lives in the modal header now.
     expect(screen.getByRole("button", { name: /open in editor/i })).toBeInTheDocument();
   });
 
-  it("renders the empty state + summon CTA when no RFC exists", async () => {
+  it("shows the 'not drafted yet' hint when the RFC does not exist", async () => {
     mockFetch({
       ok: true,
       exists: false,
@@ -65,13 +79,11 @@ describe("RfcPanel", () => {
       images: [],
       reason: null,
     });
-    const onSummon = vi.fn();
-    wrap(<RfcPanel issueKey="ENG-99" onSummonCreateDesignDoc={onSummon} />);
-    await screen.findByText(/No RFC found/i);
-    expect(screen.getByRole("button", { name: /summon create-design-doc/i })).toBeInTheDocument();
+    wrap(<RfcPreviewModal issueKey="ENG-99" open={true} onClose={() => undefined} />);
+    await screen.findByText(/No rfc drafted yet for ENG-99/i);
   });
 
-  it("surfaces a reason when docs_repo is not configured", async () => {
+  it("surfaces the reason when docs_repo is not configured", async () => {
     mockFetch({
       ok: false,
       exists: false,
@@ -82,40 +94,7 @@ describe("RfcPanel", () => {
       images: [],
       reason: "docs_repo is not configured.",
     });
-    wrap(<RfcPanel issueKey="ENG-98" />);
+    wrap(<RfcPreviewModal issueKey="ENG-98" open={true} onClose={() => undefined} />);
     await screen.findByText(/docs_repo is not configured/i);
-  });
-
-  it("shows the drafting message while the orchestrator is in CREATING_DOC", async () => {
-    mockFetch({
-      ok: true,
-      exists: false,
-      issue_key: "ENG-121",
-      title: "",
-      content: "",
-      readme_path: "",
-      images: [],
-      reason: null,
-    });
-    wrap(<RfcPanel issueKey="ENG-121" orchestratorState="CREATING_DOC" />);
-    await screen.findByText(/agent is drafting the rfc/i);
-    // The misleading "Run /create-design-doc" CTA must not render.
-    expect(document.body.textContent).not.toMatch(/\/create-design-doc/);
-  });
-
-  it("does not tell the user to run /create-design-doc when no orchestrator state is known", async () => {
-    mockFetch({
-      ok: true,
-      exists: false,
-      issue_key: "ENG-200",
-      title: "",
-      content: "",
-      readme_path: "",
-      images: [],
-      reason: null,
-    });
-    wrap(<RfcPanel issueKey="ENG-200" />);
-    await screen.findByText(/no rfc found/i);
-    expect(document.body.textContent).not.toMatch(/\/create-design-doc/);
   });
 });
