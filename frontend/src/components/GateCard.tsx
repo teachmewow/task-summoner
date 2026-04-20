@@ -16,6 +16,7 @@ import {
   useApproveGate,
   useRequestChangesGate,
 } from "~/lib/gates";
+import { useTicket } from "~/lib/issues";
 import { PlanPreviewModal } from "./PlanPreviewModal";
 import { RequestChangesModal } from "./RequestChangesModal";
 import { RfcPreviewModal } from "./RfcPreviewModal";
@@ -37,28 +38,16 @@ interface Props {
 // Preview buttons so the user can re-read what shipped.
 const TERMINAL_ORCHESTRATOR_STATES = new Set(["DONE", "FAILED"]);
 
-// Orchestrator states where the RFC artifact plausibly exists. ``QUEUED``
-// / ``CHECKING_DOC`` / ``CREATING_DOC`` still have no RFC drafted; after
-// the doc gate the RFC is always present on the doc-path flow.
-const RFC_PREVIEWABLE_STATES = new Set([
-  "WAITING_DOC_REVIEW",
-  "IMPROVING_DOC",
-  "PLANNING",
-  "WAITING_PLAN_REVIEW",
-  "IMPLEMENTING",
-  "WAITING_MR_REVIEW",
-  "FIXING_MR",
-  "DONE",
-]);
-
-// Orchestrator states where ``plan.md`` plausibly exists on disk.
-const PLAN_PREVIEWABLE_STATES = new Set([
-  "WAITING_PLAN_REVIEW",
-  "IMPLEMENTING",
-  "WAITING_MR_REVIEW",
-  "FIXING_MR",
-  "DONE",
-]);
+// Artifact visibility is driven by the *presence of the URL in metadata*,
+// not by the FSM state. ``CreatingDocState`` writes ``rfc_pr_url``;
+// ``PlanningState`` writes ``plan_pr_url``; ``ImplementingState`` writes
+// ``mr_url``. If the key is set, the orchestrator made the artifact.
+// No-doc tickets (``QUEUED → PLANNING`` direct) never have ``rfc_pr_url``,
+// so their Preview RFC button correctly hides.
+type Metadata = Record<string, unknown> | undefined;
+const hasRfcArtifact = (m: Metadata) => typeof m?.rfc_pr_url === "string" && !!m.rfc_pr_url;
+const hasPlanArtifact = (m: Metadata, mrUrl: string | null | undefined) =>
+  (typeof m?.plan_pr_url === "string" && !!m.plan_pr_url) || !!mrUrl;
 
 export function GateCard({
   issueKey,
@@ -73,13 +62,12 @@ export function GateCard({
   const [planPreviewOpen, setPlanPreviewOpen] = useState(false);
   const approve = useApproveGate(issueKey);
   const requestChanges = useRequestChangesGate(issueKey);
+  const ticket = useTicket(issueKey);
 
   const isTerminal =
     !!gate.orchestrator_state && TERMINAL_ORCHESTRATOR_STATES.has(gate.orchestrator_state);
-  const canPreviewRfc =
-    !!gate.orchestrator_state && RFC_PREVIEWABLE_STATES.has(gate.orchestrator_state);
-  const canPreviewPlan =
-    !!gate.orchestrator_state && PLAN_PREVIEWABLE_STATES.has(gate.orchestrator_state);
+  const canPreviewRfc = hasRfcArtifact(ticket.data?.metadata);
+  const canPreviewPlan = hasPlanArtifact(ticket.data?.metadata, ticket.data?.mr_url);
 
   // Reviewable iff the FSM is at an approval gate — never while terminal.
   const reviewable =
