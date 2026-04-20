@@ -37,7 +37,6 @@ def _pr(
     *,
     state: str = "OPEN",
     is_draft: bool = False,
-    has_plan_file: bool = False,
     has_code_diff: bool = True,
     url: str = "https://github.com/o/r/pull/1",
     head: str = "",
@@ -47,7 +46,6 @@ def _pr(
         number=1,
         state=state,
         is_draft=is_draft,
-        has_plan_file=has_plan_file,
         has_code_diff=has_code_diff,
         head_branch=head,
     )
@@ -90,21 +88,15 @@ class TestInferAllSevenStates:
         snap = infer_gate_state(GateSignals(linear=_linear("completed"), doc_pr=doc))
         assert snap.state is GateState.PLANNING
 
-    def test_in_plan_review_when_draft_code_pr_has_plan_file(self):
-        code = _pr(is_draft=True, has_plan_file=True, has_code_diff=False)
-        snap = infer_gate_state(GateSignals(linear=_linear("started"), code_pr=code))
-        assert snap.state is GateState.IN_PLAN_REVIEW
-        assert snap.active_pr is code
-        assert snap.retry_skill == "ticket-plan"
+    # Plan review is no longer inferred from a draft PR — the plan lives as
+    # a local artifact and the FSM state (``WAITING_PLAN_REVIEW``) drives
+    # the gate chip. Inference sees plan-phase as a regular draft = CODING
+    # (which the UI overrides with the FSM chip). The merged dedicated
+    # "in_plan_review_*" tests that used ``has_plan_file`` are obsolete.
 
-    def test_in_plan_review_with_merged_doc_pr(self):
-        doc = _pr(state="MERGED")
-        code = _pr(is_draft=True, has_plan_file=True, has_code_diff=False)
-        snap = infer_gate_state(GateSignals(linear=_linear("started"), doc_pr=doc, code_pr=code))
-        assert snap.state is GateState.IN_PLAN_REVIEW
-
-    def test_coding_when_draft_code_pr_has_no_plan_file(self):
-        code = _pr(is_draft=True, has_plan_file=False, has_code_diff=True)
+    def test_draft_code_pr_maps_to_coding(self):
+        """Any draft PR is mid-implementation — no more plan-PR distinction."""
+        code = _pr(is_draft=True, has_code_diff=True)
         snap = infer_gate_state(GateSignals(linear=_linear("started"), code_pr=code))
         assert snap.state is GateState.CODING
 
@@ -161,17 +153,6 @@ class TestManualCheckFallback:
         snap = infer_gate_state(GateSignals(linear=_linear("started"), doc_pr=doc, code_pr=code))
         assert snap.state is GateState.MANUAL_CHECK
 
-    def test_draft_plan_pr_with_open_doc_pr(self):
-        doc = _pr()
-        code = _pr(
-            is_draft=True,
-            has_plan_file=True,
-            has_code_diff=False,
-            url="https://github.com/o/r/pull/2",
-        )
-        snap = infer_gate_state(GateSignals(linear=_linear("started"), doc_pr=doc, code_pr=code))
-        assert snap.state is GateState.MANUAL_CHECK
-
     def test_doc_pr_open_but_linear_in_weird_state(self):
         doc = _pr()
         snap = infer_gate_state(
@@ -210,41 +191,14 @@ class TestStatusTypeMapping:
         assert _status_type_for(status) == expected
 
 
-class TestFetchCodePrFiltersPlanOnlyMerged:
-    """``_fetch_code_pr`` must ignore the just-merged plan PR.
+class TestFetchCodePr:
+    """``_fetch_code_pr`` returns the best matching PR for a ticket branch.
 
-    Regression (ENG-151 smoke): after lgtm'ing the plan, there's a brief
-    window before ``ticket-implement`` opens the code PR where the only
-    matching PR on the branch is the merged plan-only PR. That used to be
-    returned as ``code_pr`` and tripped the "Code PR is merged but Linear
-    state is 'In Progress'" MANUAL_CHECK false positive. Filtering rules
-    out the merged plan-only rows up front so subsequent gate-inference
-    passes treat it as "between phases".
+    Plan PRs no longer exist — plan-as-artifact refactor collapsed that
+    path. The regression test for filtering out merged plan-only PRs
+    (formerly ``test_merged_plan_only_pr_is_filtered``) was deleted with
+    the ``_is_plan_only_merged`` helper it guarded.
     """
-
-    async def test_merged_plan_only_pr_is_filtered(self, monkeypatch):
-        import json as _json
-
-        from task_summoner import gates as gates_mod
-
-        async def fake_run(cmd, *, timeout_sec):
-            # One merged plan-only PR, no other matches.
-            return _json.dumps(
-                [
-                    {
-                        "url": "https://github.com/x/y/pull/19",
-                        "number": 19,
-                        "state": "MERGED",
-                        "isDraft": False,
-                        "headRefName": "ENG-151-doc-path",
-                        "files": [{"path": "plan.md"}],
-                    }
-                ]
-            )
-
-        monkeypatch.setattr(gates_mod, "run_cli", fake_run)
-        result = await gates_mod._fetch_code_pr("ENG-151", "teachmewow/task-summoner-plugin")
-        assert result is None
 
     async def test_merged_code_pr_passes_through(self, monkeypatch):
         """A merged PR with real code diff is still the code PR."""
@@ -498,13 +452,16 @@ class TestOrchestratorPrUrl:
         )
         assert _orchestrator_pr_url(ctx) == "https://github.com/x/y/pull/1"
 
-    def test_returns_plan_pr_for_plan_review(self):
+    def test_returns_none_for_plan_review(self):
+        """Plan gate has no backing PR — local artifact only."""
         ctx = TicketContext(
             ticket_key="ENG-1",
             state=TicketState.WAITING_PLAN_REVIEW,
+            # Even if a legacy ``plan_pr_url`` lingers in metadata (old
+            # tickets pre-refactor), the endpoint no longer surfaces it.
             metadata={"plan_pr_url": "https://github.com/x/y/pull/2"},
         )
-        assert _orchestrator_pr_url(ctx) == "https://github.com/x/y/pull/2"
+        assert _orchestrator_pr_url(ctx) is None
 
     def test_returns_mr_url_for_mr_review(self):
         ctx = TicketContext(

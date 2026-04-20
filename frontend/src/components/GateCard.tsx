@@ -39,16 +39,15 @@ interface Props {
 // Preview buttons so the user can re-read what shipped.
 const TERMINAL_ORCHESTRATOR_STATES = new Set(["DONE", "FAILED"]);
 
-// Artifact visibility is driven by the *presence of the URL in metadata*,
-// not by the FSM state. ``CreatingDocState`` writes ``rfc_pr_url``;
-// ``PlanningState`` writes ``plan_pr_url``; ``ImplementingState`` writes
-// ``mr_url``. If the key is set, the orchestrator made the artifact.
-// No-doc tickets (``QUEUED → PLANNING`` direct) never have ``rfc_pr_url``,
-// so their Preview RFC button correctly hides.
+// Artifact visibility:
+// - RFC still lives as a doc PR (docs repo), signalled via ``rfc_pr_url``
+//   in metadata.
+// - Plan lives as a local artifact only — the gate endpoint sets
+//   ``gate.has_plan`` when ``artifacts/<key>/plan.md`` exists on disk.
+// - Code PR = ``mr_url``, useful even after implementation as a
+//   re-read of the shipped plan.
 type Metadata = Record<string, unknown> | undefined;
 const hasRfcArtifact = (m: Metadata) => typeof m?.rfc_pr_url === "string" && !!m.rfc_pr_url;
-const hasPlanArtifact = (m: Metadata, mrUrl: string | null | undefined) =>
-  (typeof m?.plan_pr_url === "string" && !!m.plan_pr_url) || !!mrUrl;
 
 export function GateCard({
   issueKey,
@@ -72,26 +71,30 @@ export function GateCard({
   // MERGED code PR before Linear flips to Done) can flash MANUAL_CHECK
   // even though the orchestrator already closed out the ticket.
   const chipState: typeof gate.state = gate.orchestrator_state === "DONE" ? "done" : gate.state;
+  const isPlanGate = gate.orchestrator_state === "WAITING_PLAN_REVIEW";
   const canPreviewRfc = hasRfcArtifact(ticket.data?.metadata);
-  const canPreviewPlan = hasPlanArtifact(ticket.data?.metadata, ticket.data?.mr_url);
+  // Plan preview: trust the backend-computed ``has_plan`` (checks the
+  // artifact exists on disk). Falls back to mr_url for the post-merge
+  // case where users want to re-read the plan.
+  const canPreviewPlan = gate.has_plan || !!ticket.data?.mr_url;
 
   // Reviewable iff the FSM is at an approval gate — never while terminal.
   const reviewable =
     !isTerminal &&
     (isReviewableOrchestratorState(gate.orchestrator_state) || isReviewableState(gate.state));
-  // PR URL the buttons act on — inference first (has metadata like draft /
-  // headBranch), orchestrator fallback second (the URL the skill opened when
-  // inference can't find it due to repo scope).
-  const actionPrUrl = gate.active_pr?.url ?? gate.orchestrator_pr_url ?? null;
+  // PR URL the buttons act on. For plan gates this is intentionally null —
+  // no backing PR exists and the backend knows to skip ``gh pr merge``.
+  const actionPrUrl = isPlanGate ? null : (gate.active_pr?.url ?? gate.orchestrator_pr_url ?? null);
   const chipClasses = GATE_CHIP_CLASSES[chipState] ?? GATE_CHIP_CLASSES.manual_check;
 
   const onApprove = () => {
-    if (!actionPrUrl) return;
+    // Plan gates pass null; code/doc gates require a PR URL.
+    if (!isPlanGate && !actionPrUrl) return;
     approve.mutate(actionPrUrl);
   };
 
   const onSubmitFeedback = (feedback: string) => {
-    if (!actionPrUrl) return;
+    if (!isPlanGate && !actionPrUrl) return;
     requestChanges.mutate(
       { pr_url: actionPrUrl, feedback },
       {
@@ -169,7 +172,9 @@ export function GateCard({
         </div>
       ) : null}
 
-      {!isTerminal && gate.active_pr ? (
+      {/* Plan gate has no backing PR (local artifact); skip this block
+          entirely. Doc + code gates still surface the gating PR. */}
+      {!isTerminal && !isPlanGate && gate.active_pr ? (
         <div className="flex flex-col gap-1">
           <span className="font-mono text-[10px] uppercase tracking-wider text-ghost-dim">
             active PR (gate)
@@ -187,7 +192,7 @@ export function GateCard({
             <ExternalLink size={12} strokeWidth={2} />
           </a>
         </div>
-      ) : !isTerminal && actionPrUrl ? (
+      ) : !isTerminal && !isPlanGate && actionPrUrl ? (
         <div className="flex flex-col gap-1">
           <span className="font-mono text-[10px] uppercase tracking-wider text-ghost-dim">
             active PR (gate)
@@ -231,7 +236,10 @@ export function GateCard({
           buttons only show at a real review gate. */}
       {reviewable || canPreviewRfc || canPreviewPlan ? (
         <div className="flex flex-wrap items-center gap-2 pt-2">
-          {reviewable && actionPrUrl ? (
+          {/* Plan gate shows the buttons even without a PR URL — the
+              backend handles the gate transition purely via FSM. Doc and
+              code gates still require a real PR URL. */}
+          {reviewable && (isPlanGate || actionPrUrl) ? (
             <>
               <button
                 type="button"

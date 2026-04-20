@@ -40,10 +40,14 @@ export interface GateResponse {
   // lgtm/retry buttons, independent of whether PR inference found the
   // underlying PR (which can fail when the PR lives on a non-default repo).
   orchestrator_state: string | null;
-  // PR URL the orchestrator stashed for the current state — used as the
-  // fallback when ``active_pr`` is null (e.g. plan PR on a repo outside
-  // ``default_repo``). ``null`` when the state doesn't expect a PR.
+  // PR URL the orchestrator stashed for the current state (``rfc_pr_url``
+  // for doc, ``mr_url`` for code). ``null`` when the state has no backing
+  // PR — plan gate is always ``null`` by design since the plan lives as a
+  // local artifact only.
   orchestrator_pr_url: string | null;
+  // True when ``artifacts/<key>/plan.md`` exists on disk. Drives the
+  // Preview Plan button visibility.
+  has_plan: boolean;
 }
 
 export interface GateActionResponse {
@@ -81,9 +85,11 @@ function invalidateIssueQueries(qc: ReturnType<typeof useQueryClient>, issueKey:
 }
 
 export function useApproveGate(issueKey: string) {
+  // ``pr_url`` is optional — plan gates have no backing PR, so the UI
+  // passes ``null`` and the backend just advances the FSM.
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (pr_url: string) =>
+    mutationFn: (pr_url: string | null) =>
       apiFetch<GateActionResponse>(`/api/gates/${issueKey}/approve`, {
         method: "POST",
         body: JSON.stringify({ pr_url }),
@@ -95,7 +101,11 @@ export function useApproveGate(issueKey: string) {
 export function useRequestChangesGate(issueKey: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (args: { pr_url: string; feedback: string; resummon_skill?: boolean }) =>
+    mutationFn: (args: {
+      pr_url: string | null;
+      feedback: string;
+      resummon_skill?: boolean;
+    }) =>
       apiFetch<GateActionResponse>(`/api/gates/${issueKey}/request-changes`, {
         method: "POST",
         body: JSON.stringify({

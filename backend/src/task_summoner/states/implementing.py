@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import re
+import shutil
 import uuid
+from pathlib import Path
 
 import structlog
 
@@ -61,6 +63,12 @@ class ImplementingState(BaseState):
     )
     async def handle(self, ctx: TicketContext, ticket: Ticket, svc: StateServices) -> str:
         workspace = await self._ensure_workspace(ctx, ticket, svc)
+        # Plan is persisted at ``artifacts/<key>/plan.md`` but
+        # ``ticket-implement`` expects ``plan.md`` at the root of the
+        # worktree — copy it in so the skill's ``test -f plan.md`` check
+        # passes. No commit, no push; the file lives only in the local
+        # worktree while implementation runs.
+        _stage_plan_in_workspace(self._artifact_dir(ticket.key) / "plan.md", workspace)
         prompt = self.build_prompt(ctx, ticket)
 
         result = await self._run_agent(svc, "implementer", prompt, workspace, ctx=ctx)
@@ -94,6 +102,39 @@ class ImplementingState(BaseState):
             attempt=ctx.retry_count,
         )
         return "_retry"
+
+
+def _stage_plan_in_workspace(plan_artifact: Path, workspace: str | Path) -> None:
+    """Copy ``artifacts/<key>/plan.md`` into the worktree root + gitignore it.
+
+    The implement skill reads ``plan.md`` relative to cwd (its Phase 0
+    contract), so we stage the plan into the worktree root. We also
+    append ``plan.md`` to ``.git/info/exclude`` — a *worktree-local*
+    gitignore that never touches the tracked repo — so the file can't
+    accidentally end up in the code PR if the agent runs ``git add -A``.
+
+    Silent no-op when the artifact is missing — the implement skill will
+    surface the error via its own ``test -f plan.md`` check so the user
+    gets a clear reason instead of an obscure fallback.
+    """
+    if not plan_artifact.exists():
+        return
+    workspace_path = Path(workspace)
+    dest = workspace_path / "plan.md"
+    try:
+        shutil.copyfile(plan_artifact, dest)
+    except OSError as e:
+        log.warning("plan.md stage failed", workspace=str(workspace), error=str(e))
+        return
+    # Worktree-local exclude so ``git add -A`` / ``git status`` ignore it.
+    exclude_path = workspace_path / ".git" / "info" / "exclude"
+    try:
+        if exclude_path.parent.exists():
+            existing = exclude_path.read_text() if exclude_path.exists() else ""
+            if "plan.md" not in existing.splitlines():
+                exclude_path.write_text(existing.rstrip("\n") + "\nplan.md\n")
+    except OSError as e:
+        log.warning("plan.md exclude update failed", workspace=str(workspace), error=str(e))
 
 
 def _build_tag(ticket_key: str, state: str) -> str:
