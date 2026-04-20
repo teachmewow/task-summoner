@@ -71,7 +71,12 @@ export function MarkdownPreviewModal({
 }: Props) {
   const html = useMemo(() => {
     if (!data?.content) return "";
-    return marked.parse(data.content, { gfm: true, breaks: false }) as string;
+    // Drop the artifact's leading ``# Title`` when we're already showing
+    // that title in the modal header — otherwise it renders twice. We
+    // only strip when the markdown *starts* with an H1 (after optional
+    // blank lines); any other prose stays untouched.
+    const body = data.content.replace(/^\s*#[^\n]*\n+/, "");
+    return marked.parse(body, { gfm: true, breaks: false }) as string;
   }, [data?.content]);
 
   useEffect(() => {
