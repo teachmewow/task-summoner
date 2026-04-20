@@ -187,6 +187,7 @@ describe("IssueActivityTimeline — renderers (ENG-132 Part A)", () => {
       kind: "tool",
       ts: "2026-04-19T15:00:00Z",
       agent: "impl",
+      state: "",
       toolUseId: "t-skill",
       toolName: "Skill",
       toolInput: {
@@ -211,6 +212,7 @@ describe("IssueActivityTimeline — renderers (ENG-132 Part A)", () => {
       kind: "tool",
       ts: "t",
       agent: "",
+      state: "",
       toolUseId: null,
       toolName: "Skill",
       toolInput: { skill: "foo", args: longArgs },
@@ -234,6 +236,7 @@ describe("IssueActivityTimeline — renderers (ENG-132 Part A)", () => {
       kind: "tool",
       ts: "t",
       agent: "",
+      state: "",
       toolUseId: null,
       toolName: "SomeNewTool",
       toolInput: { file_path: "x.md" },
@@ -416,6 +419,7 @@ function _msg(content: string) {
     kind: "message" as const,
     ts: `ts-${content}`,
     agent: "x",
+    state: "",
     content,
   };
 }
@@ -425,6 +429,7 @@ function tool(name: string, isError: boolean): ToolItem {
     kind: "tool",
     ts: `tool-${name}`,
     agent: "",
+    state: "",
     toolUseId: null,
     toolName: name,
     toolInput: null,
@@ -439,6 +444,7 @@ function skill(argsArg: string): ToolItem {
     kind: "tool",
     ts: `skill-${argsArg}`,
     agent: "",
+    state: "",
     toolUseId: null,
     toolName: "Skill",
     toolInput: { skill: "task-summoner-workflows:ticket-plan", args: argsArg },
@@ -490,3 +496,78 @@ function toolResultEvent(
     is_error: overrides.is_error ?? false,
   };
 }
+
+function completedEvent(
+  state: string,
+  overrides: { success?: boolean; cost_usd?: number; turns?: number } = {},
+): ActivityEvent {
+  return {
+    ts: `ts-done-${state}`,
+    type: "completed",
+    content: "",
+    agent: "",
+    state,
+    metadata: {
+      agent: "",
+      success: overrides.success ?? true,
+      cost_usd: overrides.cost_usd ?? 0.3,
+      turns: overrides.turns ?? 20,
+    },
+  };
+}
+
+describe("IssueActivityTimeline — step grouping", () => {
+  it("collapses a completed FSM step into a summary with cost + turns", async () => {
+    mockHistoryFetch([
+      { ...skillEvent("task-summoner-workflows:create-design-doc"), state: "CREATING_DOC" },
+      completedEvent("CREATING_DOC", { success: true, cost_usd: 0.45, turns: 24 }),
+      // Live (planning) — still in flight, no completed yet.
+      { ...skillEvent("task-summoner-workflows:ticket-plan"), state: "PLANNING" },
+    ]);
+    render(<IssueActivityTimeline issueKey="ENG-148" />);
+
+    await waitFor(() => {
+      const stepGroup = document.querySelector("[data-timeline-step-group]");
+      expect(stepGroup).toBeTruthy();
+    });
+
+    const group = document.querySelector("[data-timeline-step-group]");
+    expect(group?.getAttribute("data-step-state")).toBe("CREATING_DOC");
+    expect(group?.textContent).toContain("Creating doc");
+    expect(group?.textContent).toContain("24 turns");
+    expect(group?.textContent).toContain("$0.45");
+    // Collapsed by default on success → inner skill invocation is hidden.
+    expect(group?.getAttribute("data-expanded")).toBe("false");
+    // The in-flight PLANNING step stays ungrouped (no completed event yet).
+    const planningSkill = Array.from(document.querySelectorAll("[data-timeline-tool]")).find((el) =>
+      el.textContent?.includes("ticket-plan"),
+    );
+    expect(planningSkill).toBeTruthy();
+  });
+
+  it("auto-expands a failed step so the error stays visible", async () => {
+    mockHistoryFetch([
+      { ...skillEvent("task-summoner-workflows:ticket-implement"), state: "IMPLEMENTING" },
+      completedEvent("IMPLEMENTING", { success: false, cost_usd: 1.2, turns: 80 }),
+    ]);
+    render(<IssueActivityTimeline issueKey="ENG-150" />);
+
+    await waitFor(() => {
+      const stepGroup = document.querySelector("[data-timeline-step-group]");
+      expect(stepGroup?.getAttribute("data-expanded")).toBe("true");
+    });
+  });
+
+  it("keeps the live step ungrouped when no completed event arrived yet", async () => {
+    mockHistoryFetch([
+      { ...skillEvent("task-summoner-workflows:create-design-doc"), state: "CREATING_DOC" },
+      toolUseEvent("Read", "t-r1", { file_path: "a.md" }),
+      toolResultEvent("Read", "t-r1"),
+    ]);
+    render(<IssueActivityTimeline issueKey="ENG-150b" />);
+
+    await screen.findByText(/Skill: task-summoner-workflows:create-design-doc/i);
+    // Nothing is completed yet → no step_group wrapper.
+    expect(document.querySelector("[data-timeline-step-group]")).toBeNull();
+  });
+});

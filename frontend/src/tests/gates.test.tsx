@@ -60,6 +60,33 @@ describe("GateCard", () => {
     expect(screen.getByText(/address-doc-feedback/)).toBeInTheDocument();
   });
 
+  it("shows a Preview RFC button on doc-review gates only", () => {
+    const { unmount } = wrap(
+      <GateCard
+        issueKey="ENG-95"
+        gate={baseGate({ orchestrator_state: "WAITING_DOC_REVIEW" })}
+        onRefresh={() => undefined}
+        isRefreshing={false}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /preview rfc/i })).toBeInTheDocument();
+    unmount();
+
+    wrap(
+      <GateCard
+        issueKey="ENG-95"
+        gate={baseGate({
+          orchestrator_state: "WAITING_PLAN_REVIEW",
+          state: "in_plan_review",
+          retry_skill: "ticket-plan",
+        })}
+        onRefresh={() => undefined}
+        isRefreshing={false}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /preview rfc/i })).not.toBeInTheDocument();
+  });
+
   it("hides action buttons for non-reviewable states (e.g. writing_doc)", () => {
     wrap(
       <GateCard

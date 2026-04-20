@@ -17,6 +17,7 @@ export interface ToolItem {
   kind: "tool";
   ts: string;
   agent: string;
+  state: string;
   toolUseId: string | null;
   toolName: string;
   toolInput: Record<string, unknown> | null;
@@ -29,20 +30,25 @@ export interface MessageItem {
   kind: "message";
   ts: string;
   agent: string;
+  state: string;
   content: string;
 }
 
 export interface ErrorItem {
   kind: "error";
   ts: string;
+  state: string;
   message: string;
 }
 
 export interface CompletedItem {
   kind: "completed";
   ts: string;
+  state: string;
   success: boolean;
   content: string;
+  costUsd: number | null;
+  turns: number | null;
 }
 
 export interface RetryBoundaryItem {
@@ -69,8 +75,26 @@ export interface AttemptGroup {
   items: GroupedItem[];
 }
 
-/** Items after grouping — sub-tool clusters and prior attempts are wrapped. */
-export type GroupedItem = Item | ToolGroup | AttemptGroup;
+/**
+ * A completed FSM step (``CREATING_DOC`` / ``PLANNING`` / etc.). Present only
+ * for states that have *ended* — the current in-flight step stays ungrouped
+ * so the user can follow the live transcript without clicking to expand.
+ * Once the state transitions, everything that belonged to the prior state
+ * is folded into a ``StepGroup`` with its cost + turn summary for at-a-glance
+ * "what happened in this phase" without scrolling the full log.
+ */
+export interface StepGroup {
+  kind: "step_group";
+  ts: string;
+  state: string;
+  items: GroupedItem[];
+  success: boolean;
+  costUsd: number | null;
+  turns: number | null;
+}
+
+/** Items after grouping — sub-tool clusters, prior attempts, and closed steps. */
+export type GroupedItem = Item | ToolGroup | AttemptGroup | StepGroup;
 
 /** Tool names starting with these prefixes are treated as anchor events. */
 export const ANCHOR_TOOL_NAMES: ReadonlySet<string> = new Set(["Skill"]);
