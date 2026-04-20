@@ -1,5 +1,6 @@
 import { CheckCircle2, ChevronDown, ChevronRight, XCircle } from "lucide-react";
 import { useState } from "react";
+import { MOTION_CLASSES } from "~/lib/motion";
 import { PHASE_COLOR_VAR, phaseFromOrchestratorState } from "~/lib/phases";
 import { renderGroupedItem } from "./renderGroupedItem";
 import type { StepGroup } from "./types";
@@ -38,7 +39,7 @@ export function StepGroupBox({ group }: { group: StepGroup }) {
       data-timeline-step-group
       data-step-state={group.state}
       data-expanded={expanded ? "true" : "false"}
-      className="relative flex flex-col gap-2 rounded-xl border border-rune-line bg-obsidian-raised p-2"
+      className={`relative flex flex-col gap-2 rounded-xl border border-rune-line bg-obsidian-raised p-2 ${MOTION_CLASSES.runeIn}`}
     >
       {/* Ley-line marker dot — sits on top of the vertical rail rendered
           by the timeline container. */}
