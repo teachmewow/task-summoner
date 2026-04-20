@@ -470,7 +470,28 @@ async def _fetch_code_pr(issue_key: str, target_repo_slug: str | None) -> PrSign
     # accidental matches like ``eng-951-*`` from an issue ``ENG-95``).
     head_rx = re.compile(rf"^{re.escape(issue_key)}-", re.IGNORECASE)
     rows = [r for r in rows if head_rx.match(r.get("headRefName", ""))]
+    # Drop merged plan-only PRs. ``ticket-plan`` opens a draft PR on the
+    # feature branch containing just ``plan.md``; lgtm squash-merges it to
+    # advance the FSM. Before ``ticket-implement`` opens the new code PR on
+    # the same branch there's a brief window where the merged plan PR is
+    # the only match. Returning it as the "code PR" trips the MANUAL_CHECK
+    # rule ("Code PR is merged but Linear state is ...") even though we're
+    # actively implementing. Filter those rows out — they're never the
+    # "code PR" we care about for gate inference.
+    rows = [r for r in rows if not _is_plan_only_merged(r)]
     return _pick_best_pr(rows)
+
+
+def _is_plan_only_merged(row: dict) -> bool:
+    """True iff ``row`` is a MERGED PR whose files are only ``plan.md``."""
+    if row.get("state", "") != "MERGED":
+        return False
+    files = [f.get("path", "") for f in row.get("files", []) if isinstance(f, dict)]
+    if not files:
+        return False
+    has_plan = any(p.endswith("plan.md") or p == "plan.md" for p in files)
+    has_code = any(not (p.endswith("plan.md") or p == "plan.md") for p in files)
+    return has_plan and not has_code
 
 
 async def _resolve_origin_slug(repo_path: str) -> str | None:
