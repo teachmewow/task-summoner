@@ -104,13 +104,16 @@ export function MarkdownPreviewModal({
         // familiar convention for overlay dialogs.
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm sm:p-6"
     >
       <div
-        className={`surface-raised relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden ${MOTION_CLASSES.runeIn}`}
+        className={`surface-raised relative flex w-full max-w-2xl flex-col overflow-hidden ${MOTION_CLASSES.runeIn}`}
+        style={{ height: "min(85vh, 900px)" }}
       >
-        {/* Header — eyebrow + ENG-X · #PR meta + "Close · esc" button. */}
-        <header className="flex items-start justify-between gap-4 px-6 pb-4 pt-5">
+        {/* Header — eyebrow + ENG-X · #PR meta + "Close · esc" button.
+         *  ``shrink-0`` so it never collapses; the body in between does
+         *  the scrolling. */}
+        <header className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-5">
           <div className="flex items-start gap-3">
             <span
               aria-hidden="true"
@@ -141,7 +144,13 @@ export function MarkdownPreviewModal({
           </button>
         </header>
 
-        <div className="scroll-arise flex-1 overflow-y-auto px-6 pb-4" data-markdown-preview-scroll>
+        {/* ``min-h-0`` is the crucial bit — without it, flex children
+         *  default to ``min-height: auto`` which prevents shrinking
+         *  below their content size and the whole card overflows. */}
+        <div
+          className="scroll-arise min-h-0 flex-1 overflow-y-auto px-6 pb-4"
+          data-markdown-preview-scroll
+        >
           {isLoading ? (
             <p className="text-sm text-ghost-dim">Loading {label}…</p>
           ) : isError ? (
@@ -173,7 +182,7 @@ export function MarkdownPreviewModal({
           )}
         </div>
 
-        <footer className="flex items-center justify-between gap-3 border-t border-rune-line-strong bg-obsidian-raised/70 px-6 py-3">
+        <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-rune-line-strong bg-obsidian-raised/70 px-6 py-3">
           <button
             type="button"
             onClick={onClose}
