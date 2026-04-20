@@ -1,6 +1,7 @@
 import { Link, Outlet, createRootRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import logoUrl from "~/assets/logo.svg";
+import { ArcaneBackground } from "~/components/ArcaneBackground";
 import { SetupBanner } from "~/components/SetupBanner";
 
 export const Route = createRootRoute({
@@ -10,6 +11,7 @@ export const Route = createRootRoute({
 function RootLayout() {
   return (
     <div className="min-h-screen">
+      <ArcaneBackground />
       <SetupBanner />
       <header className="border-b border-shadow-purple/50 bg-void-900/60 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center gap-8 px-6 py-4">
