@@ -28,6 +28,7 @@ from task_summoner.api.routers import (
     failures_router,
     gates_router,
     health_router,
+    plans_router,
     rfcs_router,
     setup_router,
     skills_router,
@@ -91,6 +92,7 @@ def create_app(config_path: Path | None = None) -> FastAPI:
     app.include_router(gates_router)
     app.include_router(decisions_router)
     app.include_router(rfcs_router)
+    app.include_router(plans_router)
     app.include_router(streams_router)
 
     _mount_frontend(app)

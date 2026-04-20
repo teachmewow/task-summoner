@@ -16,6 +16,7 @@ import {
   useApproveGate,
   useRequestChangesGate,
 } from "~/lib/gates";
+import { PlanPreviewModal } from "./PlanPreviewModal";
 import { RequestChangesModal } from "./RequestChangesModal";
 import { RfcPreviewModal } from "./RfcPreviewModal";
 
@@ -41,13 +42,17 @@ export function GateCard({
 }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [rfcPreviewOpen, setRfcPreviewOpen] = useState(false);
+  const [planPreviewOpen, setPlanPreviewOpen] = useState(false);
   const approve = useApproveGate(issueKey);
   const requestChanges = useRequestChangesGate(issueKey);
-  // The doc-gate shows a "Preview RFC" button so reviewers can read the doc
-  // without scrolling past the timeline to the collapsed RfcPanel. We derive
-  // "this is a doc gate" from orchestrator_state rather than inferring from
-  // the PR URL because the state is always present and unambiguous.
+  // Each gate surfaces a "Preview <artifact>" button so reviewers can read
+  // the thing they're about to approve without scrolling past the timeline
+  // to the collapsed artifact panel. We derive the gate kind from
+  // ``orchestrator_state`` because it's always present and unambiguous,
+  // unlike the inferred ``state`` which falls through to ``manual_check``
+  // when PR discovery fails.
   const isDocGate = gate.orchestrator_state === "WAITING_DOC_REVIEW";
+  const isPlanGate = gate.orchestrator_state === "WAITING_PLAN_REVIEW";
 
   // Prefer the FSM state — every ``WAITING_*_REVIEW`` is a gate. Fall back
   // to the inferred state for old ctx files (pre-orchestrator_state schema)
@@ -238,6 +243,17 @@ export function GateCard({
               Preview RFC
             </button>
           ) : null}
+          {isPlanGate ? (
+            <button
+              type="button"
+              onClick={() => setPlanPreviewOpen(true)}
+              data-gate-action="preview-plan"
+              className="inline-flex items-center gap-1.5 rounded-md border border-arise-violet/50 bg-arise-violet/15 px-3 py-1.5 text-xs font-medium text-arise-violet-bright transition hover:bg-arise-violet/25"
+            >
+              <FileText size={12} strokeWidth={2} />
+              Preview Plan
+            </button>
+          ) : null}
           {gate.retry_skill ? (
             <span className="text-xs text-soul-cyan/60">
               Will re-summon <code className="text-ghost-white/90">{gate.retry_skill}</code>
@@ -274,6 +290,12 @@ export function GateCard({
         issueKey={issueKey}
         open={rfcPreviewOpen}
         onClose={() => setRfcPreviewOpen(false)}
+      />
+
+      <PlanPreviewModal
+        issueKey={issueKey}
+        open={planPreviewOpen}
+        onClose={() => setPlanPreviewOpen(false)}
       />
     </section>
   );

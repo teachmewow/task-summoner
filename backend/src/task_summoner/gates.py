@@ -521,16 +521,31 @@ def _pick_best_pr(rows: list[dict]) -> PrSignal | None:
 
 
 async def merge_pr(pr_url: str) -> str:
-    """Run ``gh pr merge --squash --delete-branch <url>``.
+    """Run ``gh pr ready <url>`` then ``gh pr merge --squash --delete-branch <url>``.
 
     ``lgtm`` in task-summoner is a *merge* action, not a GitHub review. We
     don't call ``gh pr review --approve`` because GitHub blocks self-approval
     (the PR author and the runner share ``gh`` credentials). The UI / Linear
     trail is the source of truth for approvals; GitHub only receives the
     merge.
+
+    The ``gh pr ready`` step is mandatory because ``ticket-plan`` opens the
+    plan PR in draft mode — GitHub rejects merges on drafts with
+    ``GraphQL: Pull Request is still a draft (mergePullRequest)``. ``gh pr
+    ready`` on an already-ready PR exits non-zero with a harmless "already
+    ready" message, which we swallow so the merge proceeds.
     """
     if not pr_url:
         raise ValueError("pr_url is required")
+    try:
+        await run_cli(["gh", "pr", "ready", pr_url], timeout_sec=_GH_TIMEOUT_SEC)
+    except RuntimeError as e:
+        # ``gh pr ready`` on a non-draft PR returns:
+        #   "Pull request <url> is already ready for review"
+        # which is exactly what we want — keep going. Anything else is a
+        # real failure (network, permissions, invalid URL).
+        if "already ready" not in str(e).lower():
+            raise
     return await run_cli(
         ["gh", "pr", "merge", "--squash", "--delete-branch", pr_url],
         timeout_sec=_GH_TIMEOUT_SEC,

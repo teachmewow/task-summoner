@@ -223,27 +223,58 @@ class TestMergePr:
     review step entirely; the UI / Linear trail is the source of truth.
     """
 
-    async def test_issues_squash_merge_with_delete_branch(self, monkeypatch):
+    async def test_issues_ready_then_squash_merge(self, monkeypatch):
         from task_summoner import gates as gates_mod
 
-        captured: dict[str, list[str]] = {}
+        calls: list[list[str]] = []
 
         async def fake_run(cmd, *, timeout_sec):
-            captured["cmd"] = cmd
-            return "merged"
+            calls.append(list(cmd))
+            return "ok" if "ready" in cmd else "merged"
 
         monkeypatch.setattr(gates_mod, "run_cli", fake_run)
         out = await gates_mod.merge_pr("https://github.com/tmw/x/pull/1")
 
         assert out == "merged"
-        assert captured["cmd"] == [
-            "gh",
-            "pr",
-            "merge",
-            "--squash",
-            "--delete-branch",
-            "https://github.com/tmw/x/pull/1",
+        # Flip out of draft (safe no-op on non-drafts) then squash-merge.
+        assert calls == [
+            ["gh", "pr", "ready", "https://github.com/tmw/x/pull/1"],
+            [
+                "gh",
+                "pr",
+                "merge",
+                "--squash",
+                "--delete-branch",
+                "https://github.com/tmw/x/pull/1",
+            ],
         ]
+
+    async def test_ready_already_ready_is_swallowed(self, monkeypatch):
+        """``gh pr ready`` on a non-draft PR returns non-zero; treat as OK."""
+        from task_summoner import gates as gates_mod
+
+        async def fake_run(cmd, *, timeout_sec):
+            if "ready" in cmd:
+                raise RuntimeError(
+                    "Subprocess failed (exit 1): Pull request #1 is already ready for review"
+                )
+            return "merged"
+
+        monkeypatch.setattr(gates_mod, "run_cli", fake_run)
+        out = await gates_mod.merge_pr("https://github.com/tmw/x/pull/1")
+        assert out == "merged"
+
+    async def test_ready_other_error_propagates(self, monkeypatch):
+        from task_summoner import gates as gates_mod
+
+        async def fake_run(cmd, *, timeout_sec):
+            if "ready" in cmd:
+                raise RuntimeError("Subprocess failed: HTTP 401 Unauthorized")
+            return "merged"
+
+        monkeypatch.setattr(gates_mod, "run_cli", fake_run)
+        with pytest.raises(RuntimeError, match="401"):
+            await gates_mod.merge_pr("https://github.com/tmw/x/pull/1")
 
     async def test_empty_url_raises(self):
         from task_summoner.gates import merge_pr
