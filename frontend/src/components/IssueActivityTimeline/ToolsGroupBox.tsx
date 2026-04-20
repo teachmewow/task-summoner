@@ -7,10 +7,10 @@ import type { ToolItem } from "./types";
 /**
  * Collapsible container for a run of subsidiary tool calls.
  *
- * Product intent (ENG-132 / Part B): after an anchor event (assistant message
- * or top-level Skill), agents frequently emit 20+ tiny Read/Bash/mcp calls
- * that flood the timeline. This box keeps them hidden by default and surfaces
- * just a count + per-type breakdown — the user can expand on demand.
+ * After an anchor event (assistant message or top-level Skill), agents
+ * frequently emit 20+ tiny Read/Bash/mcp calls that flood the timeline.
+ * This box keeps them hidden by default and surfaces just a count +
+ * per-type breakdown — the user can expand on demand.
  *
  * Two escape hatches override the collapsed default:
  *   - any tool in the group errored → auto-expand so the failure isn't hidden
@@ -34,26 +34,26 @@ export function ToolsGroupBox({ tools }: { tools: ToolItem[] }) {
       data-group-error={hasError || undefined}
       data-group-size={total}
       className={[
-        "rounded-md border bg-void-900/40",
-        hasError ? "border-ember-red/50" : "border-shadow-purple/50",
+        "rounded-md border bg-vault/40",
+        hasError ? "border-blood/50" : "border-rune-line-strong",
       ].join(" ")}
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-soul-cyan hover:bg-arise-violet/5"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-ghost-dim hover:bg-arcane/5"
         aria-expanded={open}
       >
-        <Chevron size={12} strokeWidth={2} className="text-arise-violet shrink-0" />
-        <Wrench size={12} strokeWidth={2} className="text-arise-violet shrink-0" />
-        <span className="font-semibold text-ghost-white">
+        <Chevron size={12} strokeWidth={2} className="shrink-0 text-arcane" />
+        <Wrench size={12} strokeWidth={2} className="shrink-0 text-arcane" />
+        <span className="font-semibold text-ghost">
           {total} tool call{total === 1 ? "" : "s"}
         </span>
-        {breakdown ? <span className="truncate text-soul-cyan/70">({breakdown})</span> : null}
-        {hasError ? <span className="ml-auto text-[10px] text-ember-red">error</span> : null}
+        {breakdown ? <span className="truncate text-ghost-dim">({breakdown})</span> : null}
+        {hasError ? <span className="ml-auto text-[10px] text-blood">error</span> : null}
       </button>
       {open ? (
-        <ol className="flex flex-col gap-2 border-t border-shadow-purple/40 px-3 py-2">
+        <ol className="flex flex-col gap-2 border-t border-rune-line px-3 py-2">
           {tools.map((tool, idx) => (
             <ToolBox key={`${tool.ts}-${idx}`} item={tool} />
           ))}

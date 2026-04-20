@@ -118,7 +118,7 @@ export function IssueActivityTimeline({ issueKey }: Props) {
 
   if (loadError) {
     return (
-      <section className="rounded-lg border border-ember-red/40 bg-void-800/70 p-5 text-sm text-ember-red">
+      <section className="rounded-lg border border-blood/40 bg-vault-soft p-5 text-sm text-blood">
         Timeline unavailable: {loadError}
       </section>
     );
@@ -197,10 +197,10 @@ function EmptyState() {
   return (
     <div
       data-timeline-empty
-      className="rounded-md border border-shadow-purple/60 bg-void-900/40 p-4 text-sm text-soul-cyan/80"
+      className="rounded-md border border-rune-line-strong bg-vault/40 p-4 text-sm text-ghost/80"
     >
-      <p className="mb-1 font-medium text-ghost-white">Waiting for agent to dispatch…</p>
-      <p className="text-xs text-soul-cyan/70">
+      <p className="mb-1 font-medium text-ghost">Waiting for agent to dispatch…</p>
+      <p className="text-xs text-ghost-dim">
         Messages and tool calls will appear here in real time while the orchestrator runs.
       </p>
     </div>

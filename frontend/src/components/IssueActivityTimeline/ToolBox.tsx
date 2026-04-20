@@ -19,36 +19,34 @@ export function ToolBox({ item }: { item: ToolItem }) {
       data-open={open}
       data-tool-error={item.isError || undefined}
       className={[
-        "rounded-md border bg-void-900/40",
-        item.isError ? "border-ember-red/50" : "border-shadow-purple/50",
+        "rounded-md border bg-vault/40",
+        item.isError ? "border-blood/50" : "border-rune-line-strong",
       ].join(" ")}
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-soul-cyan hover:bg-arise-violet/5"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-ghost-dim hover:bg-arcane/5"
         aria-expanded={open}
       >
-        <Chevron size={12} strokeWidth={2} className="text-arise-violet shrink-0" />
-        <Wrench size={12} strokeWidth={2} className="text-arise-violet shrink-0" />
+        <Chevron size={12} strokeWidth={2} className="shrink-0 text-arcane" />
+        <Wrench size={12} strokeWidth={2} className="shrink-0 text-arcane" />
         {rendered.header}
         <span className="ml-auto flex items-center gap-2 text-[10px]">
           {item.running ? (
-            <span className="inline-flex items-center gap-1 text-amber-flame">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-flame" />
+            <span className="inline-flex items-center gap-1 text-ember">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ember" />
               running
             </span>
           ) : item.isError ? (
-            <span className="text-ember-red">error</span>
+            <span className="text-blood">error</span>
           ) : (
-            <span className="text-mana-green">done</span>
+            <span className="text-phase-done">done</span>
           )}
         </span>
       </button>
       {open ? (
-        <div className="border-t border-shadow-purple/40 px-3 pb-3 pt-2 text-xs">
-          {rendered.body}
-        </div>
+        <div className="border-t border-rune-line px-3 pb-3 pt-2 text-xs">{rendered.body}</div>
       ) : null}
     </li>
   );
