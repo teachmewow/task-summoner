@@ -121,17 +121,23 @@ export const GATE_LABELS: Record<GateStateValue, string> = {
   manual_check: "Manual check needed",
 };
 
-/** Tailwind classes for the chip — keeps the 8 states visually distinct. */
+/**
+ * Arcane chip classes — one per inferred gate state. The four pipeline
+ * phases map to the design's phase-color tokens (doc = amber,
+ * plan = rune violet, implement = arcane cyan, done = mana green).
+ * Action-needed (review + manual_check) uses ember amber so the human's
+ * attention goes to "something's waiting on me".
+ */
 export const GATE_CHIP_CLASSES: Record<GateStateValue, string> = {
-  needs_doc: "border-soul-cyan/40 bg-soul-cyan/10 text-soul-cyan",
-  writing_doc: "border-arise-violet/40 bg-arise-violet/10 text-arise-violet-bright",
-  in_doc_review: "border-amber-flame/50 bg-amber-flame/10 text-amber-flame",
-  planning: "border-arise-violet/40 bg-arise-violet/10 text-arise-violet-bright",
-  in_plan_review: "border-amber-flame/50 bg-amber-flame/10 text-amber-flame",
-  coding: "border-arise-violet/40 bg-arise-violet/10 text-arise-violet-bright",
-  in_code_review: "border-amber-flame/50 bg-amber-flame/10 text-amber-flame",
-  done: "border-mana-green/50 bg-mana-green/10 text-mana-green",
-  manual_check: "border-ember-red/50 bg-ember-red/10 text-ember-red",
+  needs_doc: "border-phase-doc/40 bg-phase-doc/10 text-phase-doc",
+  writing_doc: "border-phase-doc/40 bg-phase-doc/10 text-phase-doc",
+  in_doc_review: "border-ember/50 bg-ember/10 text-ember",
+  planning: "border-phase-plan/40 bg-phase-plan/10 text-phase-plan",
+  in_plan_review: "border-ember/50 bg-ember/10 text-ember",
+  coding: "border-phase-code/40 bg-phase-code/10 text-phase-code",
+  in_code_review: "border-ember/50 bg-ember/10 text-ember",
+  done: "border-phase-done/50 bg-phase-done/10 text-phase-done",
+  manual_check: "border-blood/50 bg-blood/10 text-blood",
 };
 
 /** States that expose the lgtm / retry buttons. */
