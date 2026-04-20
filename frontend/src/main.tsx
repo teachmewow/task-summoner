@@ -1,3 +1,15 @@
+// Geist + Geist Mono — loaded before Tailwind so the @theme font-family
+// declarations resolve correctly on the first paint. Offline-friendly:
+// bundled via @fontsource instead of a Google Fonts CDN request.
+import "@fontsource/geist/300.css";
+import "@fontsource/geist/400.css";
+import "@fontsource/geist/500.css";
+import "@fontsource/geist/600.css";
+import "@fontsource/geist/700.css";
+import "@fontsource/geist-mono/400.css";
+import "@fontsource/geist-mono/500.css";
+import "@fontsource/geist-mono/600.css";
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { StrictMode } from "react";

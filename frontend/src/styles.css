@@ -1,6 +1,67 @@
 @import "tailwindcss";
 
+/*
+ * Arcane Command Bridge theme.
+ *
+ * Token layer lives in @theme so Tailwind v4 generates the matching
+ * utilities automatically (``bg-obsidian``, ``text-arcane``,
+ * ``border-rune-line``, ``rounded-r-2xl`` etc.). The legacy ``void``
+ * palette below stays for now — the REVAMP migration is staged and
+ * components port over milestone-by-milestone. Once M2+M3 have
+ * migrated every legacy usage we'll delete the old tokens.
+ */
 @theme {
+  /* ===== Arcane palette (REVAMP) ======================================= */
+
+  /* Canvas */
+  --color-obsidian: #050711;
+  --color-obsidian-raised: #0a0f1f;
+  --color-vault: #0f1530;
+  --color-vault-soft: #151c3a;
+  --color-rune-line: rgba(130, 180, 255, 0.14);
+  --color-rune-line-strong: rgba(130, 180, 255, 0.28);
+
+  /* Arcane primary — teal-cyan with a hint of jade */
+  --color-arcane: #36e0d0;
+  --color-arcane-100: #cff9f5;
+  --color-arcane-300: #7beee4;
+  --color-arcane-400: #4ed9cc;
+  --color-arcane-500: #2cc0b2;
+
+  /* Violet secondary (legacy nod, desaturated toward true arcane) */
+  --color-rune: #9d7bff;
+  --color-rune-bright: #c0a3ff;
+  --color-rune-deep: #5a39b8;
+
+  /* Phase glyph colors — each FSM phase renders against one of these. */
+  --color-phase-doc: #f5b769; /* parchment amber */
+  --color-phase-plan: #9d7bff; /* rune violet */
+  --color-phase-code: #36e0d0; /* arcane cyan */
+  --color-phase-done: #7ae582; /* mana green */
+
+  /* Semantic */
+  --color-ember: #ff8a5b; /* action needed */
+  --color-blood: #ff5577; /* destructive */
+  --color-ghost: #eef2ff;
+  --color-ghost-dim: #bcc5e6;
+  --color-ghost-dimmer: #7b85ae;
+
+  /* Radii — bigger surfaces favour softer corners in the design */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+
+  /* Fonts — wire the bundled @fontsource packages as defaults. */
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Glow helpers used by `shadow-arcane-glow` utility */
+  --arcane-glow: rgba(54, 224, 208, 0.42);
+  --arcane-glow-soft: rgba(54, 224, 208, 0.14);
+
+  /* ===== Legacy void palette (pre-REVAMP, kept for staged migration) === */
   --color-void-black: #0a0514;
   --color-void-900: #0f0a1f;
   --color-void-800: #1a0f2e;
@@ -27,21 +88,115 @@
   }
 
   body {
-    background: radial-gradient(1200px 800px at 20% -10%, rgba(168, 85, 247, 0.08), transparent 60%),
-      radial-gradient(900px 600px at 85% 110%, rgba(61, 27, 107, 0.25), transparent 55%),
-      var(--color-void-black);
-    color: var(--color-ghost-white);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    /* Deep obsidian canvas with a faint cyan/violet radial wash.
+     * The <ArcaneBackground> component layers the starfield + ley-lines
+     * on top of this base; this is the fallback paint before React mounts. */
+    background: radial-gradient(900px 600px at 15% -10%, rgba(54, 224, 208, 0.08), transparent 60%),
+      radial-gradient(1100px 700px at 85% 110%, rgba(157, 123, 255, 0.1), transparent 55%),
+      var(--color-obsidian);
+    color: var(--color-ghost);
+    font-family: var(--font-sans);
     font-feature-settings: "ss01", "cv02";
     -webkit-font-smoothing: antialiased;
   }
 
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+  }
+
   ::selection {
-    background: var(--arise-glow-strong);
-    color: var(--color-ghost-white);
+    background: var(--arcane-glow);
+    color: var(--color-ghost);
   }
 }
 
+/* ===== Motion keyframes =============================================== */
+/* Single registry per ENG-171. Components query ``useReducedMotion()``
+ * and skip or freeze these animations when the user opted out. */
+
+@keyframes rune-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes phase-ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes starfield-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-32px, -32px, 0);
+  }
+}
+
+@keyframes particle-spark {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.anim-rune-in {
+  animation: rune-in 220ms ease-out both;
+}
+
+.anim-phase-ring {
+  animation: phase-ring-spin 14s linear infinite;
+  transform-origin: center;
+}
+
+.anim-starfield-drift {
+  animation: starfield-drift 90s linear infinite;
+}
+
+.anim-particle-spark {
+  animation: particle-spark 2.4s ease-in-out infinite;
+}
+
+/* Respect the user's OS-level motion preference.
+ * Any component that opts into an animation must either use one of the
+ * classes above (auto-freezes here) or gate its own styles on
+ * ``useReducedMotion()`` from ``~/lib/motion``. */
+@media (prefers-reduced-motion: reduce) {
+  .anim-rune-in,
+  .anim-phase-ring,
+  .anim-starfield-drift,
+  .anim-particle-spark {
+    animation: none;
+  }
+}
+
+/* ===== Utilities ====================================================== */
+
+@utility glow-arcane {
+  box-shadow: 0 0 0 1px rgba(54, 224, 208, 0.35), 0 0 24px var(--arcane-glow);
+}
+
+@utility glow-arcane-soft {
+  box-shadow: 0 0 20px var(--arcane-glow-soft);
+}
+
+/* Legacy — kept while components still reference the violet glow. */
 @utility glow-violet {
   box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.35), 0 0 24px var(--arise-glow);
 }
