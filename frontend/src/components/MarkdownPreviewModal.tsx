@@ -1,6 +1,7 @@
 import { ExternalLink, X } from "lucide-react";
 import { marked } from "marked";
 import { useEffect, useMemo } from "react";
+import { MOTION_CLASSES } from "~/lib/motion";
 
 /**
  * Minimal shape every markdown-artifact source (RFC, plan, ...) exposes.
@@ -104,17 +105,17 @@ export function MarkdownPreviewModal({
     <div
       data-markdown-preview-modal={kind}
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-6"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-6 backdrop-blur-sm"
     >
-      <div className="relative mt-6 w-full max-w-3xl rounded-lg border border-shadow-purple/60 bg-void-900 p-6 shadow-2xl">
+      <div
+        className={`relative mt-6 w-full max-w-3xl rounded-2xl border border-rune-line-strong bg-obsidian-raised p-6 glow-arcane-soft ${MOTION_CLASSES.runeIn}`}
+      >
         <header className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-wider text-arise-violet-bright">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-arcane">
               {label} preview
             </p>
-            <h2 className="mt-1 text-lg font-semibold text-ghost-white">
-              {data?.title || issueKey}
-            </h2>
+            <h2 className="mt-1 text-lg font-semibold text-ghost">{data?.title || issueKey}</h2>
           </div>
           <div className="flex items-center gap-2">
             {prUrl ? (
@@ -123,7 +124,7 @@ export function MarkdownPreviewModal({
                 target="_blank"
                 rel="noreferrer"
                 data-preview-action="open-github"
-                className="inline-flex items-center gap-1 rounded-md border border-shadow-purple/60 bg-void-800 px-2 py-1 text-xs text-soul-cyan hover:border-arise-violet/50 hover:text-ghost-white"
+                className="inline-flex items-center gap-1 rounded-md border border-rune-line-strong bg-vault-soft px-2 py-1 font-mono text-[11px] uppercase tracking-wider text-ghost-dim transition hover:border-arcane/50 hover:text-arcane"
               >
                 Open in GitHub
                 <ExternalLink size={10} strokeWidth={2} />
@@ -134,7 +135,7 @@ export function MarkdownPreviewModal({
                 type="button"
                 onClick={() => openEditor.mutate()}
                 disabled={openEditor.isPending}
-                className="inline-flex items-center gap-1 rounded-md border border-arise-violet/50 bg-arise-violet/15 px-2 py-1 text-xs text-arise-violet-bright hover:bg-arise-violet/25 disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-md border border-arcane/50 bg-arcane/10 px-2 py-1 text-xs font-medium text-arcane transition hover:bg-arcane/20 disabled:opacity-50"
               >
                 Open in editor
               </button>
@@ -143,7 +144,7 @@ export function MarkdownPreviewModal({
               type="button"
               onClick={onClose}
               aria-label="Close preview"
-              className="rounded-md border border-shadow-purple/60 bg-void-800 p-1.5 text-soul-cyan transition hover:border-arise-violet/50 hover:text-ghost-white"
+              className="rounded-md border border-rune-line-strong bg-vault-soft p-1.5 text-ghost-dim transition hover:border-arcane/50 hover:text-arcane"
             >
               <X size={14} strokeWidth={2} />
             </button>
@@ -151,15 +152,15 @@ export function MarkdownPreviewModal({
         </header>
 
         {isLoading ? (
-          <p className="text-sm text-soul-cyan/70">Loading {label}…</p>
+          <p className="text-sm text-ghost-dim">Loading {label}…</p>
         ) : isError ? (
-          <p className="text-sm text-ember-red">
+          <p className="text-sm text-blood">
             {error instanceof Error ? error.message : `Failed to load ${label}`}
           </p>
         ) : !data?.ok ? (
-          <p className="text-sm text-amber-flame">{data?.reason ?? `${label} unavailable`}</p>
+          <p className="text-sm text-ember">{data?.reason ?? `${label} unavailable`}</p>
         ) : !data.exists ? (
-          <p className="text-sm text-soul-cyan/70">
+          <p className="text-sm text-ghost-dim">
             No {kind} drafted yet for {issueKey}.
           </p>
         ) : (
@@ -167,7 +168,7 @@ export function MarkdownPreviewModal({
             // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted source owned by user
             dangerouslySetInnerHTML={{ __html: html }}
             data-markdown-preview-body={kind}
-            className="prose-rfc max-w-none text-sm text-soul-cyan/90"
+            className="prose-rfc max-w-none text-sm text-ghost/90"
           />
         )}
       </div>

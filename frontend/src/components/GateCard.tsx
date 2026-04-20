@@ -17,6 +17,7 @@ import {
   useRequestChangesGate,
 } from "~/lib/gates";
 import { useTicket } from "~/lib/issues";
+import { MOTION_CLASSES } from "~/lib/motion";
 import { PlanPreviewModal } from "./PlanPreviewModal";
 import { RequestChangesModal } from "./RequestChangesModal";
 import { RfcPreviewModal } from "./RfcPreviewModal";
@@ -101,7 +102,7 @@ export function GateCard({
 
   return (
     <section
-      className="flex flex-col gap-4 rounded-2xl border border-rune-line-strong bg-obsidian-raised p-5 glow-arcane-soft"
+      className={`flex flex-col gap-4 rounded-2xl border border-rune-line-strong bg-obsidian-raised p-5 glow-arcane-soft ${MOTION_CLASSES.runeIn}`}
       data-gate-card
       data-gate-terminal={isTerminal ? "true" : "false"}
     >
