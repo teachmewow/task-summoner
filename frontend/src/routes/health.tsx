@@ -19,12 +19,12 @@ function Health() {
   const test = useTestBoard();
   const clean = useClean();
 
-  if (isLoading) return <p className="text-soul-cyan/80">Loading health…</p>;
+  if (isLoading) return <p className="text-ghost/80">Loading health…</p>;
   if (isError || !data) {
     return (
       <section className="space-y-2">
-        <h1 className="text-2xl font-semibold text-ghost-white">Board Health</h1>
-        <p className="text-ember-red">Couldn't load health. Configure Task Summoner first.</p>
+        <h1 className="text-2xl font-semibold text-ghost">Board Health</h1>
+        <p className="text-blood">Couldn't load health. Configure Task Summoner first.</p>
       </section>
     );
   }
@@ -32,8 +32,8 @@ function Health() {
   return (
     <section className="space-y-8">
       <header className="space-y-1">
-        <h1 className="text-3xl font-semibold text-ghost-white">Board Health</h1>
-        <p className="text-soul-cyan/80">
+        <h1 className="text-3xl font-semibold text-ghost">Board Health</h1>
+        <p className="text-ghost/80">
           Connection, agent, and local-state snapshot — polls every 10s.
         </p>
       </header>
@@ -94,14 +94,12 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-4 rounded-lg border border-shadow-purple/60 bg-void-800/70 p-5">
+    <section className="flex flex-col gap-4 rounded-lg border border-rune-line-strong bg-vault-soft p-5">
       <div className="flex items-center gap-2">
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-shadow-purple/70 bg-void-900/60 text-arise-violet-bright">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-rune-line-strong bg-vault text-arcane">
           {icon}
         </span>
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-arise-violet-bright">
-          {title}
-        </h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-arcane">{title}</h2>
       </div>
       {children}
     </section>
@@ -111,12 +109,11 @@ function Panel({
 function Row({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className="text-soul-cyan/70">{label}</span>
+      <span className="text-ghost-dim">{label}</span>
       <span
-        className={[
-          "min-w-0 truncate text-right text-ghost-white",
-          mono ? "font-mono text-xs" : "",
-        ].join(" ")}
+        className={["min-w-0 truncate text-right text-ghost", mono ? "font-mono text-xs" : ""].join(
+          " ",
+        )}
       >
         {value}
       </span>
@@ -130,8 +127,8 @@ function Status({ ok, label }: { ok: boolean; label: string }) {
       className={[
         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider",
         ok
-          ? "border-mana-green/50 bg-mana-green/10 text-mana-green"
-          : "border-ember-red/50 bg-ember-red/10 text-ember-red",
+          ? "border-phase-done/50 bg-phase-done/10 text-phase-done"
+          : "border-blood/50 bg-blood/10 text-blood",
       ].join(" ")}
     >
       {ok ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
@@ -155,7 +152,7 @@ function BoardPanel({
     <Panel icon={<Activity size={16} strokeWidth={1.75} />} title="Board provider">
       <div className="flex items-center justify-between">
         <Status ok={board.configured} label={board.configured ? "Configured" : "Missing"} />
-        <span className="text-xs uppercase tracking-wider text-soul-cyan/70">{board.provider}</span>
+        <span className="text-xs uppercase tracking-wider text-ghost-dim">{board.provider}</span>
       </div>
       <div className="space-y-1.5">
         <Row label="Watch label" value={board.watch_label || "—"} mono />
@@ -166,23 +163,20 @@ function BoardPanel({
           mono
         />
         {board.last_error ? (
-          <Row
-            label="Last error"
-            value={<span className="text-ember-red">{board.last_error}</span>}
-          />
+          <Row label="Last error" value={<span className="text-blood">{board.last_error}</span>} />
         ) : null}
       </div>
       <button
         type="button"
         onClick={onTest}
         disabled={testing}
-        className="inline-flex items-center justify-center gap-1.5 rounded-md border border-arise-violet/60 bg-arise-violet/20 px-3 py-1.5 text-xs font-medium text-ghost-white transition hover:bg-arise-violet/30 disabled:opacity-50"
+        className="inline-flex items-center justify-center gap-1.5 rounded-md border border-arcane/60 bg-arcane/20 px-3 py-1.5 text-xs font-medium text-ghost transition hover:bg-arcane/30 disabled:opacity-50"
       >
         <Zap size={12} strokeWidth={2} />
         {testing ? "Testing…" : "Test connection"}
       </button>
       {testResult ? (
-        <p className={testResult.ok ? "text-xs text-mana-green" : "text-xs text-ember-red"}>
+        <p className={testResult.ok ? "text-xs text-phase-done" : "text-xs text-blood"}>
           {testResult.message}
         </p>
       ) : null}
@@ -201,7 +195,7 @@ function AgentPanel({ agent }: { agent: AgentHealth }) {
     <Panel icon={<Box size={16} strokeWidth={1.75} />} title="Agent provider">
       <div className="flex items-center justify-between">
         <Status ok={agent.session_available} label={sessionLabel} />
-        <span className="text-xs uppercase tracking-wider text-soul-cyan/70">{agent.provider}</span>
+        <span className="text-xs uppercase tracking-wider text-ghost-dim">{agent.provider}</span>
       </div>
       <div className="space-y-1.5">
         <Row label="Plugin mode" value={agent.plugin_mode || "—"} mono />
@@ -210,14 +204,14 @@ function AgentPanel({ agent }: { agent: AgentHealth }) {
           label="Plugin resolved"
           value={
             agent.plugin_resolved ? (
-              <span className="text-mana-green">yes</span>
+              <span className="text-phase-done">yes</span>
             ) : (
-              <span className="text-ember-red">no</span>
+              <span className="text-blood">no</span>
             )
           }
         />
         {agent.plugin_reason ? (
-          <p className="pt-1 text-xs text-amber-flame">{agent.plugin_reason}</p>
+          <p className="pt-1 text-xs text-ember">{agent.plugin_reason}</p>
         ) : null}
       </div>
     </Panel>
@@ -252,13 +246,13 @@ function LocalPanel({
         type="button"
         onClick={onClean}
         disabled={cleaning}
-        className="inline-flex items-center justify-center gap-1.5 rounded-md border border-ember-red/50 bg-ember-red/10 px-3 py-1.5 text-xs font-medium text-ember-red transition hover:bg-ember-red/20 disabled:opacity-50"
+        className="inline-flex items-center justify-center gap-1.5 rounded-md border border-blood/50 bg-blood/10 px-3 py-1.5 text-xs font-medium text-blood transition hover:bg-blood/20 disabled:opacity-50"
       >
         <Trash2 size={12} strokeWidth={2} />
         {cleaning ? "Cleaning…" : "Run clean"}
       </button>
       {cleanResult ? (
-        <p className={cleanResult.ok ? "text-xs text-mana-green" : "text-xs text-ember-red"}>
+        <p className={cleanResult.ok ? "text-xs text-phase-done" : "text-xs text-blood"}>
           {cleanResult.message}
         </p>
       ) : null}
@@ -268,9 +262,9 @@ function LocalPanel({
 
 function Mini({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-shadow-purple/50 bg-void-900/50 p-2 text-center">
-      <p className="text-[10px] uppercase tracking-wider text-soul-cyan/70">{label}</p>
-      <p className="text-lg font-semibold text-ghost-white">{value}</p>
+    <div className="rounded-md border border-rune-line bg-vault/70 p-2 text-center">
+      <p className="text-[10px] uppercase tracking-wider text-ghost-dim">{label}</p>
+      <p className="text-lg font-semibold text-ghost">{value}</p>
     </div>
   );
 }

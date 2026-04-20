@@ -67,7 +67,7 @@ function StateNode({ data }: { data: StateNodeData }) {
     >
       <Handle type="target" position={Position.Left} style={{ background: accent }} />
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-semibold tracking-wide text-ghost-white">{data.label}</span>
+        <span className="truncate font-semibold tracking-wide text-ghost">{data.label}</span>
         {data.count > 0 ? (
           <span
             className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
@@ -130,16 +130,16 @@ function Workflows() {
     });
   }, [workflow.data, counts]);
 
-  if (workflow.isLoading) return <p className="text-soul-cyan/80">Loading FSM…</p>;
+  if (workflow.isLoading) return <p className="text-ghost/80">Loading FSM…</p>;
   if (workflow.isError || !workflow.data)
-    return <p className="text-ember-red">Failed to load workflow.</p>;
+    return <p className="text-blood">Failed to load workflow.</p>;
 
   return (
     <section className="space-y-4">
       <header className="flex items-baseline justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-3xl font-semibold text-ghost-white">Workflow Designer</h1>
-          <p className="text-soul-cyan/80">
+          <h1 className="text-3xl font-semibold text-ghost">Workflow Designer</h1>
+          <p className="text-ghost/80">
             Deterministic FSM · {nodes.length} states · {edges.length} transitions
             {live.data ? ` · ${live.data.total_tickets} tracked tickets` : ""}
           </p>
@@ -149,7 +149,7 @@ function Workflows() {
 
       <div
         style={{ height: 620 }}
-        className="overflow-hidden rounded-lg border border-shadow-purple/60 bg-void-900/70"
+        className="overflow-hidden rounded-lg border border-rune-line-strong bg-vault"
       >
         <ReactFlowProvider>
           <ReactFlow
@@ -189,7 +189,7 @@ function Legend() {
         return (
           <span
             key={it.kind}
-            className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-soul-cyan/80"
+            className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-ghost/80"
             style={{ borderColor: `${accent}55` }}
           >
             <span className="h-2 w-2 rounded-full" style={{ background: accent }} />

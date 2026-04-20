@@ -13,13 +13,11 @@ function RootLayout() {
     <div className="min-h-screen">
       <ArcaneBackground />
       <SetupBanner />
-      <header className="border-b border-shadow-purple/50 bg-void-900/60 backdrop-blur-sm">
+      <header className="border-b border-rune-line-strong bg-obsidian-raised/60 backdrop-blur-sm">
         <div className="mx-auto flex max-w-6xl items-center gap-8 px-6 py-4">
           <Link to="/" className="flex items-center gap-3">
             <img src={logoUrl} alt="" className="h-8 w-8" />
-            <span className="text-lg font-semibold tracking-wide text-ghost-white">
-              Task Summoner
-            </span>
+            <span className="text-lg font-semibold tracking-wide text-ghost">Task Summoner</span>
           </Link>
           <nav className="flex gap-5 text-sm">
             <NavLink to="/">Home</NavLink>
@@ -39,8 +37,8 @@ function NavLink({ to, children }: { to: string; children: ReactNode }) {
   return (
     <Link
       to={to}
-      className="text-soul-cyan transition-colors hover:text-arise-violet-bright"
-      activeProps={{ className: "text-arise-violet" }}
+      className="text-ghost-dim transition-colors hover:text-arcane"
+      activeProps={{ className: "text-arcane" }}
     >
       {children}
     </Link>
