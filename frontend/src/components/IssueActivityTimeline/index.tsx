@@ -127,23 +127,25 @@ export function IssueActivityTimeline({ issueKey }: Props) {
   return (
     <section
       data-timeline
-      className="flex flex-col gap-3 rounded-lg border border-shadow-purple/60 bg-void-800/70 p-4"
+      className="flex flex-col gap-3 rounded-2xl border border-rune-line-strong bg-obsidian-raised p-5"
     >
       <header className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Terminal size={14} strokeWidth={2} className="text-arise-violet" />
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-arise-violet-bright">
-            Agent activity
+          <Terminal size={14} strokeWidth={2} className="text-arcane" />
+          <h2 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-arcane">
+            Agent scrying
           </h2>
         </div>
         <span
-          className="inline-flex items-center gap-1 text-[10px] text-soul-cyan/70"
+          className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-ghost-dim"
           data-stream-status={connected ? "open" : "closed"}
         >
           <span
             className={[
               "h-1.5 w-1.5 rounded-full",
-              connected ? "bg-mana-green shadow-[0_0_6px_#34d399]" : "bg-soul-cyan/40",
+              connected
+                ? "bg-phase-done shadow-[0_0_6px_var(--color-phase-done)]"
+                : "bg-ghost-dimmer",
             ].join(" ")}
           />
           {connected ? "streaming" : "idle"}
@@ -153,14 +155,14 @@ export function IssueActivityTimeline({ issueKey }: Props) {
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="scroll-arise max-h-[640px] min-h-[240px] overflow-y-auto pr-1"
+        className="scroll-arise relative max-h-[640px] min-h-[240px] overflow-y-auto pr-1"
         data-timeline-scroller
       >
         {groupedItems.length === 0 ? (
           <EmptyState />
         ) : (
           <ol
-            className="flex flex-col gap-3"
+            className="relative flex flex-col gap-3 pl-4"
             ref={(node) => {
               // Cache the most recent top-level boundary li for
               // scroll-into-view. We query the DOM instead of threading a
@@ -176,6 +178,13 @@ export function IssueActivityTimeline({ issueKey }: Props) {
               boundaryRef.current = (last as HTMLLIElement | null) ?? null;
             }}
           >
+            {/* Vertical ley-line rail — a single absolute element behind
+                every row. Step markers render on top of it via their own
+                negative-offset dot. */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-0 left-[5px] top-0 w-px bg-rune-line-strong"
+            />
             {groupedItems.map((entry, idx) => renderGroupedItem(entry, idx))}
           </ol>
         )}

@@ -2,26 +2,23 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { GateCard } from "~/components/GateCard";
 import { IssueActivityTimeline } from "~/components/IssueActivityTimeline";
+import { PhaseStrip } from "~/components/PhaseStrip";
 import { useGate } from "~/lib/gates";
 import { useTicket } from "~/lib/issues";
 
 /**
- * Per-issue detail view.
+ * Per-issue detail view (REVAMP M3).
  *
- * Order is deliberately "decision → agent trace":
+ * Order is deliberately "decision → artifact tease → agent trace":
  *
- *  1. GateCard — what action the human needs to take right now. The gate
- *     surfaces ``Preview RFC`` / ``Preview Plan`` buttons that open a modal
- *     with the relevant artifact, so the page itself stays tight.
- *  2. IssueActivityTimeline — the agent's step-by-step log, including the
- *     collapsed step groups (``✓ Creating doc · N turns · $X.XX``) that let
- *     the user re-read any completed phase.
+ *  1. Header + ``PhaseStrip``      — where the mission is in the lifecycle.
+ *  2. ``GateCard``                 — what the human needs to do right now.
+ *  3. ``IssueActivityTimeline``    — the agent's full trace, below because
+ *     it only matters when debugging or replaying.
  *
- * The standalone ``RfcPanel`` / ``PlanPanel`` sections that used to live
- * between gate and timeline were deleted: the Preview modal covers the
- * review case, and expanding the relevant timeline step covers the
- * after-the-fact re-read case — two places to read the same doc was
- * duplicate surface.
+ * Typography follows the arcane vocabulary from the Claude Design bundle:
+ * Geist Mono for identifiers (ticket key, branch name), Geist for prose,
+ * an eyebrow above the title in uppercase Geist Mono.
  */
 export const Route = createFileRoute("/issues/$key")({
   component: IssueDetail,
@@ -35,38 +32,45 @@ function IssueDetail() {
 
   return (
     <section className="flex flex-col gap-6" data-route="issue-detail">
-      <header className="space-y-1">
+      <header className="flex flex-col gap-4">
         <button
           type="button"
           onClick={() => navigate({ to: "/monitor" })}
-          className="inline-flex items-center gap-1 text-xs text-soul-cyan/70 hover:text-ghost-white"
+          data-issue-back
+          className="inline-flex w-fit items-center gap-1.5 rounded-md border border-rune-line-strong bg-vault-soft px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-ghost-dim transition hover:border-arcane/50 hover:text-arcane focus:outline-none focus-visible:ring-2 focus-visible:ring-arcane/60"
         >
-          <ArrowLeft size={12} strokeWidth={2} />
+          <ArrowLeft size={11} strokeWidth={2} />
           Back to monitor
         </button>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-semibold text-ghost-white">{key}</h1>
-          <a
-            href={`https://linear.app/issue/${key}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-arise-violet-bright hover:text-ghost-white"
-          >
-            Open in Linear
-            <ExternalLink size={10} strokeWidth={2} />
-          </a>
-        </div>
-        {ticket.data ? (
-          <p className="text-sm text-soul-cyan/80">
-            Orchestrator state: <code className="text-ghost-white/90">{ticket.data.state}</code>
-            {ticket.data.branch_name ? (
-              <>
-                {" · branch "}
-                <code className="text-ghost-white/90">{ticket.data.branch_name}</code>
-              </>
-            ) : null}
+        <div className="flex flex-col gap-0.5">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-arcane">
+            Arcane Command Bridge
           </p>
-        ) : null}
+          <div className="flex flex-wrap items-baseline gap-3">
+            <h1 className="font-mono text-3xl font-semibold tracking-wider text-arcane">{key}</h1>
+            <a
+              href={`https://linear.app/issue/${key}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-ghost-dim transition hover:text-arcane"
+            >
+              open in linear
+              <ExternalLink size={10} strokeWidth={2} />
+            </a>
+          </div>
+          {ticket.data ? (
+            <p className="font-mono text-[11px] text-ghost-dimmer">
+              <span className="text-ghost-dim">orchestrator</span>: {ticket.data.state}
+              {ticket.data.branch_name ? (
+                <>
+                  <span className="px-1 text-ghost-dimmer">·</span>
+                  <span className="text-ghost-dim">branch</span> {ticket.data.branch_name}
+                </>
+              ) : null}
+            </p>
+          ) : null}
+        </div>
+        <PhaseStrip orchestratorState={ticket.data?.state ?? null} />
       </header>
 
       {gate.data ? (
@@ -78,9 +82,9 @@ function IssueDetail() {
           retryCount={ticket.data?.retry_count ?? 0}
         />
       ) : gate.isLoading ? (
-        <p className="text-sm text-soul-cyan/70">Inferring gate state…</p>
+        <p className="text-sm text-ghost-dim">Inferring gate state…</p>
       ) : gate.isError ? (
-        <p className="text-sm text-ember-red">
+        <p className="text-sm text-blood">
           {gate.error instanceof Error ? gate.error.message : "Gate fetch failed"}
         </p>
       ) : null}
