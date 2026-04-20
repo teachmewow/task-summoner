@@ -1,4 +1,11 @@
-import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ExternalLink,
+  FileText,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 import { useState } from "react";
 import {
   GATE_CHIP_CLASSES,
@@ -10,6 +17,7 @@ import {
   useRequestChangesGate,
 } from "~/lib/gates";
 import { RequestChangesModal } from "./RequestChangesModal";
+import { RfcPreviewModal } from "./RfcPreviewModal";
 
 interface Props {
   issueKey: string;
@@ -32,8 +40,14 @@ export function GateCard({
   maxRetries = 3,
 }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [rfcPreviewOpen, setRfcPreviewOpen] = useState(false);
   const approve = useApproveGate(issueKey);
   const requestChanges = useRequestChangesGate(issueKey);
+  // The doc-gate shows a "Preview RFC" button so reviewers can read the doc
+  // without scrolling past the timeline to the collapsed RfcPanel. We derive
+  // "this is a doc gate" from orchestrator_state rather than inferring from
+  // the PR URL because the state is always present and unambiguous.
+  const isDocGate = gate.orchestrator_state === "WAITING_DOC_REVIEW";
 
   // Prefer the FSM state — every ``WAITING_*_REVIEW`` is a gate. Fall back
   // to the inferred state for old ctx files (pre-orchestrator_state schema)
@@ -213,6 +227,17 @@ export function GateCard({
             <RefreshCw size={12} strokeWidth={2} />
             Retry with feedback
           </button>
+          {isDocGate ? (
+            <button
+              type="button"
+              onClick={() => setRfcPreviewOpen(true)}
+              data-gate-action="preview-rfc"
+              className="inline-flex items-center gap-1.5 rounded-md border border-arise-violet/50 bg-arise-violet/15 px-3 py-1.5 text-xs font-medium text-arise-violet-bright transition hover:bg-arise-violet/25"
+            >
+              <FileText size={12} strokeWidth={2} />
+              Preview RFC
+            </button>
+          ) : null}
           {gate.retry_skill ? (
             <span className="text-xs text-soul-cyan/60">
               Will re-summon <code className="text-ghost-white/90">{gate.retry_skill}</code>
@@ -243,6 +268,12 @@ export function GateCard({
               : "Failed"
             : null
         }
+      />
+
+      <RfcPreviewModal
+        issueKey={issueKey}
+        open={rfcPreviewOpen}
+        onClose={() => setRfcPreviewOpen(false)}
       />
     </section>
   );

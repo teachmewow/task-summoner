@@ -3,6 +3,7 @@ import { marked } from "marked";
 import type { ReactNode } from "react";
 import { AttemptGroupBox } from "./AttemptGroupBox";
 import { RetryBoundary } from "./RetryBoundary";
+import { StepGroupBox } from "./StepGroupBox";
 import { ToolBox } from "./ToolBox";
 import { ToolsGroupBox } from "./ToolsGroupBox";
 import type { GroupedItem } from "./types";
@@ -53,6 +54,8 @@ export function renderGroupedItem(entry: GroupedItem, idx: number): ReactNode {
       return <RetryBoundary key={key} item={entry} />;
     case "attempt_group":
       return <AttemptGroupBox key={key} group={entry} />;
+    case "step_group":
+      return <StepGroupBox key={key} group={entry} />;
   }
 }
 
