@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
 import { marked } from "marked";
 import { useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { MOTION_CLASSES } from "~/lib/motion";
 
 /**
@@ -92,7 +93,12 @@ export function MarkdownPreviewModal({
   const prNumber = extractPrNumber(prUrl);
   const combinedTitle = data?.title ? `${issueKey} · ${data.title}` : issueKey;
 
-  return (
+  // Portal the modal to ``document.body`` so it escapes any ancestor
+  // stacking / transform context (e.g. the ``runeIn`` animation on
+  // ``GateCard`` creates a containing block that would otherwise trap
+  // our ``fixed inset-0`` backdrop inside that card, letting page
+  // content bleed through).
+  return createPortal(
     <div
       data-markdown-preview-modal={kind}
       // biome-ignore lint/a11y/useSemanticElements: we style/animate the backdrop ourselves; native <dialog> would require a broader refactor
@@ -104,11 +110,29 @@ export function MarkdownPreviewModal({
         // familiar convention for overlay dialogs.
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm sm:p-6"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6"
+      style={{
+        // Belt-and-braces backdrop — inline so we don't depend on a
+        // Tailwind utility for the crucial "user cannot see the page
+        // behind this modal" behaviour. Radial wash matches the design
+        // bundle's ``modal-backdrop`` recipe.
+        background: "radial-gradient(circle at center, rgba(5,7,17,0.88), rgba(5,7,17,0.96))",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      }}
     >
       <div
-        className={`surface-raised relative flex w-full max-w-2xl flex-col overflow-hidden ${MOTION_CLASSES.runeIn}`}
-        style={{ height: "min(85vh, 900px)" }}
+        className={`relative flex w-full max-w-2xl flex-col overflow-hidden ${MOTION_CLASSES.runeIn}`}
+        style={{
+          height: "min(85vh, 900px)",
+          // Explicit opaque background so nothing bleeds through even
+          // when the page below has fixed-position or high-z elements.
+          background: "linear-gradient(180deg, rgba(21,28,58,0.98), rgba(15,21,48,0.98))",
+          border: "1px solid var(--color-rune-line-strong)",
+          borderRadius: 14,
+          boxShadow:
+            "0 1px 0 rgba(255,255,255,0.04) inset, 0 20px 50px -30px rgba(0,0,0,0.8), 0 0 80px -10px rgba(54,224,208,0.15)",
+        }}
       >
         {/* Header — eyebrow + ENG-X · #PR meta + "Close · esc" button.
          *  ``shrink-0`` so it never collapses; the body in between does
@@ -216,7 +240,8 @@ export function MarkdownPreviewModal({
           </div>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
