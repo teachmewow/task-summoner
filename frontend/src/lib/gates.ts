@@ -71,12 +71,13 @@ export function useGate(issueKey: string | null) {
 function invalidateIssueQueries(qc: ReturnType<typeof useQueryClient>, issueKey: string) {
   // After a gate action the FSM advances server-side and Linear flips its
   // status — invalidate every query that feeds the issue-detail page so the
-  // user never has to hit a Refresh button. Gate, ticket context, RFC, and
-  // the monitor listing all matter here.
+  // user never has to hit a Refresh button. Gate, ticket context, artifacts
+  // (rfc + plan), and the monitor listing all matter here.
   qc.invalidateQueries({ queryKey: gateKey(issueKey) });
   qc.invalidateQueries({ queryKey: ["tickets", issueKey] });
   qc.invalidateQueries({ queryKey: ["tickets"] });
   qc.invalidateQueries({ queryKey: ["rfc", issueKey] });
+  qc.invalidateQueries({ queryKey: ["plan", issueKey] });
 }
 
 export function useApproveGate(issueKey: string) {

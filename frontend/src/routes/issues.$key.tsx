@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { GateCard } from "~/components/GateCard";
 import { IssueActivityTimeline } from "~/components/IssueActivityTimeline";
+import { PlanPanel } from "~/components/PlanPanel";
 import { RfcPanel } from "~/components/RfcPanel";
 import { useGate } from "~/lib/gates";
 import { useTicket } from "~/lib/issues";
@@ -82,6 +83,8 @@ function IssueDetail() {
       ) : null}
 
       <RfcPanel issueKey={key} orchestratorState={ticket.data?.state ?? null} />
+
+      <PlanPanel issueKey={key} orchestratorState={ticket.data?.state ?? null} />
 
       <IssueActivityTimeline issueKey={key} />
     </section>

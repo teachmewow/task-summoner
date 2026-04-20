@@ -8,6 +8,7 @@ from task_summoner.api.routers.events import router as events_router
 from task_summoner.api.routers.failures import router as failures_router
 from task_summoner.api.routers.gates import router as gates_router
 from task_summoner.api.routers.health import router as health_router
+from task_summoner.api.routers.plans import router as plans_router
 from task_summoner.api.routers.rfcs import router as rfcs_router
 from task_summoner.api.routers.setup import router as setup_router
 from task_summoner.api.routers.skills import router as skills_router
@@ -24,6 +25,7 @@ __all__ = [
     "failures_router",
     "gates_router",
     "health_router",
+    "plans_router",
     "rfcs_router",
     "setup_router",
     "skills_router",

@@ -58,6 +58,7 @@ from task_summoner.api.schemas.health import (
     LocalStateHealth,
     TestBoardResponse,
 )
+from task_summoner.api.schemas.plan import PlanResponse
 from task_summoner.api.schemas.rfc import RfcResponse
 from task_summoner.api.schemas.setup import (
     MASKED_SECRET_SENTINEL,
@@ -129,6 +130,7 @@ __all__ = [
     "GateResponse",
     "OpenEditorPayload",
     "OpenEditorResponse",
+    "PlanResponse",
     "PrInfo",
     "RfcResponse",
     "FailedTicket",
