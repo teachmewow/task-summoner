@@ -210,6 +210,102 @@ class TestStatusTypeMapping:
         assert _status_type_for(status) == expected
 
 
+class TestFetchCodePrFiltersPlanOnlyMerged:
+    """``_fetch_code_pr`` must ignore the just-merged plan PR.
+
+    Regression (ENG-151 smoke): after lgtm'ing the plan, there's a brief
+    window before ``ticket-implement`` opens the code PR where the only
+    matching PR on the branch is the merged plan-only PR. That used to be
+    returned as ``code_pr`` and tripped the "Code PR is merged but Linear
+    state is 'In Progress'" MANUAL_CHECK false positive. Filtering rules
+    out the merged plan-only rows up front so subsequent gate-inference
+    passes treat it as "between phases".
+    """
+
+    async def test_merged_plan_only_pr_is_filtered(self, monkeypatch):
+        import json as _json
+
+        from task_summoner import gates as gates_mod
+
+        async def fake_run(cmd, *, timeout_sec):
+            # One merged plan-only PR, no other matches.
+            return _json.dumps(
+                [
+                    {
+                        "url": "https://github.com/x/y/pull/19",
+                        "number": 19,
+                        "state": "MERGED",
+                        "isDraft": False,
+                        "headRefName": "ENG-151-doc-path",
+                        "files": [{"path": "plan.md"}],
+                    }
+                ]
+            )
+
+        monkeypatch.setattr(gates_mod, "run_cli", fake_run)
+        result = await gates_mod._fetch_code_pr("ENG-151", "teachmewow/task-summoner-plugin")
+        assert result is None
+
+    async def test_merged_code_pr_passes_through(self, monkeypatch):
+        """A merged PR with real code diff is still the code PR."""
+        import json as _json
+
+        from task_summoner import gates as gates_mod
+
+        async def fake_run(cmd, *, timeout_sec):
+            return _json.dumps(
+                [
+                    {
+                        "url": "https://github.com/x/y/pull/20",
+                        "number": 20,
+                        "state": "MERGED",
+                        "isDraft": False,
+                        "headRefName": "ENG-151-doc-path",
+                        "files": [{"path": "README.md"}],
+                    }
+                ]
+            )
+
+        monkeypatch.setattr(gates_mod, "run_cli", fake_run)
+        result = await gates_mod._fetch_code_pr("ENG-151", "teachmewow/task-summoner-plugin")
+        assert result is not None
+        assert result.number == 20
+        assert result.has_code_diff is True
+
+    async def test_open_code_pr_beats_merged_plan_pr(self, monkeypatch):
+        """When both exist, the filter drops the plan and picks the live code PR."""
+        import json as _json
+
+        from task_summoner import gates as gates_mod
+
+        async def fake_run(cmd, *, timeout_sec):
+            return _json.dumps(
+                [
+                    {
+                        "url": "https://github.com/x/y/pull/19",
+                        "number": 19,
+                        "state": "MERGED",
+                        "isDraft": False,
+                        "headRefName": "ENG-151-doc-path",
+                        "files": [{"path": "plan.md"}],
+                    },
+                    {
+                        "url": "https://github.com/x/y/pull/20",
+                        "number": 20,
+                        "state": "OPEN",
+                        "isDraft": False,
+                        "headRefName": "ENG-151-doc-path",
+                        "files": [{"path": "README.md"}],
+                    },
+                ]
+            )
+
+        monkeypatch.setattr(gates_mod, "run_cli", fake_run)
+        result = await gates_mod._fetch_code_pr("ENG-151", "teachmewow/task-summoner-plugin")
+        assert result is not None
+        assert result.number == 20
+
+
 class TestBranchHelper:
     def test_format_doc_branch_lowercases(self):
         assert format_doc_branch("ENG-95") == "rfc/eng-95"
