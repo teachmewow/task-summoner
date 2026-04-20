@@ -555,22 +555,49 @@ async def merge_pr(pr_url: str) -> str:
     ``GraphQL: Pull Request is still a draft (mergePullRequest)``. ``gh pr
     ready`` on an already-ready PR exits non-zero with a harmless "already
     ready" message, which we swallow so the merge proceeds.
+
+    Idempotency: if the PR has already been merged or closed (most often
+    because a prior approve call already won the race — UI double-click,
+    stale polling, etc.), ``gh pr ready`` reports ``is closed`` and
+    ``gh pr merge`` reports ``already merged``. Both are treated as the
+    operation-already-succeeded outcome so a duplicate lgtm returns 200
+    instead of a misleading 502. Without this the FSM would stay parked
+    at ``WAITING_*_REVIEW`` while the PR was actually merged upstream,
+    leaving the human stuck.
     """
     if not pr_url:
         raise ValueError("pr_url is required")
     try:
         await run_cli(["gh", "pr", "ready", pr_url], timeout_sec=_GH_TIMEOUT_SEC)
     except RuntimeError as e:
+        msg = str(e).lower()
         # ``gh pr ready`` on a non-draft PR returns:
         #   "Pull request <url> is already ready for review"
-        # which is exactly what we want — keep going. Anything else is a
-        # real failure (network, permissions, invalid URL).
-        if "already ready" not in str(e).lower():
+        # which is exactly what we want — keep going.
+        if "already ready" in msg:
+            pass
+        # ``gh pr ready`` on a closed/merged PR returns:
+        #   "Pull request <url> is closed. Only draft pull requests can be
+        #    marked as 'ready for review'"
+        # Which means a prior approve already took the PR across the
+        # finish line. No point retrying the merge — return early.
+        elif "is closed" in msg:
+            return f"Pull request {pr_url} already merged or closed (gh pr ready was a no-op)"
+        else:
             raise
-    return await run_cli(
-        ["gh", "pr", "merge", "--squash", "--delete-branch", pr_url],
-        timeout_sec=_GH_TIMEOUT_SEC,
-    )
+    try:
+        return await run_cli(
+            ["gh", "pr", "merge", "--squash", "--delete-branch", pr_url],
+            timeout_sec=_GH_TIMEOUT_SEC,
+        )
+    except RuntimeError as e:
+        msg = str(e).lower()
+        # Duplicate-merge race: the PR was merged between our ``ready``
+        # call (which succeeded) and our ``merge`` call. Treat as success
+        # — nothing left to do.
+        if "already merged" in msg or "is closed" in msg:
+            return f"Pull request {pr_url} already merged"
+        raise
 
 
 async def request_changes(pr_url: str, feedback: str) -> str:

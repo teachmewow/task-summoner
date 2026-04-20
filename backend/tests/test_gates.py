@@ -378,6 +378,51 @@ class TestMergePr:
         with pytest.raises(ValueError, match="pr_url"):
             await merge_pr("")
 
+    async def test_ready_is_closed_returns_early_as_success(self, monkeypatch):
+        """Duplicate lgtm: PR already merged/closed → treat as success, no 502.
+
+        Reproduces the scenario the ENG-190 smoke hit: a double-click (or
+        stale UI refetch) fires a second approve *after* the first one
+        already merged the PR. ``gh pr ready`` then returns a
+        ``is closed`` error. Without this guard the endpoint raises 502
+        and the FSM never advances — leaving the user stuck.
+        """
+        from task_summoner import gates as gates_mod
+
+        calls: list[list[str]] = []
+
+        async def fake_run(cmd, *, timeout_sec):
+            calls.append(list(cmd))
+            if "ready" in cmd:
+                raise RuntimeError(
+                    'Subprocess failed (exit 1): X Pull request '
+                    'teachmewow/task-summoner#80 is closed. Only draft pull '
+                    'requests can be marked as "ready for review"'
+                )
+            return "merged"
+
+        monkeypatch.setattr(gates_mod, "run_cli", fake_run)
+        out = await gates_mod.merge_pr("https://github.com/tmw/x/pull/80")
+
+        # Only ``gh pr ready`` ran — the merge step is skipped because the
+        # PR is already closed. The returned string signals "work done".
+        assert len(calls) == 1
+        assert "ready" in calls[0]
+        assert "already merged or closed" in out
+
+    async def test_merge_already_merged_race_returns_success(self, monkeypatch):
+        """PR merged between our ``ready`` and ``merge`` calls → treat as success."""
+        from task_summoner import gates as gates_mod
+
+        async def fake_run(cmd, *, timeout_sec):
+            if "ready" in cmd:
+                return "ok"
+            raise RuntimeError("Pull request is already merged")
+
+        monkeypatch.setattr(gates_mod, "run_cli", fake_run)
+        out = await gates_mod.merge_pr("https://github.com/tmw/x/pull/80")
+        assert "already merged" in out
+
 
 class TestLoadContext:
     """``_load_context`` is the shared ctx reader for gate enrichment fields."""
