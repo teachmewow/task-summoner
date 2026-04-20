@@ -1,15 +1,29 @@
 import { X } from "lucide-react";
 import { marked } from "marked";
 import { useEffect, useMemo } from "react";
-import type { MarkdownArtifact } from "./MarkdownArtifactPanel";
+
+/**
+ * Minimal shape every markdown-artifact source (RFC, plan, ...) exposes.
+ *
+ * The ``reason`` field surfaces the backend's explanation when ``ok===false``
+ * (missing docs_repo, file-system error, etc.). Declared here rather than on
+ * a dedicated types file because this modal is the only consumer now that
+ * the standalone panel components are gone.
+ */
+export interface MarkdownArtifact {
+  ok: boolean;
+  exists: boolean;
+  title: string;
+  content: string;
+  reason: string | null;
+}
 
 /**
  * Generic markdown preview modal shared between RFC + plan gates.
  *
- * Opens to the rendered markdown of whatever artifact the caller passes in.
- * Wrappers (``RfcPreviewModal`` / ``PlanPreviewModal``) bind the appropriate
- * react-query hook + label; this component stays artifact-agnostic so new
- * gate types can reuse it without changing modal-layout code.
+ * Wrappers (``RfcPreviewModal`` / ``PlanPreviewModal``) bind the react-query
+ * hook + label; this stays artifact-agnostic so new gate types plug in with
+ * a hook and an optional ``postRender`` / ``openEditor`` pair.
  */
 interface Props {
   issueKey: string;
@@ -20,6 +34,20 @@ interface Props {
   isLoading: boolean;
   isError: boolean;
   error: unknown;
+  /**
+   * Optional "Open in editor" mutation. When provided, the modal header
+   * shows an extra button that fires the caller's ``onOpenEditor`` — used
+   * by the RFC/plan modals to launch the user's editor on the artifact.
+   */
+  openEditor?: {
+    mutate: () => void;
+    isPending: boolean;
+  };
+  /**
+   * Called after the rendered HTML mounts. Only the RFC wrapper uses this
+   * to rewrite relative image paths to the API image endpoint.
+   */
+  postRender?: (container: HTMLElement) => void;
 }
 
 export function MarkdownPreviewModal({
@@ -31,6 +59,8 @@ export function MarkdownPreviewModal({
   isLoading,
   isError,
   error,
+  openEditor,
+  postRender,
 }: Props) {
   const html = useMemo(() => {
     if (!data?.content) return "";
@@ -46,11 +76,21 @@ export function MarkdownPreviewModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  const kind = label.toLowerCase();
+  useEffect(() => {
+    if (!open || !html || !data?.exists || !postRender) return;
+    const container = document.querySelector<HTMLDivElement>(
+      `[data-markdown-preview-body="${kind}"]`,
+    );
+    if (!container) return;
+    postRender(container);
+  }, [open, html, data?.exists, postRender, kind]);
+
   if (!open) return null;
 
   return (
     <div
-      data-markdown-preview-modal={label.toLowerCase()}
+      data-markdown-preview-modal={kind}
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-6"
     >
@@ -64,14 +104,26 @@ export function MarkdownPreviewModal({
               {data?.title || issueKey}
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close preview"
-            className="rounded-md border border-shadow-purple/60 bg-void-800 p-1.5 text-soul-cyan transition hover:border-arise-violet/50 hover:text-ghost-white"
-          >
-            <X size={14} strokeWidth={2} />
-          </button>
+          <div className="flex items-center gap-2">
+            {openEditor && data?.exists ? (
+              <button
+                type="button"
+                onClick={() => openEditor.mutate()}
+                disabled={openEditor.isPending}
+                className="inline-flex items-center gap-1 rounded-md border border-arise-violet/50 bg-arise-violet/15 px-2 py-1 text-xs text-arise-violet-bright hover:bg-arise-violet/25 disabled:opacity-50"
+              >
+                Open in editor
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close preview"
+              className="rounded-md border border-shadow-purple/60 bg-void-800 p-1.5 text-soul-cyan transition hover:border-arise-violet/50 hover:text-ghost-white"
+            >
+              <X size={14} strokeWidth={2} />
+            </button>
+          </div>
         </header>
 
         {isLoading ? (
@@ -84,13 +136,13 @@ export function MarkdownPreviewModal({
           <p className="text-sm text-amber-flame">{data?.reason ?? `${label} unavailable`}</p>
         ) : !data.exists ? (
           <p className="text-sm text-soul-cyan/70">
-            No {label.toLowerCase()} drafted yet for {issueKey}.
+            No {kind} drafted yet for {issueKey}.
           </p>
         ) : (
           <div
             // biome-ignore lint/security/noDangerouslySetInnerHtml: trusted source owned by user
             dangerouslySetInnerHTML={{ __html: html }}
-            data-markdown-preview-body={label.toLowerCase()}
+            data-markdown-preview-body={kind}
             className="prose-rfc max-w-none text-sm text-soul-cyan/90"
           />
         )}
