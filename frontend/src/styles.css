@@ -151,6 +151,26 @@
   }
 }
 
+/* Breathing pulse used by the orchestrator "live" dot + the phase-ring
+ * shimmer. A single registry entry keeps every component in step. */
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes rotate-ccw {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
 .anim-rune-in {
   animation: rune-in 220ms ease-out both;
 }
@@ -168,6 +188,21 @@
   animation: particle-spark 2.4s ease-in-out infinite;
 }
 
+.anim-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.anim-rotate-cw {
+  animation: phase-ring-spin 14s linear infinite;
+  transform-origin: center;
+}
+
+.anim-rotate-ccw {
+  animation: rotate-ccw 18s linear infinite;
+  transform-origin: center;
+}
+
 /* Respect the user's OS-level motion preference.
  * Any component that opts into an animation must either use one of the
  * classes above (auto-freezes here) or gate its own styles on
@@ -176,7 +211,10 @@
   .anim-rune-in,
   .anim-phase-ring,
   .anim-starfield-drift,
-  .anim-particle-spark {
+  .anim-particle-spark,
+  .anim-pulse-glow,
+  .anim-rotate-cw,
+  .anim-rotate-ccw {
     animation: none;
   }
 }
@@ -189,6 +227,110 @@
 
 @utility glow-arcane-soft {
   box-shadow: 0 0 20px var(--arcane-glow-soft);
+}
+
+@utility glow-ember {
+  box-shadow: 0 0 0 1px rgba(255, 138, 91, 0.28), 0 0 40px -10px rgba(255, 138, 91, 0.55);
+}
+
+@utility glow-rune {
+  box-shadow: 0 0 0 1px rgba(157, 123, 255, 0.25), 0 0 40px -10px rgba(157, 123, 255, 0.45);
+}
+
+/* Monitor surfaces — gradient + blur + border for a raised "rune tablet"
+ * feel. Matches the ``surface-raised`` used by the Claude Design bundle
+ * so the Monitor cards feel carved out of the obsidian canvas. */
+.surface {
+  background: linear-gradient(180deg, rgba(15, 21, 48, 0.72), rgba(10, 15, 31, 0.72));
+  border: 1px solid var(--color-rune-line);
+  border-radius: 14px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.surface-raised {
+  background: linear-gradient(180deg, rgba(21, 28, 58, 0.88), rgba(15, 21, 48, 0.88));
+  border: 1px solid var(--color-rune-line-strong);
+  border-radius: 14px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 20px 50px -30px rgba(0, 0, 0, 0.8);
+}
+
+/* Eyebrow label — tiny mono uppercase used above every section heading on
+ * the Monitor. Matches the Claude Design bundle's ``.eyebrow`` class. */
+.eyebrow {
+  font-family: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-arcane);
+  opacity: 0.85;
+}
+
+/* Inline keyboard hint (⌘N etc). */
+.kbd {
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--color-rune-line-strong);
+  background: rgba(5, 7, 17, 0.6);
+  color: var(--color-ghost-dim);
+}
+
+/* Monitor chips — uppercase mono pills with phase-tinted background,
+ * border, and text. One CSS class per semantic meaning so the JSX can
+ * just say `chip chip-code`. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  font-family: "Geist Mono", ui-monospace, monospace;
+  text-transform: uppercase;
+  border: 1px solid var(--color-rune-line-strong);
+  background: rgba(15, 21, 48, 0.6);
+  color: var(--color-ghost-dim);
+  white-space: nowrap;
+}
+.chip-doc {
+  color: var(--color-phase-doc);
+  border-color: rgba(245, 183, 105, 0.4);
+  background: rgba(245, 183, 105, 0.08);
+}
+.chip-plan {
+  color: var(--color-phase-plan);
+  border-color: rgba(157, 123, 255, 0.4);
+  background: rgba(157, 123, 255, 0.08);
+}
+.chip-code,
+.chip-implement {
+  color: var(--color-phase-code);
+  border-color: rgba(54, 224, 208, 0.4);
+  background: rgba(54, 224, 208, 0.08);
+}
+.chip-done {
+  color: var(--color-phase-done);
+  border-color: rgba(122, 229, 130, 0.4);
+  background: rgba(122, 229, 130, 0.08);
+}
+.chip-ember {
+  color: var(--color-ember);
+  border-color: rgba(255, 138, 91, 0.5);
+  background: rgba(255, 138, 91, 0.1);
+}
+.chip-blood {
+  color: var(--color-blood);
+  border-color: rgba(255, 85, 119, 0.5);
+  background: rgba(255, 85, 119, 0.1);
+}
+.chip-idle {
+  color: var(--color-ghost-dimmer);
 }
 
 /* Themed scrollbar. Without this the browser default overlays a white track
