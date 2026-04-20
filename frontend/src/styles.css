@@ -60,23 +60,6 @@
   /* Glow helpers used by `shadow-arcane-glow` utility */
   --arcane-glow: rgba(54, 224, 208, 0.42);
   --arcane-glow-soft: rgba(54, 224, 208, 0.14);
-
-  /* ===== Legacy void palette (pre-REVAMP, kept for staged migration) === */
-  --color-void-black: #0a0514;
-  --color-void-900: #0f0a1f;
-  --color-void-800: #1a0f2e;
-  --color-void-700: #261841;
-  --color-shadow-purple: #3d1b6b;
-  --color-arise-violet: #a855f7;
-  --color-arise-violet-bright: #c084fc;
-  --color-soul-cyan: #c4b5fd;
-  --color-ghost-white: #e9d5ff;
-  --color-mana-green: #34d399;
-  --color-ember-red: #f87171;
-  --color-amber-flame: #fbbf24;
-
-  --arise-glow: rgba(168, 85, 247, 0.25);
-  --arise-glow-strong: rgba(168, 85, 247, 0.45);
 }
 
 @layer base {
@@ -196,52 +179,47 @@
   box-shadow: 0 0 20px var(--arcane-glow-soft);
 }
 
-/* Legacy — kept while components still reference the violet glow. */
-@utility glow-violet {
-  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.35), 0 0 24px var(--arise-glow);
-}
-
 /* Themed scrollbar. Without this the browser default overlays a white track
- * on top of the dark palette — jarring next to the rest of the app. Used by
+ * on top of the dark canvas — jarring next to the rest of the app. Used by
  * the Monitor decisions sidebar and the issue-detail activity timeline. */
 .scroll-arise {
   scrollbar-width: thin;
-  scrollbar-color: rgba(168, 85, 247, 0.5) rgba(15, 10, 31, 0.6);
+  scrollbar-color: rgba(54, 224, 208, 0.45) rgba(15, 21, 48, 0.6);
 }
 .scroll-arise::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 .scroll-arise::-webkit-scrollbar-track {
-  background: rgba(15, 10, 31, 0.6);
+  background: rgba(15, 21, 48, 0.6);
   border-radius: 4px;
 }
 .scroll-arise::-webkit-scrollbar-thumb {
-  background: rgba(168, 85, 247, 0.45);
+  background: rgba(54, 224, 208, 0.4);
   border-radius: 4px;
 }
 .scroll-arise::-webkit-scrollbar-thumb:hover {
-  background: rgba(192, 132, 252, 0.7);
+  background: rgba(123, 238, 228, 0.7);
 }
 
 /* RFC / decisions markdown rendering. Scoped so it doesn't leak into other
- * routes; tailored to the void palette. */
+ * routes; tailored to the arcane palette. */
 .prose-rfc h1 {
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--color-ghost-white);
+  color: var(--color-ghost);
   margin: 1rem 0 0.5rem;
 }
 .prose-rfc h2 {
   font-size: 1.05rem;
   font-weight: 600;
-  color: var(--color-ghost-white);
+  color: var(--color-ghost);
   margin: 1rem 0 0.5rem;
 }
 .prose-rfc h3 {
   font-size: 0.95rem;
   font-weight: 600;
-  color: var(--color-arise-violet-bright);
+  color: var(--color-arcane);
   margin: 0.75rem 0 0.25rem;
 }
 .prose-rfc p {
@@ -262,23 +240,23 @@
   margin: 0.2rem 0;
 }
 .prose-rfc a {
-  color: var(--color-arise-violet-bright);
+  color: var(--color-arcane);
   text-decoration: underline;
-  text-decoration-color: rgba(192, 132, 252, 0.4);
+  text-decoration-color: rgba(54, 224, 208, 0.4);
 }
 .prose-rfc a:hover {
-  color: var(--color-ghost-white);
+  color: var(--color-arcane-300);
 }
 .prose-rfc code {
-  background: rgba(61, 27, 107, 0.35);
+  background: rgba(21, 28, 58, 0.7);
   padding: 0.05rem 0.3rem;
   border-radius: 3px;
   font-size: 0.85em;
-  color: var(--color-ghost-white);
+  color: var(--color-ghost);
 }
 .prose-rfc pre {
-  background: rgba(15, 10, 31, 0.8);
-  border: 1px solid rgba(61, 27, 107, 0.6);
+  background: rgba(15, 21, 48, 0.8);
+  border: 1px solid var(--color-rune-line-strong);
   border-radius: 6px;
   padding: 0.75rem;
   overflow-x: auto;
@@ -290,9 +268,9 @@
   padding: 0;
 }
 .prose-rfc blockquote {
-  border-left: 3px solid var(--color-arise-violet);
+  border-left: 3px solid var(--color-arcane);
   padding-left: 0.75rem;
-  color: var(--color-soul-cyan);
+  color: var(--color-ghost-dim);
   margin: 0.5rem 0;
 }
 .prose-rfc table {
@@ -302,13 +280,13 @@
 }
 .prose-rfc th,
 .prose-rfc td {
-  border: 1px solid rgba(61, 27, 107, 0.6);
+  border: 1px solid var(--color-rune-line-strong);
   padding: 0.35rem 0.6rem;
   text-align: left;
 }
 .prose-rfc th {
-  background: rgba(168, 85, 247, 0.1);
-  color: var(--color-ghost-white);
+  background: rgba(54, 224, 208, 0.1);
+  color: var(--color-ghost);
 }
 .prose-rfc img {
   max-width: 100%;

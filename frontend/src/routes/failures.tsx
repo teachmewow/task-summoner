@@ -13,26 +13,28 @@ export const Route = createFileRoute("/failures")({
   component: Failures,
 });
 
-const VIOLET = "#A855F7";
-const VIOLET_BRIGHT = "#C084FC";
-const EMBER = "#F87171";
-const AMBER = "#FBBF24";
-const SHADOW = "#3D1B6B";
-const INK = "#E9D5FF";
-const SPIRIT = "#C4B5FD";
+// Hex palette for Recharts SVG (tailwind classes don't apply inside
+// chart primitives). Keep in sync with the arcane theme in styles.css.
+const ARCANE = "#36e0d0";
+const ARCANE_BRIGHT = "#7beee4";
+const BLOOD = "#ff5577";
+const EMBER_TONE = "#ff8a5b";
+const RUNE_LINE = "#2b3570";
+const GHOST = "#eef2ff";
+const GHOST_DIM = "#bcc5e6";
 
 function Failures() {
   const { data, isLoading, isError } = useFailureSummary();
   const retry = useRetryTicket();
 
-  if (isLoading) return <p className="text-soul-cyan/80">Loading failures…</p>;
-  if (isError || !data) return <p className="text-ember-red">Failed to load failures.</p>;
+  if (isLoading) return <p className="text-ghost/80">Loading failures…</p>;
+  if (isError || !data) return <p className="text-blood">Failed to load failures.</p>;
 
   return (
     <section className="space-y-8">
       <header className="space-y-1">
-        <h1 className="text-3xl font-semibold text-ghost-white">Failure Analysis</h1>
-        <p className="text-soul-cyan/80">
+        <h1 className="text-3xl font-semibold text-ghost">Failure Analysis</h1>
+        <p className="text-ghost/80">
           FAILED tickets, retry patterns, and quarantine state — polls every 10s.
         </p>
       </header>
@@ -69,18 +71,15 @@ function KpiRow({
   healthy: number;
 }) {
   const items = [
-    { label: "Total failed", value: total, tint: total > 0 ? EMBER : INK },
-    { label: "Quarantined", value: quarantined, tint: quarantined > 0 ? AMBER : INK },
-    { label: "Healthy", value: healthy, tint: INK },
+    { label: "Total failed", value: total, tint: total > 0 ? BLOOD : GHOST },
+    { label: "Quarantined", value: quarantined, tint: quarantined > 0 ? EMBER_TONE : GHOST },
+    { label: "Healthy", value: healthy, tint: GHOST },
   ];
   return (
     <div className="grid gap-4 sm:grid-cols-3">
       {items.map((it) => (
-        <div
-          key={it.label}
-          className="rounded-lg border border-shadow-purple/60 bg-void-800/70 p-5"
-        >
-          <p className="text-xs uppercase tracking-wider text-soul-cyan/70">{it.label}</p>
+        <div key={it.label} className="rounded-lg border border-rune-line-strong bg-vault-soft p-5">
+          <p className="text-xs uppercase tracking-wider text-ghost-dim">{it.label}</p>
           <p className="mt-1 text-2xl font-semibold" style={{ color: it.tint }}>
             {it.value}
           </p>
@@ -92,10 +91,8 @@ function KpiRow({
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-shadow-purple/60 bg-void-800/70 p-5">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-arise-violet-bright">
-        {title}
-      </h2>
+    <section className="rounded-lg border border-rune-line-strong bg-vault-soft p-5">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-arcane">{title}</h2>
       {children}
     </section>
   );
@@ -106,18 +103,18 @@ function ByPhase({ phases }: { phases: FailureByPhase[] }) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={phases} margin={{ top: 5, right: 8, bottom: 0, left: -16 }}>
-        <CartesianGrid stroke={SHADOW} strokeOpacity={0.4} vertical={false} />
-        <XAxis dataKey="phase" stroke={SPIRIT} tick={{ fill: SPIRIT, fontSize: 11 }} />
-        <YAxis stroke={SPIRIT} tick={{ fill: SPIRIT, fontSize: 11 }} allowDecimals={false} />
+        <CartesianGrid stroke={RUNE_LINE} strokeOpacity={0.4} vertical={false} />
+        <XAxis dataKey="phase" stroke={GHOST_DIM} tick={{ fill: GHOST_DIM, fontSize: 11 }} />
+        <YAxis stroke={GHOST_DIM} tick={{ fill: GHOST_DIM, fontSize: 11 }} allowDecimals={false} />
         <Tooltip
           contentStyle={{
-            background: "#0F0A1F",
-            border: `1px solid ${SHADOW}`,
+            background: "#0a0f1f",
+            border: `1px solid ${RUNE_LINE}`,
             borderRadius: 6,
-            color: INK,
+            color: GHOST,
           }}
         />
-        <Bar dataKey="count" fill={EMBER} radius={[4, 4, 0, 0]} />
+        <Bar dataKey="count" fill={BLOOD} radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -128,22 +125,22 @@ function ByCategory({ categories }: { categories: FailureByCategory[] }) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={categories} margin={{ top: 5, right: 8, bottom: 0, left: -16 }}>
-        <CartesianGrid stroke={SHADOW} strokeOpacity={0.4} vertical={false} />
-        <XAxis dataKey="category" stroke={SPIRIT} tick={{ fill: SPIRIT, fontSize: 11 }} />
-        <YAxis stroke={SPIRIT} tick={{ fill: SPIRIT, fontSize: 11 }} allowDecimals={false} />
+        <CartesianGrid stroke={RUNE_LINE} strokeOpacity={0.4} vertical={false} />
+        <XAxis dataKey="category" stroke={GHOST_DIM} tick={{ fill: GHOST_DIM, fontSize: 11 }} />
+        <YAxis stroke={GHOST_DIM} tick={{ fill: GHOST_DIM, fontSize: 11 }} allowDecimals={false} />
         <Tooltip
           contentStyle={{
-            background: "#0F0A1F",
-            border: `1px solid ${SHADOW}`,
+            background: "#0a0f1f",
+            border: `1px solid ${RUNE_LINE}`,
             borderRadius: 6,
-            color: INK,
+            color: GHOST,
           }}
           formatter={(v: unknown, _name: unknown, ctx: { payload?: FailureByCategory }) => [
             `${Number(v)} · ${ctx.payload?.sample_message ?? ""}`,
             "Count",
           ]}
         />
-        <Bar dataKey="count" fill={VIOLET} radius={[4, 4, 0, 0]} />
+        <Bar dataKey="count" fill={ARCANE} radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -162,22 +159,22 @@ function TicketList({
     return <Empty label="Everything is healthy. No failed tickets." />;
   }
   return (
-    <ul className="divide-y divide-shadow-purple/30">
+    <ul className="divide-y divide-rune-line">
       {tickets.map((t) => (
         <li key={t.ticket_key} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start">
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium text-ghost-white">{t.ticket_key}</span>
+              <span className="font-medium text-ghost">{t.ticket_key}</span>
               <CategoryPill category={t.category} />
               <PhasePill phase={t.last_phase} />
               {t.quarantined ? (
-                <span className="rounded-full border border-amber-flame/50 bg-amber-flame/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-flame">
+                <span className="rounded-full border border-ember/50 bg-ember/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ember">
                   Quarantined
                 </span>
               ) : null}
             </div>
-            <p className="break-words text-sm text-soul-cyan/80">{t.error || "—"}</p>
-            <p className="text-xs text-soul-cyan/60">
+            <p className="break-words text-sm text-ghost/80">{t.error || "—"}</p>
+            <p className="text-xs text-ghost-dimmer">
               retries: {t.retry_count} · spent: ${t.total_cost_usd.toFixed(2)} · updated{" "}
               {t.updated_at.slice(0, 19).replace("T", " ")}
             </p>
@@ -186,7 +183,7 @@ function TicketList({
             type="button"
             onClick={() => onRetry(t.ticket_key)}
             disabled={retrying === t.ticket_key}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-shadow-purple/60 bg-void-900/60 px-3 py-1.5 text-xs font-medium text-soul-cyan transition hover:border-arise-violet/70 hover:text-ghost-white disabled:opacity-50"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-rune-line-strong bg-vault px-3 py-1.5 text-xs font-medium text-ghost-dim transition hover:border-arcane/60 hover:text-ghost disabled:opacity-50"
           >
             <RefreshCcw size={12} strokeWidth={2} />
             {retrying === t.ticket_key ? "Queuing…" : "Retry"}
@@ -199,7 +196,7 @@ function TicketList({
 
 function CategoryPill({ category }: { category: string }) {
   const tint =
-    category === "board_not_found" ? AMBER : category === "timeout" ? EMBER : VIOLET_BRIGHT;
+    category === "board_not_found" ? EMBER_TONE : category === "timeout" ? BLOOD : ARCANE_BRIGHT;
   return (
     <span
       className="rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
@@ -212,12 +209,12 @@ function CategoryPill({ category }: { category: string }) {
 
 function PhasePill({ phase }: { phase: string }) {
   return (
-    <span className="rounded-full border border-shadow-purple/50 bg-void-900/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-soul-cyan/80">
+    <span className="rounded-full border border-rune-line bg-vault px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ghost/80">
       {phase}
     </span>
   );
 }
 
 function Empty({ label }: { label: string }) {
-  return <p className="text-sm text-soul-cyan/60">{label}</p>;
+  return <p className="text-sm text-ghost-dimmer">{label}</p>;
 }

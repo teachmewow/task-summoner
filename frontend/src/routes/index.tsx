@@ -87,11 +87,13 @@ function Home() {
   return (
     <section className="space-y-8">
       <header className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.2em] text-soul-cyan/80">Local-first SDLC</p>
-        <h1 className="text-4xl font-semibold text-ghost-white">
-          Summon the <span className="text-arise-violet">shadow army</span>.
+        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-arcane">
+          Local-first SDLC
+        </p>
+        <h1 className="text-4xl font-semibold text-ghost">
+          Summon the <span className="text-arcane">shadow army</span>.
         </h1>
-        <p className="max-w-2xl text-soul-cyan/90">
+        <p className="max-w-2xl text-ghost/90">
           Pick a view below. Active cards are live; the rest are placeholders for upcoming work.
         </p>
       </header>

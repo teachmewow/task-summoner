@@ -235,7 +235,7 @@ function Setup() {
     }));
 
   if (state.isLoading) {
-    return <p className="text-sm text-soul-cyan/80">Loading saved config…</p>;
+    return <p className="text-sm text-ghost/80">Loading saved config…</p>;
   }
 
   const saveBlocked = !dirtyAny || anyPathInvalid || save.isPending;
@@ -247,8 +247,8 @@ function Setup() {
   return (
     <form onSubmit={onSubmit} className="max-w-3xl space-y-10">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold text-ghost-white">Setup</h1>
-        <p className="text-soul-cyan/80">
+        <h1 className="text-3xl font-semibold text-ghost">Setup</h1>
+        <p className="text-ghost/80">
           Wire up a board, an agent, and at least one repo. Fields you haven't changed carry over
           from the last save.
         </p>
@@ -414,7 +414,7 @@ function Setup() {
                   type="button"
                   onClick={() => removeRepo(i)}
                   disabled={form.repos.length === 1}
-                  className="mb-1 inline-flex h-10 w-10 items-center justify-center rounded-md border border-shadow-purple/60 text-soul-cyan/80 transition hover:border-ember-red/60 hover:text-ember-red disabled:cursor-not-allowed disabled:opacity-40"
+                  className="mb-1 inline-flex h-10 w-10 items-center justify-center rounded-md border border-rune-line-strong text-ghost/80 transition hover:border-blood/60 hover:text-blood disabled:cursor-not-allowed disabled:opacity-40"
                   aria-label="Remove repo"
                 >
                   <Trash2 size={16} />
@@ -425,7 +425,7 @@ function Setup() {
           <button
             type="button"
             onClick={addRepo}
-            className="inline-flex items-center gap-2 rounded-md border border-shadow-purple/60 bg-void-800/60 px-3 py-1.5 text-xs font-medium text-soul-cyan hover:border-arise-violet/70 hover:text-ghost-white"
+            className="inline-flex items-center gap-2 rounded-md border border-rune-line-strong bg-vault-soft px-3 py-1.5 text-xs font-medium text-ghost-dim hover:border-arcane/70 hover:text-ghost"
           >
             <Plus size={14} /> Add repo
           </button>
@@ -474,18 +474,18 @@ function Setup() {
         <button
           type="submit"
           disabled={saveBlocked}
-          className="glow-violet rounded-md border border-arise-violet/60 bg-arise-violet/20 px-5 py-2 text-sm font-medium text-ghost-white transition hover:bg-arise-violet/30 disabled:opacity-50"
+          className="glow-arcane rounded-md border border-arcane/60 bg-arcane/20 px-5 py-2 text-sm font-medium text-ghost transition hover:bg-arcane/30 disabled:opacity-50"
         >
           {save.isPending ? "Saving..." : "Save config"}
         </button>
-        {toast ? <span className="text-sm text-mana-green">{toast}</span> : null}
+        {toast ? <span className="text-sm text-phase-done">{toast}</span> : null}
         {save.isError ? (
-          <span className="text-sm text-ember-red">
+          <span className="text-sm text-blood">
             {save.error instanceof Error ? save.error.message : "Save failed"}
           </span>
         ) : null}
         {save.data && !save.data.ok ? (
-          <span className="text-sm text-ember-red">{save.data.errors.join("; ")}</span>
+          <span className="text-sm text-blood">{save.data.errors.join("; ")}</span>
         ) : null}
       </div>
     </form>
@@ -517,14 +517,14 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-4 rounded-lg border border-shadow-purple/60 bg-void-800/60 p-6">
-      <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-arise-violet-bright">
+    <section className="space-y-4 rounded-lg border border-rune-line-strong bg-vault-soft p-6">
+      <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-arcane">
         {title}
         {modified ? (
           <span
             aria-label="modified"
             data-testid="section-modified-dot"
-            className="inline-block h-1.5 w-1.5 rounded-full bg-arise-violet"
+            className="inline-block h-1.5 w-1.5 rounded-full bg-arcane"
           />
         ) : null}
       </h2>
@@ -559,38 +559,38 @@ function FieldWithDot({
   const dotTestId = `field-modified-dot-${label.toLowerCase().replace(/\s+/g, "-")}`;
   return (
     <label htmlFor={inputId} className="block space-y-1">
-      <span className="flex items-center gap-2 text-sm font-medium text-ghost-white">
+      <span className="flex items-center gap-2 text-sm font-medium text-ghost">
         {label}
         {modified ? (
           <span
             aria-label="modified"
             data-testid={dotTestId}
-            className="inline-block h-1.5 w-1.5 rounded-full bg-arise-violet"
+            className="inline-block h-1.5 w-1.5 rounded-full bg-arcane"
           />
         ) : null}
         {pathStatus?.ok === true ? (
-          <CheckCircle2 size={12} className="text-mana-green" />
+          <CheckCircle2 size={12} className="text-phase-done" />
         ) : pathStatus?.ok === false ? (
-          <XCircle size={12} className="text-ember-red" />
+          <XCircle size={12} className="text-blood" />
         ) : null}
       </span>
       <input
         id={inputId}
         {...rest}
-        className="w-full rounded-md border border-shadow-purple/60 bg-void-900/60 px-3 py-2 text-sm text-ghost-white placeholder:text-soul-cyan/40 focus:border-arise-violet focus:outline-none focus:ring-2 focus:ring-arise-violet/40"
+        className="w-full rounded-md border border-rune-line-strong bg-vault-soft px-3 py-2 text-sm text-ghost placeholder:text-ghost-dimmer focus:border-arcane focus:outline-none focus:ring-2 focus:ring-arcane/40"
       />
-      {hint ? <span className="block text-xs text-soul-cyan/70">{hint}</span> : null}
+      {hint ? <span className="block text-xs text-ghost-dim">{hint}</span> : null}
       {maskControls?.isMasked ? (
         <button
           type="button"
           onClick={maskControls.onReplace}
-          className="text-xs text-soul-cyan underline hover:text-ghost-white"
+          className="text-xs text-ghost-dim underline hover:text-ghost"
         >
           Replace
         </button>
       ) : null}
       {pathStatus?.ok === false ? (
-        <p className="text-xs text-ember-red">Path looks off — must be absolute.</p>
+        <p className="text-xs text-blood">Path looks off — must be absolute.</p>
       ) : null}
     </label>
   );
@@ -696,12 +696,12 @@ function LinearBoardFields({
             options={options}
             placeholder="Select a team"
           />
-          <span className="block text-xs text-soul-cyan/70">
+          <span className="block text-xs text-ghost-dim">
             Resolved {teams.length} team{teams.length === 1 ? "" : "s"}
             {teamId ? (
               <>
                 {" — stored as "}
-                <code className="font-mono text-[11px] text-ghost-white/90">{teamId}</code>.
+                <code className="font-mono text-[11px] text-ghost/90">{teamId}</code>.
               </>
             ) : (
               "."
@@ -726,12 +726,12 @@ function LinearBoardFields({
       )}
 
       {fetchTeams.isPending ? (
-        <p className="flex items-center gap-1.5 text-xs text-soul-cyan/70">
+        <p className="flex items-center gap-1.5 text-xs text-ghost-dim">
           <Loader2 size={11} strokeWidth={2} className="animate-spin" />
           Fetching Linear teams…
         </p>
       ) : lookupError ? (
-        <p className="text-xs text-ember-red">{lookupError}</p>
+        <p className="text-xs text-blood">{lookupError}</p>
       ) : null}
 
       <FieldWithDot

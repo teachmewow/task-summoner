@@ -18,12 +18,12 @@ const ALL_TOOLS = ["Read", "Glob", "Grep", "Bash", "Edit", "Write", "Skill"] as 
 function Agents() {
   const { data, isLoading, isError } = useAgentProfiles();
 
-  if (isLoading) return <p className="text-soul-cyan/80">Loading profiles…</p>;
+  if (isLoading) return <p className="text-ghost/80">Loading profiles…</p>;
   if (isError || !data) {
     return (
       <section className="space-y-2">
-        <h1 className="text-2xl font-semibold text-ghost-white">Agent Configurator</h1>
-        <p className="text-ember-red">
+        <h1 className="text-2xl font-semibold text-ghost">Agent Configurator</h1>
+        <p className="text-blood">
           Couldn't load agent profiles. If you haven't configured Task Summoner yet, run setup
           first.
         </p>
@@ -34,10 +34,10 @@ function Agents() {
   return (
     <section className="space-y-8">
       <header className="space-y-1">
-        <h1 className="text-3xl font-semibold text-ghost-white">Agent Configurator</h1>
-        <p className="text-soul-cyan/80">
-          Provider: <span className="text-ghost-white">{data.agent_provider}</span> · models
-          supported: {data.available_models.join(", ") || "n/a"}
+        <h1 className="text-3xl font-semibold text-ghost">Agent Configurator</h1>
+        <p className="text-ghost/80">
+          Provider: <span className="text-ghost">{data.agent_provider}</span> · models supported:{" "}
+          {data.available_models.join(", ") || "n/a"}
         </p>
       </header>
 
@@ -97,18 +97,18 @@ function ProfileCard({
   return (
     <form
       onSubmit={onSubmit}
-      className="flex flex-col gap-4 rounded-lg border border-shadow-purple/60 bg-void-800/70 p-5"
+      className="flex flex-col gap-4 rounded-lg border border-rune-line-strong bg-vault-soft p-5"
     >
       <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-arise-violet-bright">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-arcane">
           {profile.name.replace("_", " ")}
         </h2>
-        <label className="inline-flex items-center gap-2 text-xs text-soul-cyan/80">
+        <label className="inline-flex items-center gap-2 text-xs text-ghost/80">
           <input
             type="checkbox"
             checked={form.enabled}
             onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
-            className="accent-arise-violet"
+            className="accent-arcane"
           />
           Enabled
         </label>
@@ -118,7 +118,7 @@ function ProfileCard({
         <select
           value={form.model}
           onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-          className="w-full rounded-md border border-shadow-purple/60 bg-void-900/60 px-3 py-2 text-sm text-ghost-white focus:border-arise-violet focus:outline-none focus:ring-2 focus:ring-arise-violet/40"
+          className="w-full rounded-md border border-rune-line-strong bg-vault px-3 py-2 text-sm text-ghost focus:border-arcane focus:outline-none focus:ring-2 focus:ring-arcane/40"
         >
           {availableModels.length === 0 ? <option value={form.model}>{form.model}</option> : null}
           {availableModels.map((m) => (
@@ -162,8 +162,8 @@ function ProfileCard({
                 className={[
                   "rounded-full border px-3 py-1 text-xs font-medium transition",
                   on
-                    ? "border-arise-violet/60 bg-arise-violet/20 text-ghost-white"
-                    : "border-shadow-purple/50 bg-void-900/60 text-soul-cyan/80 hover:border-arise-violet/40 hover:text-ghost-white",
+                    ? "border-arcane/60 bg-arcane/20 text-ghost"
+                    : "border-rune-line bg-vault text-ghost/80 hover:border-arcane/40 hover:text-ghost",
                 ].join(" ")}
               >
                 {tool}
@@ -177,16 +177,16 @@ function ProfileCard({
         <button
           type="submit"
           disabled={!dirty || save.isPending}
-          className="inline-flex items-center gap-1.5 rounded-md border border-arise-violet/60 bg-arise-violet/20 px-3 py-1.5 text-xs font-medium text-ghost-white transition hover:bg-arise-violet/30 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-md border border-arcane/60 bg-arcane/20 px-3 py-1.5 text-xs font-medium text-ghost transition hover:bg-arcane/30 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Save size={12} strokeWidth={2} />
           {save.isPending && save.variables?.name === profile.name ? "Saving…" : "Save"}
         </button>
         {save.isSuccess && save.data?.profile.name === profile.name && !dirty ? (
-          <span className="text-xs text-mana-green">Saved ✓</span>
+          <span className="text-xs text-phase-done">Saved ✓</span>
         ) : null}
         {save.isError && save.variables?.name === profile.name ? (
-          <span className="text-xs text-ember-red">
+          <span className="text-xs text-blood">
             {save.error instanceof Error ? save.error.message : "Save failed"}
           </span>
         ) : null}
@@ -198,7 +198,7 @@ function ProfileCard({
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="space-y-1">
-      <span className="text-sm font-medium text-ghost-white">{label}</span>
+      <span className="text-sm font-medium text-ghost">{label}</span>
       {children}
     </div>
   );
