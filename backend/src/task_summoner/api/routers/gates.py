@@ -28,7 +28,7 @@ from task_summoner.api.schemas import (
     PrInfo,
 )
 from task_summoner.config import TaskSummonerConfig
-from task_summoner.core.state_machine import TERMINAL_STATES, InvalidTransitionError
+from task_summoner.core.state_machine import InvalidTransitionError
 from task_summoner.gates import (
     GateSignals,
     GateState,
@@ -257,13 +257,15 @@ async def post_approve(
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=f"gh pr merge failed: {e}") from e
 
-    # The merge went through — advance the FSM so the next poll doesn't find
-    # the ticket still WAITING_*_REVIEW, and pull Linear off the "Done" bucket
-    # that its own workflow automation just put it in. The ticket is only
-    # *actually* done after the final (code) PR merges.
+    # The merge went through — advance the FSM and drag Linear to match.
+    # We don't trust Linear's own PR-merge automation to put the issue in
+    # the right bucket: sometimes the PR-to-issue link is missing and the
+    # auto-flip never fires (ENG-164 smoke hit this), sometimes it fires
+    # for an intermediate gate and sends the ticket to Done too early.
+    # The FSM is the single source of truth — we tell Linear what it is.
     new_state = _advance_fsm_after_approve(request, ticket_key)
-    if new_state is not None and new_state not in TERMINAL_STATES:
-        await _restore_in_progress(config, ticket_key)
+    if new_state is not None:
+        await _align_linear_to_fsm(config, ticket_key, new_state)
 
     log.info(
         "Gate merged",
@@ -301,19 +303,51 @@ def _advance_fsm_after_approve(request: Request, ticket_key: str) -> TicketState
     return updated.state
 
 
-async def _restore_in_progress(config: TaskSummonerConfig, ticket_key: str) -> None:
-    """Flip Linear back to ``In Progress`` after a gate merge.
+# Which Linear status name each FSM state should be mirrored to after a
+# successful ``/approve``. Left-hand side is ``TicketState``; right-hand
+# side is a status *name* (boards customise the exact ID). The board
+# provider resolves the name to an ID at call time.
+#
+# Terminal state ``FAILED`` is intentionally absent — a failing ticket is
+# a human-decision moment and we don't want to silently push Linear into
+# a ``Canceled`` bucket without a review.
+_FSM_TO_LINEAR_STATUS: dict[TicketState, str] = {
+    TicketState.CREATING_DOC: "In Progress",
+    TicketState.WAITING_DOC_REVIEW: "In Progress",
+    TicketState.IMPROVING_DOC: "In Progress",
+    TicketState.PLANNING: "In Progress",
+    TicketState.WAITING_PLAN_REVIEW: "In Progress",
+    TicketState.IMPLEMENTING: "In Progress",
+    TicketState.WAITING_MR_REVIEW: "In Progress",
+    TicketState.FIXING_MR: "In Progress",
+    TicketState.DONE: "Done",
+}
 
-    Linear's own automation moves the issue to ``Done`` when its linked PR
-    merges. For non-terminal gates (doc review, plan review) the ticket still
-    has work ahead, so we revert. Best-effort — a transition failure logs and
-    continues because the orchestrator will re-attempt from its own loop.
+
+async def _align_linear_to_fsm(
+    config: TaskSummonerConfig, ticket_key: str, fsm_state: TicketState
+) -> None:
+    """Set the Linear status to match the FSM's authoritative phase.
+
+    Best-effort: the merge already succeeded and the FSM already advanced.
+    A Linear transition failure logs and continues so the orchestrator's
+    own poll loop can reconcile on the next tick.
     """
+    target = _FSM_TO_LINEAR_STATUS.get(fsm_state)
+    if target is None:
+        log.info("Skipping Linear transition", ticket=ticket_key, fsm_state=fsm_state.value)
+        return
     try:
         board = BoardProviderFactory.create(config.build_provider_config())
-        await board.transition(ticket_key, "In Progress")
+        await board.transition(ticket_key, target)
     except Exception as e:  # noqa: BLE001 — best-effort
-        log.warning("Linear restore-in-progress failed", ticket=ticket_key, error=str(e))
+        log.warning(
+            "Linear transition failed",
+            ticket=ticket_key,
+            target=target,
+            fsm_state=fsm_state.value,
+            error=str(e),
+        )
 
 
 @router.post("/{ticket_key}/request-changes", response_model=GateActionResponse)

@@ -66,6 +66,11 @@ export function GateCard({
 
   const isTerminal =
     !!gate.orchestrator_state && TERMINAL_ORCHESTRATOR_STATES.has(gate.orchestrator_state);
+  // FSM wins over inference for the chip on terminal states. Otherwise
+  // Linear-not-yet-caught-up races (e.g. the gate inference seeing a
+  // MERGED code PR before Linear flips to Done) can flash MANUAL_CHECK
+  // even though the orchestrator already closed out the ticket.
+  const chipState: typeof gate.state = gate.orchestrator_state === "DONE" ? "done" : gate.state;
   const canPreviewRfc = hasRfcArtifact(ticket.data?.metadata);
   const canPreviewPlan = hasPlanArtifact(ticket.data?.metadata, ticket.data?.mr_url);
 
@@ -77,7 +82,7 @@ export function GateCard({
   // headBranch), orchestrator fallback second (the URL the skill opened when
   // inference can't find it due to repo scope).
   const actionPrUrl = gate.active_pr?.url ?? gate.orchestrator_pr_url ?? null;
-  const chipClasses = GATE_CHIP_CLASSES[gate.state] ?? GATE_CHIP_CLASSES.manual_check;
+  const chipClasses = GATE_CHIP_CLASSES[chipState] ?? GATE_CHIP_CLASSES.manual_check;
 
   const onApprove = () => {
     if (!actionPrUrl) return;
@@ -107,14 +112,14 @@ export function GateCard({
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
               chipClasses,
             ].join(" ")}
-            data-gate-chip={gate.state}
+            data-gate-chip={chipState}
           >
-            {gate.state === "manual_check" ? (
+            {chipState === "manual_check" ? (
               <AlertTriangle size={12} strokeWidth={2} />
-            ) : gate.state === "done" ? (
+            ) : chipState === "done" ? (
               <CheckCircle2 size={12} strokeWidth={2} />
             ) : null}
-            {GATE_LABELS[gate.state] ?? gate.state}
+            {GATE_LABELS[chipState] ?? chipState}
           </span>
           <span className="text-xs text-soul-cyan/70">
             Linear: <code className="text-ghost-white/90">{gate.linear_status_name || "—"}</code>
@@ -156,7 +161,7 @@ export function GateCard({
         </p>
       ) : null}
 
-      {gate.state === "manual_check" && gate.reason ? (
+      {chipState === "manual_check" && gate.reason ? (
         <div className="flex items-start gap-2 rounded-md border border-ember-red/40 bg-ember-red/10 px-3 py-2 text-sm text-ember-red">
           <AlertTriangle size={14} strokeWidth={2} className="mt-0.5 shrink-0" />
           <span>{gate.reason}</span>
