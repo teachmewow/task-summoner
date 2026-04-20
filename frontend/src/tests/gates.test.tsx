@@ -3,9 +3,37 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { GateCard } from "~/components/GateCard";
 import type { GateResponse } from "~/lib/gates";
+import type { TicketContext } from "~/lib/issues";
 
-function wrap(ui: React.ReactElement) {
+/**
+ * Shape the ticket cache would have after a real ``useTicket`` fetch. We
+ * seed it directly via ``QueryClient.setQueryData`` so ``GateCard`` — which
+ * reads metadata for artifact-visibility decisions — sees the right thing
+ * without a network round-trip.
+ */
+function seedTicket(overrides: Partial<TicketContext> = {}): TicketContext {
+  return {
+    ticket_key: "ENG-95",
+    state: "WAITING_DOC_REVIEW",
+    created_at: "2026-04-19T00:00:00Z",
+    updated_at: "2026-04-19T00:00:00Z",
+    branch_name: "ENG-95-test",
+    workspace_path: null,
+    mr_url: null,
+    retry_count: 0,
+    total_cost_usd: 0,
+    error: null,
+    metadata: {},
+    ...overrides,
+  };
+}
+
+function wrap(ui: React.ReactElement, opts: { ticket?: Partial<TicketContext> } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (opts.ticket) {
+    const ticket = seedTicket(opts.ticket);
+    client.setQueryData(["tickets", ticket.ticket_key], ticket);
+  }
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
 
@@ -60,8 +88,8 @@ describe("GateCard", () => {
     expect(screen.getByText(/address-doc-feedback/)).toBeInTheDocument();
   });
 
-  it("shows Preview buttons whenever the artifact plausibly exists", () => {
-    // Doc-review gate: RFC exists; plan doesn't yet.
+  it("shows a Preview button only for artifacts the orchestrator actually drafted", () => {
+    // Doc-path ticket at the doc gate: metadata.rfc_pr_url set, no plan yet.
     const { unmount } = wrap(
       <GateCard
         issueKey="ENG-95"
@@ -69,12 +97,13 @@ describe("GateCard", () => {
         onRefresh={() => undefined}
         isRefreshing={false}
       />,
+      { ticket: { metadata: { rfc_pr_url: "https://github.com/x/docs/pull/1" } } },
     );
     expect(screen.getByRole("button", { name: /preview rfc/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /preview plan/i })).not.toBeInTheDocument();
     unmount();
 
-    // Plan-review gate: both RFC and plan exist on disk.
+    // Doc-path ticket at the plan gate: both artifacts are present.
     wrap(
       <GateCard
         issueKey="ENG-95"
@@ -86,8 +115,43 @@ describe("GateCard", () => {
         onRefresh={() => undefined}
         isRefreshing={false}
       />,
+      {
+        ticket: {
+          metadata: {
+            rfc_pr_url: "https://github.com/x/docs/pull/1",
+            plan_pr_url: "https://github.com/x/plug/pull/2",
+          },
+        },
+      },
     );
     expect(screen.getByRole("button", { name: /preview rfc/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /preview plan/i })).toBeInTheDocument();
+  });
+
+  it("hides Preview RFC on no-doc tickets (never drafted an RFC)", () => {
+    // No-doc path (``Doc`` label absent upstream) — the FSM went
+    // QUEUED → PLANNING directly, so ``rfc_pr_url`` was never set.
+    wrap(
+      <GateCard
+        issueKey="ENG-162"
+        gate={baseGate({
+          issue_key: "ENG-162",
+          orchestrator_state: "WAITING_PLAN_REVIEW",
+          state: "in_plan_review",
+          retry_skill: "ticket-plan",
+        })}
+        onRefresh={() => undefined}
+        isRefreshing={false}
+      />,
+      {
+        ticket: {
+          ticket_key: "ENG-162",
+          state: "WAITING_PLAN_REVIEW",
+          metadata: { plan_pr_url: "https://github.com/x/plug/pull/21" },
+        },
+      },
+    );
+    expect(screen.queryByRole("button", { name: /preview rfc/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /preview plan/i })).toBeInTheDocument();
   });
 
@@ -104,6 +168,16 @@ describe("GateCard", () => {
         onRefresh={() => undefined}
         isRefreshing={false}
       />,
+      {
+        ticket: {
+          state: "DONE",
+          mr_url: "https://github.com/x/plug/pull/20",
+          metadata: {
+            rfc_pr_url: "https://github.com/x/docs/pull/1",
+            plan_pr_url: "https://github.com/x/plug/pull/20",
+          },
+        },
+      },
     );
     // Stale "ready-for-review" summary must not leak after completion.
     expect(screen.queryByText(/ready-for-review/i)).not.toBeInTheDocument();
