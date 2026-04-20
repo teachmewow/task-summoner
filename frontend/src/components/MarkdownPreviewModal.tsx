@@ -104,7 +104,10 @@ export function MarkdownPreviewModal({
   return (
     <div
       data-markdown-preview-modal={kind}
+      // biome-ignore lint/a11y/useSemanticElements: we style/animate the backdrop ourselves; native <dialog> would require a broader refactor
+      role="dialog"
       aria-modal="true"
+      aria-labelledby={`markdown-preview-title-${kind}`}
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-6 backdrop-blur-sm"
     >
       <div
@@ -115,7 +118,12 @@ export function MarkdownPreviewModal({
             <p className="font-mono text-[10px] uppercase tracking-wider text-arcane">
               {label} preview
             </p>
-            <h2 className="mt-1 text-lg font-semibold text-ghost">{data?.title || issueKey}</h2>
+            <h2
+              id={`markdown-preview-title-${kind}`}
+              className="mt-1 text-lg font-semibold text-ghost"
+            >
+              {data?.title || issueKey}
+            </h2>
           </div>
           <div className="flex items-center gap-2">
             {prUrl ? (

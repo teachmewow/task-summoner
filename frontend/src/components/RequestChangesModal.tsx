@@ -34,7 +34,10 @@ export function RequestChangesModal({
     <div
       className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       data-modal="request-changes"
+      // biome-ignore lint/a11y/useSemanticElements: we style/animate the backdrop ourselves; native <dialog> would require a broader refactor
+      role="dialog"
       aria-modal="true"
+      aria-labelledby="request-changes-title"
     >
       <form
         onSubmit={(e) => {
@@ -44,7 +47,10 @@ export function RequestChangesModal({
         className="w-full max-w-lg rounded-2xl border border-rune-line-strong bg-obsidian-raised p-5 glow-arcane-soft"
       >
         <header className="flex items-center justify-between pb-3">
-          <h2 className="font-mono text-[10px] font-semibold uppercase tracking-wider text-arcane">
+          <h2
+            id="request-changes-title"
+            className="font-mono text-[10px] font-semibold uppercase tracking-wider text-arcane"
+          >
             Request changes
           </h2>
           <button
