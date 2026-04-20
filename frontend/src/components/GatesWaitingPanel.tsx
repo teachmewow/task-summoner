@@ -5,6 +5,11 @@ import { useTickets } from "~/lib/issues";
 import { PlanPreviewModal } from "./PlanPreviewModal";
 import { RfcPreviewModal } from "./RfcPreviewModal";
 
+// The ``prUrl`` field on each preview modal is resolved *inside* the modal
+// from ``TicketContext.metadata`` — this panel no longer threads it through
+// as a prop. Kept here as a comment so future readers don't wonder why the
+// list rows don't pre-compute the URL.
+
 /**
  * Monitor-page sidebar that tracks tickets parked at a human-approval gate.
  *
@@ -27,7 +32,6 @@ interface WaitingEntry {
   state: string;
   label: string;
   artifact: "rfc" | "plan";
-  prUrl: string | null;
 }
 
 const STATE_LABELS: Record<string, { label: string; artifact: "rfc" | "plan" }> = {
@@ -35,15 +39,6 @@ const STATE_LABELS: Record<string, { label: string; artifact: "rfc" | "plan" }> 
   WAITING_PLAN_REVIEW: { label: "Plan review", artifact: "plan" },
   WAITING_MR_REVIEW: { label: "Code review", artifact: "plan" },
 };
-
-// Extracts the PR URL the gate action would operate on, mirroring the
-// backend's ``_orchestrator_pr_url`` priority table so UI + server agree.
-function prUrlFor(state: string, metadata: Record<string, unknown> | undefined): string | null {
-  if (!metadata) return null;
-  const key = state === "WAITING_DOC_REVIEW" ? "rfc_pr_url" : "plan_pr_url";
-  const v = metadata[key];
-  return typeof v === "string" && v.length > 0 ? v : null;
-}
 
 export function GatesWaitingPanel() {
   const { data, isLoading, isError, error } = useTickets();
@@ -55,15 +50,12 @@ export function GatesWaitingPanel() {
       .filter((t) => t.state in STATE_LABELS)
       .map((t) => {
         const meta = STATE_LABELS[t.state];
-        // `t.state in STATE_LABELS` guarantees this lookup is defined; the
-        // `!` is a sanity-check, not a cast over a real maybe.
         if (!meta) throw new Error(`unreachable: state ${t.state} missing from labels`);
         return {
           ticketKey: t.ticket_key,
           state: t.state,
           label: meta.label,
           artifact: meta.artifact,
-          prUrl: prUrlFor(t.state, t.metadata as Record<string, unknown> | undefined),
         };
       });
   }, [data]);
@@ -134,13 +126,11 @@ export function GatesWaitingPanel() {
         issueKey={preview?.ticketKey ?? ""}
         open={preview?.artifact === "rfc"}
         onClose={() => setPreview(null)}
-        prUrl={preview?.prUrl ?? null}
       />
       <PlanPreviewModal
         issueKey={preview?.ticketKey ?? ""}
         open={preview?.artifact === "plan"}
         onClose={() => setPreview(null)}
-        prUrl={preview?.prUrl ?? null}
       />
     </aside>
   );

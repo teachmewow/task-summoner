@@ -117,9 +117,10 @@ export function MarkdownPreviewModal({
                 href={prUrl}
                 target="_blank"
                 rel="noreferrer"
+                data-preview-action="open-github"
                 className="inline-flex items-center gap-1 rounded-md border border-shadow-purple/60 bg-void-800 px-2 py-1 text-xs text-soul-cyan hover:border-arise-violet/50 hover:text-ghost-white"
               >
-                View PR
+                Open in GitHub
                 <ExternalLink size={10} strokeWidth={2} />
               </a>
             ) : null}

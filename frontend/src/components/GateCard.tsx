@@ -323,14 +323,12 @@ export function GateCard({
         issueKey={issueKey}
         open={rfcPreviewOpen}
         onClose={() => setRfcPreviewOpen(false)}
-        prUrl={gate.orchestrator_pr_url ?? gate.active_pr?.url ?? null}
       />
 
       <PlanPreviewModal
         issueKey={issueKey}
         open={planPreviewOpen}
         onClose={() => setPlanPreviewOpen(false)}
-        prUrl={gate.orchestrator_pr_url ?? gate.active_pr?.url ?? null}
       />
     </section>
   );
