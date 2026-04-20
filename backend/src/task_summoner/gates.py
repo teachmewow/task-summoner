@@ -597,6 +597,15 @@ async def merge_pr(pr_url: str) -> str:
         # — nothing left to do.
         if "already merged" in msg or "is closed" in msg:
             return f"Pull request {pr_url} already merged"
+        # Worktree still has the PR branch checked out: the remote merge
+        # + remote-branch-delete both succeeded, but ``--delete-branch``
+        # also tries to drop the local branch and git refuses because
+        # our orchestrator keeps the branch checked out at
+        # ``/tmp/task-summoner-workspaces/<key>`` until the ticket
+        # transitions to DONE. The local cleanup is deferred to the
+        # state-exit hook; remote is what matters for FSM advancement.
+        if "failed to delete local branch" in msg:
+            return f"Pull request {pr_url} merged (local branch cleanup deferred to worktree teardown)"
         raise
 
 

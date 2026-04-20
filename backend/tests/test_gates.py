@@ -423,6 +423,34 @@ class TestMergePr:
         out = await gates_mod.merge_pr("https://github.com/tmw/x/pull/80")
         assert "already merged" in out
 
+    async def test_merge_local_branch_delete_fails_but_remote_succeeded(
+        self, monkeypatch
+    ):
+        """Remote merge + remote-branch-delete OK, local branch pinned by worktree.
+
+        Reproduces the ENG-191 smoke: ``gh pr merge --delete-branch`` exits
+        non-zero because git can't delete the local branch (still checked out
+        at the orchestrator's worktree), even though the remote merge
+        already succeeded. The orchestrator tears down the worktree when
+        the ticket transitions to DONE — we just need to let the FSM
+        advance past the gate.
+        """
+        from task_summoner import gates as gates_mod
+
+        async def fake_run(cmd, *, timeout_sec):
+            if "ready" in cmd:
+                return "ok"
+            raise RuntimeError(
+                "Subprocess failed (exit 1): failed to delete local branch "
+                "ENG-191-smoke-add-smoke-verified: failed to run git: error: "
+                "Cannot delete branch 'ENG-191-smoke-add-smoke-verified' "
+                "checked out at '/private/tmp/task-summoner-workspaces/ENG-191'"
+            )
+
+        monkeypatch.setattr(gates_mod, "run_cli", fake_run)
+        out = await gates_mod.merge_pr("https://github.com/tmw/x/pull/82")
+        assert "local branch cleanup deferred" in out
+
 
 class TestLoadContext:
     """``_load_context`` is the shared ctx reader for gate enrichment fields."""
