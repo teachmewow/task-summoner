@@ -30,7 +30,7 @@ export function renderGroupedItem(entry: GroupedItem, idx: number): ReactNode {
         <li
           key={key}
           data-timeline-error
-          className="rounded-md border border-ember-red/50 bg-ember-red/10 p-3 text-xs text-ember-red"
+          className="rounded-md border border-blood/50 bg-blood/10 p-3 text-xs text-blood"
         >
           <span className="mr-1 inline-flex items-center gap-1 font-semibold">
             <AlertTriangle size={12} strokeWidth={2} />
@@ -44,7 +44,7 @@ export function renderGroupedItem(entry: GroupedItem, idx: number): ReactNode {
         <li
           key={key}
           data-timeline-completed
-          className="flex items-center gap-2 rounded-md border border-mana-green/30 bg-mana-green/5 p-2 text-xs text-mana-green"
+          className="flex items-center gap-2 rounded-md border border-phase-done/40 bg-phase-done/5 p-2 text-xs text-phase-done"
         >
           <CheckCircle2 size={12} strokeWidth={2} />
           {entry.success ? "Dispatch completed" : "Dispatch ended with failure"}
@@ -62,12 +62,9 @@ export function renderGroupedItem(entry: GroupedItem, idx: number): ReactNode {
 function MessageCard({ agent, content }: { agent: string; content: string }) {
   const html = content ? (marked.parse(content, { gfm: true, breaks: false }) as string) : "";
   return (
-    <li
-      data-timeline-message
-      className="rounded-md border border-shadow-purple/50 bg-void-900/40 p-3"
-    >
+    <li data-timeline-message className="rounded-md border border-rune-line-strong bg-vault/40 p-3">
       {agent ? (
-        <p className="mb-1 text-[10px] uppercase tracking-wider text-arise-violet-bright/80">
+        <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-arcane/80">
           {agent}
         </p>
       ) : null}
@@ -75,10 +72,10 @@ function MessageCard({ agent, content }: { agent: string; content: string }) {
         <div
           // biome-ignore lint/security/noDangerouslySetInnerHtml: rendering trusted agent output
           dangerouslySetInnerHTML={{ __html: html }}
-          className="prose-rfc max-w-none text-sm text-soul-cyan/90"
+          className="prose-rfc max-w-none text-sm text-ghost/90"
         />
       ) : (
-        <p className="text-xs text-soul-cyan/60">(empty message)</p>
+        <p className="text-xs text-ghost-dim">(empty message)</p>
       )}
     </li>
   );

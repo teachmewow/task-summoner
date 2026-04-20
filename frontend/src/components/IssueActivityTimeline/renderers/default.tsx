@@ -2,10 +2,9 @@ import type { ToolItem } from "../types";
 import type { ToolRenderer } from "./types";
 
 /**
- * Fallback renderer — the pre-ENG-132 generic behaviour for any tool whose
- * name isn't in the registry. Shows a one-line summary pulled from common
- * input keys (path, command, pattern, url) and the full JSON payload in the
- * expandable body.
+ * Fallback renderer for any tool whose name isn't in the registry. Shows a
+ * one-line summary pulled from common input keys (path, command, pattern,
+ * url) and the full JSON payload in the expandable body.
  */
 export const renderDefault: ToolRenderer = (event) => {
   const summary = summariseToolInput(event.toolName, event.toolInput);
@@ -13,8 +12,8 @@ export const renderDefault: ToolRenderer = (event) => {
     defaultCollapsed: true,
     header: (
       <>
-        <span className="font-semibold text-ghost-white">{event.toolName}</span>
-        {summary ? <span className="truncate text-soul-cyan/70">{summary}</span> : null}
+        <span className="font-semibold text-ghost">{event.toolName}</span>
+        {summary ? <span className="truncate text-ghost-dim">{summary}</span> : null}
       </>
     ),
     body: <DefaultToolBody event={event} />,
@@ -25,21 +24,17 @@ function DefaultToolBody({ event }: { event: ToolItem }) {
   return (
     <>
       <div className="mb-2">
-        <p className="mb-1 text-[10px] uppercase tracking-wider text-arise-violet-bright/70">
-          Input
-        </p>
-        <pre className="overflow-x-auto rounded border border-shadow-purple/40 bg-void-900/60 p-2 text-[11px] text-soul-cyan/90">
+        <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-arcane/70">Input</p>
+        <pre className="overflow-x-auto rounded border border-rune-line bg-vault/60 p-2 text-[11px] text-ghost/90">
           {JSON.stringify(event.toolInput ?? {}, null, 2)}
         </pre>
       </div>
       <div>
-        <p className="mb-1 text-[10px] uppercase tracking-wider text-arise-violet-bright/70">
-          Result
-        </p>
+        <p className="mb-1 font-mono text-[10px] uppercase tracking-wider text-arcane/70">Result</p>
         {event.running ? (
-          <p className="text-soul-cyan/60">Waiting for result…</p>
+          <p className="text-ghost-dim">Waiting for result…</p>
         ) : (
-          <pre className="overflow-x-auto rounded border border-shadow-purple/40 bg-void-900/60 p-2 text-[11px] text-soul-cyan/90 whitespace-pre-wrap">
+          <pre className="overflow-x-auto whitespace-pre-wrap rounded border border-rune-line bg-vault/60 p-2 text-[11px] text-ghost/90">
             {event.toolResult ?? "(no output)"}
           </pre>
         )}

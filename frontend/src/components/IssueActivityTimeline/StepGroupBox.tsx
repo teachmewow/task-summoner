@@ -18,7 +18,7 @@ import type { StepGroup } from "./types";
  * Timeline's vertical ley-line. The marker dot is phase-colored (doc =
  * amber, plan = violet, implement = cyan) via the same
  * ``phaseFromOrchestratorState`` helper the PhaseStrip and TicketCard
- * use. Failed steps overlay an ember warning; done steps a mana-green
+ * use. Failed steps overlay an ember warning; done steps a phase-done
  * check. Anchor position (``left: -12px``) sits the dot flush against
  * the rail in ``Timeline/index.tsx``.
  */
