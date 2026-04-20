@@ -671,10 +671,18 @@ class TestGateApproveFsmAdvance:
         # Linear auto-flips to Done on PR merge; we overrode that here.
         assert transitions == [("ENG-146", "In Progress")]
 
-    def test_approve_skips_restore_on_terminal_state(
+    def test_approve_forces_linear_to_done_on_terminal_transition(
         self, app_and_store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
-        """Final gate (code PR merge) transitions to DONE — Linear stays Done."""
+        """Final gate (code PR merge) → FSM=DONE → force Linear "Done".
+
+        Previously we relied on Linear's own PR-merge automation to flip
+        the issue to Done. When the PR-to-issue link is absent the
+        auto-flip doesn't fire (ENG-164 smoke), the ticket sits at
+        ``In Review``, and the gate endpoint complains about the mismatch.
+        The orchestrator is authoritative — it tells Linear what state to
+        be in.
+        """
         from task_summoner.api.routers import gates as gates_router
 
         client, _ = app_and_store
@@ -704,8 +712,8 @@ class TestGateApproveFsmAdvance:
         assert r.status_code == 200, r.text
 
         assert store.load("ENG-200").state is TicketState.DONE
-        # Real "done" — don't drag Linear back to In Progress.
-        assert transitions == []
+        # FSM is the source of truth: Linear MUST be flipped to "Done".
+        assert transitions == [("ENG-200", "Done")]
 
 
 class TestLinearTeamsLookup:

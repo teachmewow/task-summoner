@@ -155,6 +155,38 @@ describe("GateCard", () => {
     expect(screen.getByRole("button", { name: /preview plan/i })).toBeInTheDocument();
   });
 
+  it("chip reads Done when FSM is DONE even if inference says manual_check", () => {
+    // Resilience: gate inference can flash MANUAL_CHECK when Linear
+    // hasn't caught up to the merged code PR. The orchestrator state
+    // is the source of truth — the chip must say "Done" and the red
+    // banner must not render.
+    wrap(
+      <GateCard
+        issueKey="ENG-95"
+        gate={baseGate({
+          orchestrator_state: "DONE",
+          state: "manual_check",
+          reason: "Code PR is merged but Linear state is 'In Review'.",
+        })}
+        onRefresh={() => undefined}
+        isRefreshing={false}
+      />,
+      {
+        ticket: {
+          state: "DONE",
+          mr_url: "https://github.com/x/plug/pull/24",
+          metadata: {
+            rfc_pr_url: "https://github.com/x/docs/pull/1",
+            plan_pr_url: "https://github.com/x/plug/pull/24",
+          },
+        },
+      },
+    );
+    expect(screen.getByText(/^Done$/)).toBeInTheDocument();
+    expect(screen.queryByText(/Manual check needed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Code PR is merged but Linear state/i)).not.toBeInTheDocument();
+  });
+
   it("hides summary + action buttons when the ticket is DONE", () => {
     wrap(
       <GateCard
